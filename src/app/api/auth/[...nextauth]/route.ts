@@ -28,7 +28,7 @@ export const authOptions: AuthOptions = {
         email: { label: 'Email', type: 'email' },
         password: { label: 'Password', type: 'password' },
       },
-      async authorize(credentials) {
+      async authorize(credentials, req) {
         if (!credentials?.email || !credentials?.password) {
           return null;
         }
@@ -58,7 +58,7 @@ export const authOptions: AuthOptions = {
           name: user.name,
           image: user.image,
           role: user.role,
-          tradingviewUsername: user.tradingviewUsername,
+          tradingviewUsername: user.tradingviewUsername ?? undefined,
         };
       },
     }),
