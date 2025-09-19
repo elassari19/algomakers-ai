@@ -6,6 +6,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { signIn } from 'next-auth/react';
 import { Eye, EyeOff, Mail, Lock } from 'lucide-react';
+import Link from 'next/link';
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -124,26 +125,22 @@ export function AuthForm({
 
   return (
     <Card className={className}>
-      <CardHeader className="space-y-1">
-        <CardTitle className="text-2xl text-center">
+      <CardHeader className="space-y-1 p-0 pb-6">
+        <CardTitle className="text-2xl text-center text-white">
           {isLogin ? 'Welcome back' : 'Create account'}
         </CardTitle>
-        <CardDescription className="text-center">
-          {isLogin
-            ? 'Enter your credentials to access your account'
-            : 'Enter your information to create your account'}
-        </CardDescription>
       </CardHeader>
-      <CardContent className="space-y-4">
+      <CardContent className="space-y-4 p-0">
+        {/* Rest of content */}
         <SocialLoginButtons onError={onError} isLoading={isLoading} />
 
         <div className="relative">
           <div className="absolute inset-0 flex items-center">
-            <span className="w-full border-t" />
+            <span className="w-full border-t border-slate-600" />
           </div>
           <div className="relative flex justify-center text-xs uppercase">
-            <span className="bg-background px-2 text-muted-foreground">
-              Or continue with
+            <span className="bg-black px-2 text-slate-400">
+              Or continue with email
             </span>
           </div>
         </div>
@@ -175,13 +172,15 @@ export function AuthForm({
               name="email"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Email</FormLabel>
+                  <FormLabel className="text-slate-200">
+                    Email address
+                  </FormLabel>
                   <FormControl>
                     <div className="relative">
-                      <Mail className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+                      <Mail className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
                       <Input
-                        placeholder="john@example.com"
-                        className="pl-10"
+                        placeholder="Enter your email"
+                        className="pl-10 bg-slate-800/50 border-slate-600 text-white placeholder:text-slate-400 focus:border-blue-500 focus:ring-blue-500/20"
                         type="email"
                         {...field}
                         disabled={isLoading}
@@ -198,14 +197,14 @@ export function AuthForm({
               name="password"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Password</FormLabel>
+                  <FormLabel className="text-slate-200">Password</FormLabel>
                   <FormControl>
                     <div className="relative">
-                      <Lock className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+                      <Lock className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
                       <Input
                         type={showPassword ? 'text' : 'password'}
-                        placeholder="••••••••"
-                        className="pl-10 pr-10"
+                        placeholder="Enter your password"
+                        className="pl-10 pr-10 bg-slate-800/50 border-slate-600 text-white placeholder:text-slate-400 focus:border-blue-500 focus:ring-blue-500/20"
                         {...field}
                         disabled={isLoading}
                       />
@@ -213,7 +212,7 @@ export function AuthForm({
                         type="button"
                         variant="ghost"
                         size="icon"
-                        className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
+                        className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent text-slate-400 hover:text-slate-200"
                         onClick={() => setShowPassword(!showPassword)}
                         disabled={isLoading}
                       >
@@ -272,44 +271,30 @@ export function AuthForm({
               />
             )}
 
-            <Button type="submit" className="w-full" disabled={isLoading}>
+            {isLogin && (
+              <div className="flex items-center justify-between">
+                <Link
+                  href="/forgot-password"
+                  className="text-sm text-blue-400 hover:text-blue-300 transition-colors"
+                >
+                  Forgot password?
+                </Link>
+              </div>
+            )}
+
+            <Button
+              type="submit"
+              className="w-full bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white font-medium py-2.5 transition-all duration-200"
+              disabled={isLoading}
+            >
               {isLoading
                 ? 'Please wait...'
                 : isLogin
-                ? 'Sign In'
+                ? 'Sign in'
                 : 'Create Account'}
             </Button>
           </form>
         </Form>
-
-        <div className="text-center text-sm">
-          <span className="text-muted-foreground">
-            {isLogin ? "Don't have an account?" : 'Already have an account?'}
-          </span>{' '}
-          <Button
-            variant="link"
-            className="p-0 h-auto font-normal"
-            onClick={() => onModeChange?.(isLogin ? 'signup' : 'login')}
-            disabled={isLoading}
-          >
-            {isLogin ? 'Sign up' : 'Sign in'}
-          </Button>
-        </div>
-
-        {isLogin && (
-          <div className="text-center">
-            <Button
-              variant="link"
-              className="p-0 h-auto font-normal text-sm"
-              onClick={() => {
-                /* Handle forgot password */
-              }}
-              disabled={isLoading}
-            >
-              Forgot your password?
-            </Button>
-          </div>
-        )}
       </CardContent>
     </Card>
   );
