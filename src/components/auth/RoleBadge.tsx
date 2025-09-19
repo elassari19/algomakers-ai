@@ -76,7 +76,7 @@ const roleConfig: Record<
 interface RoleBadgeProps
   extends Omit<React.HTMLAttributes<HTMLDivElement>, 'role'>,
     VariantProps<typeof roleBadgeVariants> {
-  role: UserRole;
+  role: UserRole | undefined | null;
   showIcon?: boolean;
   showTooltip?: boolean;
 }
@@ -89,13 +89,15 @@ export function RoleBadge({
   className,
   ...props
 }: RoleBadgeProps) {
-  const config = roleConfig[role];
+  // Fallback to 'user' if role is undefined, null, or invalid
+  const validRole: UserRole = isValidRole(role) ? role : 'user';
+  const config = roleConfig[validRole];
   const IconComponent = config.icon;
 
   return (
     <Badge
       variant="outline"
-      className={cn(roleBadgeVariants({ role, size }), className)}
+      className={cn(roleBadgeVariants({ role: validRole, size }), className)}
       title={showTooltip ? config.description : undefined}
       {...props}
     >
@@ -103,6 +105,11 @@ export function RoleBadge({
       <span>{config.label}</span>
     </Badge>
   );
+}
+
+// Helper function to validate if a role is valid
+export function isValidRole(role: any): role is UserRole {
+  return typeof role === 'string' && role in roleConfig;
 }
 
 // Helper function to get role hierarchy for comparison

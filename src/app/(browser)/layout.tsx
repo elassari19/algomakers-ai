@@ -6,7 +6,7 @@ import {
   SidebarTrigger,
 } from '@/components/ui/sidebar';
 import { SearchInput } from '@/components/SearchInput';
-import { NavUser } from '../../components/nav-user';
+import { UserAvatarMenu } from '@/components/auth/UserAvatarMenu';
 
 export default function BrowserLayout({
   children,
@@ -26,13 +26,7 @@ export default function BrowserLayout({
             />
             <div className="flex-1 flex items-center justify-between gap-3">
               <SearchInput />
-              <NavUser
-                user={{
-                  name: 'John Doe',
-                  email: 'john.doe@example.com',
-                  avatar: '/avatars/shadcn.jpg',
-                }}
-              />
+              <UserAvatarMenu showName={true} size="default" className="ml-2" />
             </div>
           </div>
         </header>

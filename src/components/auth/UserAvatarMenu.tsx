@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { signOut, useSession } from 'next-auth/react';
 import {
   User,
@@ -52,8 +52,19 @@ export function UserAvatarMenu({
   const { data: session } = useSession();
   const { setTheme, theme } = useTheme();
   const [isSigningOut, setIsSigningOut] = useState(false);
+  const [mounted, setMounted] = useState(false);
+
+  // Fix hydration issues
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const user = session?.user as ExtendedUser;
+
+  // Don't render until mounted to avoid hydration mismatch
+  if (!mounted) {
+    return null;
+  }
 
   if (!user) {
     return null;
@@ -180,32 +191,6 @@ export function UserAvatarMenu({
         </DropdownMenuGroup>
 
         <DropdownMenuSeparator />
-
-        <DropdownMenuSub>
-          <DropdownMenuSubTrigger>
-            <Monitor className="mr-2 h-4 w-4" />
-            <span>Theme</span>
-          </DropdownMenuSubTrigger>
-          <DropdownMenuPortal>
-            <DropdownMenuSubContent>
-              <DropdownMenuItem onClick={() => setTheme('light')}>
-                <Sun className="mr-2 h-4 w-4" />
-                <span>Light</span>
-                {theme === 'light' && <span className="ml-auto">✓</span>}
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => setTheme('dark')}>
-                <Moon className="mr-2 h-4 w-4" />
-                <span>Dark</span>
-                {theme === 'dark' && <span className="ml-auto">✓</span>}
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => setTheme('system')}>
-                <Monitor className="mr-2 h-4 w-4" />
-                <span>System</span>
-                {theme === 'system' && <span className="ml-auto">✓</span>}
-              </DropdownMenuItem>
-            </DropdownMenuSubContent>
-          </DropdownMenuPortal>
-        </DropdownMenuSub>
 
         <DropdownMenuSeparator />
 
