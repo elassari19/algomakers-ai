@@ -75,22 +75,25 @@
 
 ---
 
-### 7. Reporting & Analytics (`/admin/reports`)
+### 7. Backtest Data Management (`/admin/backtests`)
+
+- [ ] Upload backtest Excel/CSV files with validation
+- [ ] Parse and validate backtest data (trades, equity curve, metrics)
+- [ ] Create/edit trading pairs with backtest data
+- [ ] Preview backtest charts before publishing
+- [ ] Bulk upload multiple backtests
+- [ ] Data validation rules (required columns, date formats, etc.)
+- [ ] Error handling for invalid data
+- [ ] Audit trail for backtest uploads/modifications
+
+---
+
+### 8. Reporting & Analytics (`/admin/reports`)
 
 - [ ] KPI cards (MRR, churn, ARPU, active subs)
 - [ ] Charts: subscriptions by pair, new vs renewal, revenue trend
 - [ ] Failed/underpaid payments table
 - [ ] CSV export (subscriptions, payments, revenue)
-
----
-
-### 8. Affiliate Program (`/affiliate`)
-
-- [ ] Public info page (how it works, commission structure)
-- [ ] Refersion integration for tracking/payouts
-- [ ] Affiliate dashboard (stats, referral link, performance, payouts)
-- [ ] Resources (banners, FAQ)
-- [ ] Prevent self-referrals, duplicate commissions
 
 ---
 
