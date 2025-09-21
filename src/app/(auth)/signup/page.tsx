@@ -39,12 +39,25 @@ export default function SignUpPage() {
 
         {/* Right side - Sign up form */}
         <div className="w-full lg:w-[45%] bg-black flex items-center justify-center p-4 sm:p-6 lg:p-8">
-          <div className="w-full max-w-md">
+          <div className="w-full max-w-md space-y-2">
+            {/* Logo */}
+            <div className="text-center">
+              <div className="mx-auto h-12 flex items-center justify-center">
+                <Image
+                  src="/logo.svg"
+                  alt="Algo markers"
+                  width={24}
+                  height={24}
+                  className="h-20 w-60 object-contain"
+                />
+              </div>
+            </div>
+
             <AuthForm
               mode="signup"
               onSuccess={handleSuccess}
               onError={handleError}
-              className="bg-transparent border-0 shadow-none"
+              className="bg-transparent border-0 shadow-none m-0"
             />
             <div className="text-center">
               <p className="text-slate-400">

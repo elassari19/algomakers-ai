@@ -28,6 +28,7 @@ import {
 } from '@/components/ui/form';
 import { SocialLoginButtons } from './SocialLoginButtons';
 import { PasswordStrengthMeter } from './PasswordStrengthMeter';
+import { TradingViewUsernameField } from './TradingViewUsernameField';
 
 const loginSchema = z.object({
   email: z.string().email('Please enter a valid email address'),
@@ -45,6 +46,22 @@ const signupSchema = z
       .regex(/[0-9]/, 'Password must contain at least one number'),
     confirmPassword: z.string(),
     name: z.string().min(2, 'Name must be at least 2 characters'),
+    tradingViewUsername: z
+      .string()
+      .min(3, 'TradingView username must be at least 3 characters')
+      .max(15, 'TradingView username must be at most 15 characters')
+      .regex(
+        /^[a-zA-Z0-9_-]+$/,
+        'Username can only contain letters, numbers, underscores, and hyphens'
+      )
+      .regex(
+        /^[a-zA-Z0-9].*[a-zA-Z0-9]$|^[a-zA-Z0-9]$/,
+        'Username cannot start or end with underscore or hyphen'
+      )
+      .regex(
+        /^(?!.*[_-]{2,}).*$/,
+        'Username cannot have consecutive special characters'
+      ),
   })
   .refine((data) => data.password === data.confirmPassword, {
     message: "Passwords don't match",
@@ -81,7 +98,9 @@ export function AuthForm({
     defaultValues: {
       email: '',
       password: '',
-      ...(isLogin ? {} : { confirmPassword: '', name: '' }),
+      ...(isLogin
+        ? {}
+        : { confirmPassword: '', name: '', tradingViewUsername: '' }),
     },
   });
 
@@ -125,7 +144,7 @@ export function AuthForm({
 
   return (
     <Card className={className}>
-      <CardHeader className="space-y-1 p-0 pb-6">
+      <CardHeader className="space-y-1 p-0 pb-2">
         <CardTitle className="text-2xl text-center text-white">
           {isLogin ? 'Welcome back' : 'Create account'}
         </CardTitle>
@@ -157,6 +176,29 @@ export function AuthForm({
                     <FormControl>
                       <Input
                         placeholder="John Doe"
+                        {...field}
+                        disabled={isLoading}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            )}
+
+            {!isLogin && (
+              <FormField
+                control={form.control}
+                name="tradingViewUsername"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="text-slate-200">
+                      TradingView Username
+                    </FormLabel>
+                    <FormControl>
+                      <TradingViewUsernameField
+                        placeholder="Enter your TradingView username"
+                        className="bg-slate-800/50 border-slate-600 text-white placeholder:text-slate-400 focus:border-blue-500 focus:ring-blue-500/20"
                         {...field}
                         disabled={isLoading}
                       />

@@ -122,41 +122,58 @@ export function SocialLoginButtons({
     providers.includes(provider.id)
   );
 
+  const googleProvider = filteredProviders.find((p) => p.id === 'google');
+  const otherProviders = filteredProviders.filter((p) => p.id !== 'google');
+
+  const renderButton = (provider: SocialProvider, isInFlex = false) => {
+    const Icon = provider.icon;
+    const isProviderLoading = loadingProvider === provider.id;
+    const disabled = isLoading || Boolean(loadingProvider);
+
+    return (
+      <Button
+        key={provider.id}
+        type="button"
+        variant="outline"
+        size="lg"
+        className={cn(
+          isInFlex ? 'flex-1' : 'w-full',
+          'relative cursor-pointer transition-all duration-200',
+          provider.bgColor,
+          provider.hoverColor,
+          provider.textColor,
+          disabled && 'opacity-50 cursor-not-allowed'
+        )}
+        onClick={() => handleSocialLogin(provider.id)}
+        disabled={disabled}
+      >
+        <Icon
+          className={cn('h-4 w-4', isInFlex ? 'mr-2' : 'absolute left-4')}
+        />
+        {isProviderLoading ? (
+          <div className="flex items-center space-x-2">
+            <div className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
+            <span>Connecting...</span>
+          </div>
+        ) : (
+          showLabels &&
+          (isInFlex ? provider.name : `Continue with ${provider.name}`)
+        )}
+      </Button>
+    );
+  };
+
   return (
     <div className={cn('space-y-3', className)}>
-      {filteredProviders.map((provider) => {
-        const Icon = provider.icon;
-        const isProviderLoading = loadingProvider === provider.id;
-        const disabled = isLoading || Boolean(loadingProvider);
+      {/* Google button on its own row */}
+      {googleProvider && renderButton(googleProvider)}
 
-        return (
-          <Button
-            key={provider.id}
-            type="button"
-            variant="outline"
-            size="lg"
-            className={cn(
-              'w-full relative cursor-pointer transition-all duration-200',
-              provider.bgColor,
-              provider.hoverColor,
-              provider.textColor,
-              disabled && 'opacity-50 cursor-not-allowed'
-            )}
-            onClick={() => handleSocialLogin(provider.id)}
-            disabled={disabled}
-          >
-            <Icon className="absolute left-4 h-4 w-4" />
-            {isProviderLoading ? (
-              <div className="flex items-center space-x-2">
-                <div className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
-                <span>Connecting...</span>
-              </div>
-            ) : (
-              showLabels && `Continue with ${provider.name}`
-            )}
-          </Button>
-        );
-      })}
+      {/* Other providers in a flex row */}
+      {otherProviders.length > 0 && (
+        <div className="flex gap-3">
+          {otherProviders.map((provider) => renderButton(provider, true))}
+        </div>
+      )}
     </div>
   );
 }
