@@ -48,8 +48,14 @@ function SignInForm() {
         <div className="w-full max-w-md space-y-8">
           {/* Logo */}
           <div className="text-center">
-            <div className="mx-auto h-12 w-12 rounded-lg bg-gradient-to-r from-blue-500 to-purple-600 flex items-center justify-center">
-              <span className="text-white font-bold text-xl">A</span>
+            <div className="mx-auto h-12 flex items-center justify-center">
+              <Image
+                src="/logo.svg"
+                alt="Algo markers"
+                width={24}
+                height={24}
+                className="h-20 w-60 object-contain"
+              />
             </div>
           </div>
 

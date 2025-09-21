@@ -174,9 +174,6 @@ export function ForgotPasswordForm({
         <CardTitle className="text-2xl text-center text-white">
           Forgot password?
         </CardTitle>
-        <CardDescription className="text-center text-slate-400">
-          Enter your email address and we'll send you a new temporary password.
-        </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4 p-0">
         <Form {...form}>
