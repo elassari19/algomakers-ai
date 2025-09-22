@@ -248,20 +248,25 @@ const mockPairs = [
 ];
 
 interface DashboardPageProps {
-  searchParams: {
+  searchParams: Promise<{
     search?: string;
     filter?: string;
     page?: string;
     limit?: string;
-  };
+  }>;
 }
 
-export default function DashboardPage({ searchParams }: DashboardPageProps) {
+export default async function DashboardPage({
+  searchParams,
+}: DashboardPageProps) {
+  // Await the searchParams promise
+  const params = await searchParams;
+
   // Extract URL params with defaults
-  const searchQuery = searchParams.search || '';
-  const filterBy = searchParams.filter || 'all';
-  const currentPage = parseInt(searchParams.page || '1');
-  const itemsPerPage = parseInt(searchParams.limit || '10');
+  const searchQuery = params.search || '';
+  const filterBy = params.filter || 'all';
+  const currentPage = parseInt(params.page || '1');
+  const itemsPerPage = parseInt(params.limit || '10');
 
   // Mock user state - replace with real auth
   const isUserLoggedIn = true;
