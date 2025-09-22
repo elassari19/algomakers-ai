@@ -7,11 +7,13 @@ import {
   invitePendingEmail,
   inviteCompletedEmail,
   renewalReminderEmail,
+  passwordResetEmail,
   type WelcomeEmailParams,
   type PaymentReceiptEmailParams,
   type InvitePendingEmailParams,
   type InviteCompletedEmailParams,
   type RenewalReminderEmailParams,
+  type PasswordResetEmailParams,
 } from '@/lib/email-template';
 
 // Email request schema
@@ -74,6 +76,15 @@ const sendEmailSchema = z.discriminatedUnion('template', [
     }) satisfies z.ZodType<RenewalReminderEmailParams>,
   }),
   z.object({
+    template: z.literal('password_reset'),
+    to: z.string().email(),
+    params: z.object({
+      firstName: z.string(),
+      resetUrl: z.string(),
+      expiryTime: z.string(),
+    }) satisfies z.ZodType<PasswordResetEmailParams>,
+  }),
+  z.object({
     template: z.literal('custom'),
     to: z.string().email(),
     subject: z.string(),
@@ -103,6 +114,9 @@ function generateEmailContent(request: SendEmailRequest) {
 
     case 'renewal_reminder':
       return renewalReminderEmail(request.params);
+
+    case 'password_reset':
+      return passwordResetEmail(request.params);
 
     case 'custom':
       return {

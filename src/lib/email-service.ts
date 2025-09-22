@@ -4,6 +4,7 @@ import {
   type InvitePendingEmailParams,
   type InviteCompletedEmailParams,
   type RenewalReminderEmailParams,
+  type PasswordResetEmailParams,
 } from './email-template';
 
 // Base URL for API calls
@@ -101,6 +102,18 @@ export class EmailService {
     });
   }
 
+  // Send password reset email
+  static async sendPasswordResetEmail(
+    to: string,
+    params: PasswordResetEmailParams
+  ) {
+    return this.sendRequest({
+      template: 'password_reset',
+      to,
+      params,
+    });
+  }
+
   // Send custom email
   static async sendCustomEmail(
     to: string,
@@ -135,6 +148,8 @@ export const sendInviteCompletedEmail =
   EmailService.sendInviteCompletedEmail.bind(EmailService);
 export const sendRenewalReminderEmail =
   EmailService.sendRenewalReminderEmail.bind(EmailService);
+export const sendPasswordResetEmail =
+  EmailService.sendPasswordResetEmail.bind(EmailService);
 export const sendCustomEmail = EmailService.sendCustomEmail.bind(EmailService);
 
 // Type exports for convenience
@@ -144,4 +159,5 @@ export type {
   InvitePendingEmailParams,
   InviteCompletedEmailParams,
   RenewalReminderEmailParams,
+  PasswordResetEmailParams,
 } from './email-template';

@@ -1,6 +1,6 @@
 'use client';
 
-import { Suspense } from 'react';
+import { Suspense, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
@@ -13,6 +13,17 @@ function SignInForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const callbackUrl = searchParams.get('callbackUrl') || '/dashboard';
+  const message = searchParams.get('message');
+
+  // Show success message for password reset
+  useEffect(() => {
+    if (message === 'password-reset-success') {
+      toast.success('Password reset successful!', {
+        description: 'You can now sign in with your new password.',
+        duration: 5000,
+      });
+    }
+  }, [message]);
 
   const handleSuccess = () => {
     toast.success('Welcome back! Redirecting to dashboard...', {

@@ -172,6 +172,14 @@ export interface RenewalReminderEmailParams {
   renewalUrl: string;
 }
 
+export interface RenewalReminderEmailParams {
+  firstName: string;
+  pair: string;
+  period: string;
+  expiryDate: string;
+  renewalUrl: string;
+}
+
 export function renewalReminderEmail({
   firstName,
   pair,
@@ -182,7 +190,7 @@ export function renewalReminderEmail({
   const subject = '⏳ Your subscription is expiring soon – renew today';
   const html = `
     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto;">
-      <h1 style="color: #2D3748;">Don’t lose your access</h1>
+      <h1 style="color: #2D3748;">Don't lose your access</h1>
       <p>Hello ${firstName},</p>
       <p>Your subscription to <strong>${pair}</strong> – <strong>${period}</strong> will expire on <strong>${expiryDate}</strong>.</p>
       <p>Renew now to continue uninterrupted access to backtests and live performance updates.</p>
@@ -192,6 +200,43 @@ export function renewalReminderEmail({
       <hr style="margin: 32px 0; border: none; border-top: 1px solid #E2E8F0;">
       <div style="color: #4A5568; font-size: 0.95em; margin-bottom: 16px;">
         Thank you for being part of AlgoMakers.Ai 💡
+      </div>
+      <small style="color: #A0AEC0;">&copy; ${new Date().getFullYear()} AlgoMakers.Ai</small>
+    </div>
+  `;
+  return { subject, html };
+}
+
+export interface PasswordResetEmailParams {
+  firstName: string;
+  resetUrl: string;
+  expiryTime: string;
+}
+
+export function passwordResetEmail({
+  firstName,
+  resetUrl,
+  expiryTime,
+}: PasswordResetEmailParams) {
+  const subject = '🔐 Reset your AlgoMakers.Ai password';
+  const html = `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto;">
+      <h1 style="color: #2D3748;">Reset your password</h1>
+      <p>Hello ${firstName || 'there'},</p>
+      <p>We received a request to reset your password for your AlgoMakers.Ai account.</p>
+      <p>Click the button below to create a new password:</p>
+      <div style="margin: 32px 0; text-align: center;">
+        <a href="${resetUrl}" style="background: #3182CE; color: #fff; padding: 12px 24px; border-radius: 6px; text-decoration: none; font-weight: bold; display: inline-block;">Reset My Password</a>
+      </div>
+      <p style="color: #4A5568; font-size: 0.9em;">
+        <strong>Important:</strong> This link will expire on ${expiryTime}. If you need a new reset link, please request another password reset.
+      </p>
+      <p style="color: #4A5568; font-size: 0.9em;">
+        If you didn't request this password reset, you can safely ignore this email. Your password will remain unchanged.
+      </p>
+      <hr style="margin: 32px 0; border: none; border-top: 1px solid #E2E8F0;">
+      <div style="color: #4A5568; font-size: 0.95em; margin-bottom: 16px;">
+        Need help? <a href="mailto:support@algomakers.ai" style="color: #3182CE; text-decoration: underline;">Contact Support</a>
       </div>
       <small style="color: #A0AEC0;">&copy; ${new Date().getFullYear()} AlgoMakers.Ai</small>
     </div>
