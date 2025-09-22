@@ -23,6 +23,8 @@ model User {
   role                   Role        @default(USER)
   image                  String?
   emailVerified          DateTime?
+  resetToken             String?
+  resetTokenExpiry       DateTime?
   createdAt              DateTime    @default(now())
   subscriptions          Subscription[]
   payments               Payment[]
