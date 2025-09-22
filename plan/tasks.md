@@ -25,11 +25,11 @@
 
 ### 2. Subscription Table Page (`/subscriptions`)
 
-- [ ] Fetch/display all pairs with metrics (ROI, R/R, trades, etc.)
-- [ ] Sort/filter/search pairs
-- [ ] Subscribe button per row
-- [ ] Access control: limited stats for free users, full for paid
-- [ ] Responsive/mobile layout
+- [x] Fetch/display all pairs with metrics (ROI, R/R, trades, etc.)
+- [x] Sort/filter/search pairs
+- [x] Subscribe button per row
+- [x] Access control: limited stats for free users, full for paid
+- [x] Responsive/mobile layout
 
 ---
 
