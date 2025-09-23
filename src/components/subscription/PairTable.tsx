@@ -52,6 +52,10 @@ interface PairTableProps {
   isLoading?: boolean;
   isUserLoggedIn: boolean;
   onNavigate?: (pairId: string) => void;
+  onSubscribe?: (
+    pairId: string,
+    action: 'subscribe' | 'renew' | 'upgrade'
+  ) => void;
   className?: string;
   pagination?: {
     currentPage: number;
@@ -68,6 +72,7 @@ export function PairTable({
   isLoading = false,
   isUserLoggedIn,
   onNavigate,
+  onSubscribe,
   className,
   pagination,
 }: PairTableProps) {
@@ -306,7 +311,11 @@ export function PairTable({
                   key={pair.id}
                   pair={pair}
                   isUserLoggedIn={isUserLoggedIn}
-                  onSubscribe={() => console.log('Subscribe to', pair.id)}
+                  onSubscribe={(pairId, action) => {
+                    if (onSubscribe) {
+                      onSubscribe(pairId, action);
+                    }
+                  }}
                 />
               ))}
             </TableBody>

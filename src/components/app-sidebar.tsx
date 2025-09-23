@@ -52,6 +52,13 @@ const data = {
       icon: LayoutDashboard,
       isActive: true,
     },
+    {
+      title: 'My Subscriptions',
+      url: '/subscriptions',
+      icon: PieChart,
+      badge: 'PRO',
+      isActive: false,
+    },
     // {
     //   title: 'Explore by Symbols',
     //   url: '/explore',

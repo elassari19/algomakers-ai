@@ -99,17 +99,22 @@ model Subscription {
 }
 
 model Payment {
-  id         String      @id @default(uuid())
-  user       User        @relation(fields: [userId], references: [id])
-  userId     String
-  pair       Pair        @relation(fields: [pairId], references: [id])
-  pairId     String
-  amount     Decimal
-  network    PaymentNetwork
-  status     PaymentStatus
-  txHash     String?
-  invoiceId  String?
-  createdAt  DateTime    @default(now())
+  id           String      @id @default(uuid())
+  user         User        @relation(fields: [userId], references: [id])
+  userId       String
+  pair         Pair        @relation(fields: [pairId], references: [id])
+  pairId       String
+  amount       Decimal
+  network      PaymentNetwork
+  status       PaymentStatus
+  txHash       String?
+  invoiceId    String?     // NOWPayments invoice/payment ID
+  orderId      String?     // Our internal order ID
+  actuallyPaid Decimal?    // Actual amount paid (for partial payments)
+  expiresAt    DateTime?   // Payment expiration
+  orderData    Json?       // Store order metadata
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
   subscription Subscription?
 }
 
@@ -199,6 +204,9 @@ enum InviteStatus {
 }
 
 enum PaymentNetwork {
+  USDT_TRC20
+  USDT_ERC20
+  USDT_BEP20
   USDT
   BTC
   ETH

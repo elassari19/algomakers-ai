@@ -30,6 +30,9 @@ interface ClientPairTableProps {
   totalPages: number;
   itemsPerPage: number;
   totalItems: number;
+  onSubscribe?: (pairId: string) => void;
+  onRenew?: (pairId: string) => void;
+  onUpgrade?: (pairId: string) => void;
 }
 
 export function ClientPairTable({
@@ -39,6 +42,9 @@ export function ClientPairTable({
   totalPages,
   itemsPerPage,
   totalItems,
+  onSubscribe,
+  onRenew,
+  onUpgrade,
 }: ClientPairTableProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -72,6 +78,19 @@ export function ClientPairTable({
     });
   };
 
+  const handleSubscribe = (
+    pairId: string,
+    action: 'subscribe' | 'renew' | 'upgrade'
+  ) => {
+    if (action === 'subscribe' && onSubscribe) {
+      onSubscribe(pairId);
+    } else if (action === 'renew' && onRenew) {
+      onRenew(pairId);
+    } else if (action === 'upgrade' && onUpgrade) {
+      onUpgrade(pairId);
+    }
+  };
+
   // Create a modified PairTable that accepts pagination props
   return (
     <div className="space-y-4">
@@ -80,6 +99,7 @@ export function ClientPairTable({
         isLoading={false}
         isUserLoggedIn={isUserLoggedIn}
         onNavigate={handleNavigateToPair}
+        onSubscribe={handleSubscribe}
         // Pass pagination data as additional props
         pagination={{
           currentPage,
