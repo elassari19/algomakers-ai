@@ -35,10 +35,10 @@
 
 ### 3. Pair Detail Page (`/pair/[id]`)
 
-- [ ] Show full backtest: equity curve, ROI, drawdown, stats
-- [ ] Subscribe button (with plan options)
-- [ ] Disclaimers (backtest, not guaranteed)
-- [ ] Analytics: track clicks/views
+- [x] Show full backtest: equity curve, ROI, drawdown, stats
+- [x] Subscribe button (with plan options)
+- [x] Disclaimers (backtest, not guaranteed)
+- [x] Analytics: track clicks/views
 
 ---
 
