@@ -1,12 +1,11 @@
 import { Suspense } from 'react';
 import { DashboardStats } from '@/components/dashboard/DashboardStats';
 import { ClientSortFilterBar } from '@/components/subscription/ClientSortFilterBar';
-import { ClientPairTable } from '@/components/subscription/ClientPairTable';
 import { GradientBackground } from '@/components/ui/gradient-background';
 import { PairTable } from '../../../components/subscription/PairTable';
 
 // Mock data - replace with real API calls
-const mockPairs = [
+export const mockPairs = [
   {
     id: '1',
     symbol: 'EURUSD',
@@ -57,6 +56,10 @@ const mockPairs = [
       profit: 34560,
     },
     timeframe: '15M',
+    subscription: {
+      status: 'active' as const,
+      expiryDate: '2025-12-15T00:00:00.000Z',
+    },
     isPopular: true,
   },
   {
@@ -90,6 +93,10 @@ const mockPairs = [
       profit: -2340,
     },
     timeframe: '30M',
+    subscription: {
+      status: 'expired' as const,
+      expiryDate: '2025-09-10T00:00:00.000Z',
+    },
   },
   {
     id: '6',
@@ -104,6 +111,10 @@ const mockPairs = [
       profit: 8750,
     },
     timeframe: '2H',
+    subscription: {
+      status: 'active' as const,
+      expiryDate: '2025-11-30T00:00:00.000Z',
+    },
   },
   {
     id: '7',
@@ -150,6 +161,9 @@ const mockPairs = [
       profit: 4560,
     },
     timeframe: '1H',
+    subscription: {
+      status: 'pending' as const,
+    },
   },
   {
     id: '10',
@@ -182,6 +196,10 @@ const mockPairs = [
       profit: 11340,
     },
     timeframe: '2H',
+    subscription: {
+      status: 'active' as const,
+      expiryDate: '2025-12-01T00:00:00.000Z',
+    },
   },
   {
     id: '12',
@@ -230,6 +248,10 @@ const mockPairs = [
       profit: 5230,
     },
     timeframe: '4H',
+    subscription: {
+      status: 'expiring' as const,
+      expiryDate: '2025-10-05T00:00:00.000Z',
+    },
   },
   {
     id: '15',
@@ -244,6 +266,100 @@ const mockPairs = [
       profit: 19870,
     },
     timeframe: '1D',
+    subscription: {
+      status: 'active' as const,
+      expiryDate: '2025-11-15T00:00:00.000Z',
+    },
+  },
+  {
+    id: '16',
+    symbol: 'USDNOK',
+    name: 'US Dollar vs Norwegian Krone',
+    metrics: {
+      roi: 67.3,
+      riskReward: 2.9,
+      totalTrades: 65,
+      winRate: 60.0,
+      maxDrawdown: 25.1,
+      profit: 19870,
+    },
+    timeframe: '1D',
+    subscription: {
+      status: 'active' as const,
+      expiryDate: '2025-11-15T00:00:00.000Z',
+    },
+  },
+  {
+    id: '17',
+    symbol: 'BGPAUD',
+    name: 'British Gas vs Australian Dollar',
+    metrics: {
+      roi: 67.3,
+      riskReward: 2.9,
+      totalTrades: 65,
+      winRate: 60.0,
+      maxDrawdown: 25.1,
+      profit: 19870,
+    },
+    timeframe: '1D',
+    subscription: {
+      status: 'active' as const,
+      expiryDate: '2025-11-15T00:00:00.000Z',
+    },
+  },
+  {
+    id: '18',
+    symbol: 'XAGUSD',
+    name: 'Silver vs US Dollar',
+    metrics: {
+      roi: 67.3,
+      riskReward: 2.9,
+      totalTrades: 65,
+      winRate: 60.0,
+      maxDrawdown: 25.1,
+      profit: 19870,
+    },
+    timeframe: '1D',
+    subscription: {
+      status: 'active' as const,
+      expiryDate: '2025-11-15T00:00:00.000Z',
+    },
+  },
+  {
+    id: '19',
+    symbol: 'CLUSD',
+    name: 'Crude Oil vs US Dollar',
+    metrics: {
+      roi: 67.3,
+      riskReward: 2.9,
+      totalTrades: 65,
+      winRate: 60.0,
+      maxDrawdown: 25.1,
+      profit: 19870,
+    },
+    timeframe: '1D',
+    subscription: {
+      status: 'active' as const,
+      expiryDate: '2025-11-15T00:00:00.000Z',
+    },
+  },
+  {
+    id: '20',
+    symbol: 'EURCAD',
+    name: 'Euro vs Canadian Dollar',
+    metrics: {
+      roi: 67.3,
+      riskReward: 2.9,
+      totalTrades: 65,
+      winRate: 60.0,
+      maxDrawdown: 25.1,
+      profit: 19870,
+    },
+    timeframe: '1D',
+    subscription: {
+      status: 'active' as const,
+      expiryDate: '2025-11-15T00:00:00.000Z',
+    },
   },
 ];
 

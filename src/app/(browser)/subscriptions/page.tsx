@@ -1,234 +1,169 @@
-'use client';
-
-import { useState, Suspense } from 'react';
-import { Button } from '@/components/ui/button';
-import { SubscriptionModal } from '@/components/subscription/SubscriptionModal';
-import { PaymentModal } from '@/components/subscription/PaymentModal';
-import { ClientPairTable } from '@/components/subscription/ClientPairTable';
+import { Suspense } from 'react';
 import { ClientSortFilterBar } from '@/components/subscription/ClientSortFilterBar';
+import { PairTable } from '@/components/subscription/PairTable';
+import { GradientBackground } from '@/components/ui/gradient-background';
+import { mockPairs } from '../dashboard/page';
 
-// Mock data - replace with real API calls
-export const mockPairs = [
-  {
-    id: '1',
-    symbol: 'EURUSD',
-    name: 'Euro vs US Dollar',
-    metrics: {
-      roi: 45.2,
-      riskReward: 2.3,
-      totalTrades: 124,
-      winRate: 68.5,
-      maxDrawdown: 8.2,
-      profit: 15420,
-    },
-    timeframe: '1H',
-    subscription: undefined,
-    isPopular: true,
-  },
-  {
-    id: '2',
-    symbol: 'GBPJPY',
-    name: 'British Pound vs Japanese Yen',
-    metrics: {
-      roi: 32.1,
-      riskReward: 1.8,
-      totalTrades: 89,
-      winRate: 72.0,
-      maxDrawdown: 12.5,
-      profit: 8950,
-    },
-    timeframe: '4H',
-    subscription: undefined,
-  },
-  {
-    id: '3',
-    symbol: 'BTCUSD',
-    name: 'Bitcoin vs US Dollar',
-    metrics: {
-      roi: 78.9,
-      riskReward: 3.1,
-      totalTrades: 67,
-      winRate: 64.2,
-      maxDrawdown: 15.8,
-      profit: 22340,
-    },
-    timeframe: '1D',
-    subscription: undefined,
-  },
-  {
-    id: '4',
-    symbol: 'XAUUSD',
-    name: 'Gold vs US Dollar',
-    metrics: {
-      roi: 28.5,
-      riskReward: 2.0,
-      totalTrades: 45,
-      winRate: 66.7,
-      maxDrawdown: 9.3,
-      profit: 5680,
-    },
-    timeframe: '4H',
-    subscription: undefined,
-    isPopular: true,
-  },
-  {
-    id: '5',
-    symbol: 'ETHUSD',
-    name: 'Ethereum vs US Dollar',
-    metrics: {
-      roi: 56.3,
-      riskReward: 2.7,
-      totalTrades: 92,
-      winRate: 70.8,
-      maxDrawdown: 11.2,
-      profit: 18750,
-    },
-    timeframe: '2H',
-    subscription: undefined,
-  },
-];
-
-interface SubscriptionFormData {
-  pairIds: string[];
-  plan: {
-    id: string;
-    period: string;
-    months: number;
-    price: number;
-  };
-  tradingViewUsername: string;
+interface IProps {
+  searchParams: Promise<{
+    search?: string;
+    filter?: string;
+    limit?: string;
+    page?: string;
+    q?: string;
+  }>;
 }
 
-export default function SubscriptionsPage() {
-  const [subscriptionModalOpen, setSubscriptionModalOpen] = useState(false);
-  const [paymentModalOpen, setPaymentModalOpen] = useState(false);
-  const [selectedPairIds, setSelectedPairIds] = useState<string[]>([]);
-  const [subscriptionData, setSubscriptionData] = useState<any>(null);
+export default async function SubscriptionsPage(props: IProps) {
+  const { search, filter, limit, page, q } = await props.searchParams;
 
-  // Mock user authentication - replace with real auth
+  // Extract URL params with defaults
+  const searchQuery = search || '';
+  const filterBy = filter || 'all';
+  const currentPage = parseInt(page || '1');
+  const itemsPerPage = parseInt(limit || '5');
+
+  // Mock user state - replace with real auth
   const isUserLoggedIn = true;
 
-  // Handle subscription button click from pair table
-  const handleSubscribe = (pairId: string) => {
-    setSelectedPairIds([pairId]);
-    setSubscriptionModalOpen(true);
-  };
+  // Filter subscribed pairs based on URL params
+  function getFilteredPairs() {
+    let filtered = mockPairs;
 
-  // Handle bulk subscribe button
-  const handleBulkSubscribe = () => {
-    setSelectedPairIds([]);
-    setSubscriptionModalOpen(true);
-  };
+    // Search filter
+    if (searchQuery) {
+      filtered = filtered.filter(
+        (pair) =>
+          pair.symbol.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          pair.name.toLowerCase().includes(searchQuery.toLowerCase())
+      );
+    }
 
-  // Handle subscription modal completion
-  const handleSubscriptionComplete = (data: SubscriptionFormData) => {
-    // Transform data for payment modal
-    const paymentData = {
-      pairIds: data.pairIds,
-      pairNames: data.pairIds
-        .map((id) => {
-          const pair = mockPairs.find((p) => p.id === id);
-          return pair ? pair.symbol : '';
-        })
-        .filter(Boolean),
-      plan: {
-        period: data.plan.period,
-        months: data.plan.months,
-        price: data.plan.price,
-      },
-      tradingViewUsername: data.tradingViewUsername,
-      totalAmount: data.plan.price * data.pairIds.length,
-    };
+    // Category filter
+    if (filterBy !== 'all') {
+      switch (filterBy) {
+        case 'active':
+          filtered = filtered.filter(
+            (pair) => pair.subscription?.status === 'active'
+          );
+          break;
+        case 'expiring':
+          filtered = filtered.filter(
+            (pair) => pair.subscription?.status === 'expiring'
+          );
+          break;
+        case 'pending':
+          filtered = filtered.filter(
+            (pair) => pair.subscription?.status === 'pending'
+          );
+          break;
+        case 'forex':
+          filtered = filtered.filter(
+            (pair) =>
+              !pair.symbol.includes('BTC') &&
+              !pair.symbol.includes('ETH') &&
+              !pair.symbol.includes('LTC') &&
+              !pair.symbol.includes('ADA') &&
+              !pair.symbol.includes('XAU')
+          );
+          break;
+        case 'crypto':
+          filtered = filtered.filter(
+            (pair) =>
+              pair.symbol.includes('BTC') ||
+              pair.symbol.includes('ETH') ||
+              pair.symbol.includes('LTC') ||
+              pair.symbol.includes('ADA')
+          );
+          break;
+        case 'commodities':
+          filtered = filtered.filter(
+            (pair) =>
+              pair.symbol.includes('XAU') ||
+              pair.symbol.includes('XAG') ||
+              pair.symbol.includes('OIL')
+          );
+          break;
+        case 'profitable':
+          filtered = filtered.filter((pair) => pair.metrics.profit > 0);
+          break;
+        case 'popular':
+          filtered = filtered.filter((pair) => pair.isPopular);
+          break;
+      }
+    }
 
-    setSubscriptionData(paymentData);
-    setSubscriptionModalOpen(false);
-    setPaymentModalOpen(true);
-  };
+    // Sort by ROI (highest first) as default
+    filtered.sort((a, b) => b.metrics.roi - a.metrics.roi);
 
-  // Handle payment success
-  const handlePaymentSuccess = () => {
-    console.log('Payment successful!');
-    // TODO: Update UI, redirect to dashboard, show success message
-    setPaymentModalOpen(false);
-    setSubscriptionData(null);
-  };
+    return filtered;
+  }
+
+  const filteredPairs = getFilteredPairs();
+
+  // Calculate pagination
+  const totalFilteredPairs = filteredPairs.length;
+  const totalPages = Math.ceil(totalFilteredPairs / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const endIndex = startIndex + itemsPerPage;
+  const paginatedPairs = filteredPairs.slice(startIndex, endIndex);
 
   return (
-    <div className="flex flex-1 flex-col gap-6 p-6 pt-0 bg-slate-950 min-h-screen">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold text-white">Trading Strategies</h1>
-          <p className="text-slate-400 mt-2">
-            Subscribe to profitable trading pairs and get access to private
-            TradingView signals.
+    <GradientBackground>
+      <div className="flex flex-1 flex-col gap-6 md:p-6 pt-0">
+        {/* Header */}
+        <div className="mb-6">
+          <h1 className="text-3xl font-bold text-white mb-2">
+            My Subscriptions
+          </h1>
+          <p className="text-white/70">
+            Manage your subscribed trading pairs and monitor their performance.
           </p>
         </div>
-        <Button
-          onClick={handleBulkSubscribe}
-          className="bg-blue-600 hover:bg-blue-500"
-        >
-          Subscribe to Multiple Pairs
-        </Button>
+
+        {/* Trading Pairs Table Section */}
+        <div className="space-y-6">
+          {/* Search and Filter Bar */}
+          <div className="mb-4">
+            <Suspense
+              fallback={
+                <div className="animate-pulse h-16 bg-white/10 rounded-md"></div>
+              }
+            >
+              <ClientSortFilterBar
+                filterBy={filterBy}
+                totalResults={totalFilteredPairs}
+              />
+            </Suspense>
+          </div>
+
+          {/* Main Pairs Table */}
+          <div className="">
+            <Suspense
+              fallback={
+                <div className="flex items-center justify-center p-12">
+                  <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-white"></div>
+                  <span className="ml-3 text-white/80">
+                    Loading subscriptions...
+                  </span>
+                </div>
+              }
+            >
+              <PairTable
+                pairs={paginatedPairs}
+                isLoading={false}
+                isUserLoggedIn={isUserLoggedIn}
+                pagination={{
+                  currentPage,
+                  totalPages,
+                  itemsPerPage,
+                  totalItems: totalFilteredPairs,
+                }}
+              />
+            </Suspense>
+          </div>
+        </div>
       </div>
-
-      {/* Filters and Search */}
-      <Suspense
-        fallback={
-          <div className="animate-pulse h-16 bg-white/10 rounded-md"></div>
-        }
-      >
-        <ClientSortFilterBar
-          searchQuery=""
-          filterBy="all"
-          totalResults={mockPairs.length}
-        />
-      </Suspense>
-
-      {/* Pairs Table */}
-      <Suspense
-        fallback={
-          <div className="animate-pulse h-96 bg-white/10 rounded-md"></div>
-        }
-      >
-        <ClientPairTable
-          pairs={mockPairs}
-          isUserLoggedIn={isUserLoggedIn}
-          currentPage={1}
-          totalPages={1}
-          itemsPerPage={10}
-          totalItems={mockPairs.length}
-        />
-      </Suspense>
-
-      {/* Subscription Modal */}
-      <SubscriptionModal
-        isOpen={subscriptionModalOpen}
-        onClose={() => setSubscriptionModalOpen(false)}
-        pairs={mockPairs.map((pair) => ({
-          id: pair.id,
-          symbol: pair.symbol,
-          name: pair.name,
-          metrics: {
-            roi: pair.metrics.roi,
-            winRate: pair.metrics.winRate,
-            totalTrades: pair.metrics.totalTrades,
-            profit: pair.metrics.profit,
-          },
-        }))}
-        selectedPairIds={selectedPairIds}
-        onSubscribe={handleSubscriptionComplete}
-      />
-
-      {/* Payment Modal */}
-      {subscriptionData && (
-        <PaymentModal
-          isOpen={paymentModalOpen}
-          onClose={() => setPaymentModalOpen(false)}
-          subscriptionData={subscriptionData}
-          onPaymentSuccess={handlePaymentSuccess}
-        />
-      )}
-    </div>
+    </GradientBackground>
   );
 }

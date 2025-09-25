@@ -15,7 +15,7 @@ import {
 } from 'lucide-react';
 import { SubscriptionModal } from './SubscriptionModal';
 import { PaymentModal } from './PaymentModal';
-import { mockPairs } from '../../app/(browser)/subscriptions/page';
+import { mockPairs } from '../../app/(browser)/dashboard/page';
 
 interface TradingPair {
   id: string;
