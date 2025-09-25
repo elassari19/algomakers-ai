@@ -393,7 +393,6 @@ export default async function DashboardPage(props: IProps) {
               }
             >
               <ClientSortFilterBar
-                searchQuery={searchQuery}
                 filterBy={filterBy}
                 totalResults={totalFilteredPairs}
               />

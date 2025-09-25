@@ -31,7 +31,7 @@ export function SearchInput({ placeholder }: Props) {
 
   return (
     <div className="relative w-full">
-      <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-white/60" />
+      <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-white/60 pointer-events-none z-10" />
       <Input
         type="text"
         placeholder={placeholder}
