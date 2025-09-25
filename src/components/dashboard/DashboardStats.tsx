@@ -1,7 +1,8 @@
 'use client';
 
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { TrendingUp, BarChart3, DollarSign, Target, Award } from 'lucide-react';
+import { GlassmorphismCard } from '@/components/ui/glassmorphism-card';
 
 interface DashboardStatsProps {
   totalPairs: number;
@@ -31,8 +32,8 @@ export function DashboardStats({
       icon: BarChart3,
       description: 'Available trading pairs',
       trend: '+2 new pairs this month',
-      color: 'text-blue-400',
-      bgColor: 'bg-blue-500/10',
+      color: 'text-cyan-300',
+      bgColor: 'bg-cyan-400/20',
     },
     {
       title: 'Profitable Pairs',
@@ -40,8 +41,8 @@ export function DashboardStats({
       icon: Target,
       description: `${winRate}% win rate`,
       trend: `${profitablePairs} out of ${totalPairs} pairs`,
-      color: 'text-green-400',
-      bgColor: 'bg-green-500/10',
+      color: 'text-emerald-300',
+      bgColor: 'bg-emerald-400/20',
     },
     {
       title: 'Total Profit',
@@ -49,8 +50,8 @@ export function DashboardStats({
       icon: DollarSign,
       description: 'Combined performance',
       trend: '+15.2% this quarter',
-      color: 'text-emerald-400',
-      bgColor: 'bg-emerald-500/10',
+      color: 'text-green-300',
+      bgColor: 'bg-green-400/20',
     },
     {
       title: 'Best Performer',
@@ -58,40 +59,47 @@ export function DashboardStats({
       icon: Award,
       description: `${bestPerformer.roi}% ROI`,
       trend: 'Top performing pair',
-      color: 'text-yellow-400',
-      bgColor: 'bg-yellow-500/10',
+      color: 'text-amber-300',
+      bgColor: 'bg-amber-400/20',
     },
   ];
 
   return (
     <div
-      className={`grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 ${className}`}
+      className={`grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 ${className}`}
     >
       {stats.map((stat) => {
         const IconComponent = stat.icon;
         return (
-          <Card
-            key={stat.title}
-            className="bg-slate-800/50 border-slate-700 hover:bg-slate-800/70 transition-colors py-2"
-          >
-            <CardHeader className="flex flex-row items-center justify-between py-0">
-              <CardTitle className="text-sm font-medium text-slate-300">
+          <GlassmorphismCard key={stat.title} className="py-3">
+            <CardHeader className="flex flex-row items-center justify-between py-2 pb-1">
+              <CardTitle className="text-sm font-semibold text-white/90">
                 {stat.title}
               </CardTitle>
-              <div className={`p-1.5 rounded-lg ${stat.bgColor}`}>
-                <IconComponent className={`h-3.5 w-3.5 ${stat.color}`} />
+              <div
+                className={`p-2 rounded-xl backdrop-blur-sm bg-white/20 border border-white/30 ${stat.bgColor}`}
+              >
+                <IconComponent
+                  className={`h-4 w-4 ${stat.color} drop-shadow-sm`}
+                />
               </div>
             </CardHeader>
-            <CardContent className="pt-0">
-              <div className="flex flex-col space-y-0.5">
-                <span className="text-xl font-bold text-white">
+            <CardContent className="pt-1">
+              <div className="flex flex-col space-y-1">
+                <span className="text-2xl font-bold text-white drop-shadow-sm">
                   {stat.value}
                 </span>
-                <p className="text-xs text-slate-400">{stat.description}</p>
-                <p className={`text-xs ${stat.color}`}>{stat.trend}</p>
+                <p className="text-xs text-white/70 font-medium">
+                  {stat.description}
+                </p>
+                <p
+                  className={`text-xs font-semibold ${stat.color} drop-shadow-sm`}
+                >
+                  {stat.trend}
+                </p>
               </div>
             </CardContent>
-          </Card>
+          </GlassmorphismCard>
         );
       })}
     </div>

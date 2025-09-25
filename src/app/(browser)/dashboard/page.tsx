@@ -1,14 +1,8 @@
-'use client';
-
-import { Suspense, useState } from 'react';
-import { useSearchParams } from 'next/navigation';
+import { Suspense } from 'react';
 import { DashboardStats } from '@/components/dashboard/DashboardStats';
 import { ClientSortFilterBar } from '@/components/subscription/ClientSortFilterBar';
 import { ClientPairTable } from '@/components/subscription/ClientPairTable';
-import { SubscriptionModal } from '@/components/subscription/SubscriptionModal';
-import { PaymentModal } from '@/components/subscription/PaymentModal';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
+import { GradientBackground } from '@/components/ui/gradient-background';
 
 // Mock data - replace with real API calls
 const mockPairs = [
@@ -27,7 +21,7 @@ const mockPairs = [
     timeframe: '1H',
     subscription: {
       status: 'active' as const,
-      expiryDate: new Date('2025-10-15'),
+      expiryDate: '2025-10-15T00:00:00.000Z',
     },
     isPopular: true,
   },
@@ -46,7 +40,7 @@ const mockPairs = [
     timeframe: '4H',
     subscription: {
       status: 'expiring' as const,
-      expiryDate: new Date('2025-09-28'),
+      expiryDate: '2025-09-28T00:00:00.000Z',
     },
   },
   {
@@ -79,7 +73,7 @@ const mockPairs = [
     timeframe: '1D',
     subscription: {
       status: 'expired' as const,
-      expiryDate: new Date('2025-09-15'),
+      expiryDate: '2025-09-15T00:00:00.000Z',
     },
   },
   {
@@ -171,7 +165,7 @@ const mockPairs = [
     timeframe: '1H',
     subscription: {
       status: 'active' as const,
-      expiryDate: new Date('2025-11-20'),
+      expiryDate: '2025-11-20T00:00:00.000Z',
     },
   },
   {
@@ -203,7 +197,7 @@ const mockPairs = [
     timeframe: '1D',
     subscription: {
       status: 'expiring' as const,
-      expiryDate: new Date('2025-10-01'),
+      expiryDate: '2025-10-01T00:00:00.000Z',
     },
     isPopular: true,
   },
@@ -252,19 +246,24 @@ const mockPairs = [
   },
 ];
 
-export default function DashboardPage() {
-  const searchParams = useSearchParams();
+interface IProps {
+  searchParams: Promise<{
+    search?: string;
+    filter?: string;
+    limit?: string;
+    page?: string;
+    q?: string;
+  }>;
+}
+
+export default async function DashboardPage(props: IProps) {
+  const { search, filter, limit, page, q } = await props.searchParams;
 
   // Extract URL params with defaults
-  const searchQuery = searchParams.get('search') || '';
-  const filterBy = searchParams.get('filter') || 'all';
-  const currentPage = parseInt(searchParams.get('page') || '1');
-  const itemsPerPage = parseInt(searchParams.get('limit') || '10');
-  // Modal state
-  const [subscriptionModalOpen, setSubscriptionModalOpen] = useState(false);
-  const [paymentModalOpen, setPaymentModalOpen] = useState(false);
-  const [selectedPairIds, setSelectedPairIds] = useState<string[]>([]);
-  const [subscriptionData, setSubscriptionData] = useState<any>(null);
+  const searchQuery = search || '';
+  const filterBy = filter || 'all';
+  const currentPage = parseInt(page || '1');
+  const itemsPerPage = parseInt(limit || '10');
 
   // Mock user state - replace with real auth
   const isUserLoggedIn = true;
@@ -369,191 +368,55 @@ export default function DashboardPage() {
   const endIndex = startIndex + itemsPerPage;
   const paginatedPairs = filteredPairs.slice(startIndex, endIndex);
 
-  const handleSubscribe = (pairId: string) => {
-    // Find the pair data
-    const pair = filteredPairs.find((p) => p.id === pairId);
-    if (pair) {
-      setSelectedPairIds([pairId]);
-      setSubscriptionModalOpen(true);
-    }
-  };
-
-  const handleBulkSubscribe = (pairIds: string[]) => {
-    if (pairIds.length > 0) {
-      setSelectedPairIds(pairIds);
-      setSubscriptionModalOpen(true);
-    }
-  };
-
-  const handleRenew = (pairId: string) => {
-    // Find the pair data
-    const pair = filteredPairs.find((p) => p.id === pairId);
-    if (pair) {
-      setSelectedPairIds([pairId]);
-      setSubscriptionModalOpen(true);
-    }
-  };
-
-  const handleUpgrade = (pairId: string) => {
-    // Find the pair data
-    const pair = filteredPairs.find((p) => p.id === pairId);
-    if (pair) {
-      setSelectedPairIds([pairId]);
-      setSubscriptionModalOpen(true);
-    }
-  };
-
-  const handleSubscriptionSubmit = (data: any) => {
-    // Transform the subscription data to match PaymentModal interface
-    const paymentData = {
-      pairIds: data.pairIds,
-      pairNames: data.pairIds.map((id: string) => {
-        const pair = filteredPairs.find((p) => p.id === id);
-        return pair ? pair.symbol : '';
-      }),
-      plan: {
-        period: data.plan.period,
-        months: data.plan.months,
-        price: data.plan.price,
-      },
-      tradingViewUsername: data.tradingViewUsername,
-      totalAmount: data.plan.price * data.pairIds.length,
-    };
-
-    setSubscriptionData(paymentData);
-    setSubscriptionModalOpen(false);
-    setPaymentModalOpen(true);
-  };
-
-  const handlePaymentSuccess = () => {
-    setPaymentModalOpen(false);
-    setSubscriptionData(null);
-    setSelectedPairIds([]);
-    // TODO: Refresh user subscription data
-    // You might want to refetch the user's subscriptions here
-  };
-
-  const handleCloseSubscriptionModal = () => {
-    setSubscriptionModalOpen(false);
-    setSelectedPairIds([]);
-  };
-
-  const handleClosePaymentModal = () => {
-    setPaymentModalOpen(false);
-    setSubscriptionData(null);
-  };
-
   return (
-    <div className="flex flex-1 flex-col gap-6 p-6 pt-0 bg-slate-900 min-h-screen">
-      {/* Dashboard Statistics */}
-      <DashboardStats
-        totalPairs={dashboardStats.totalPairs}
-        profitablePairs={dashboardStats.profitablePairs}
-        totalProfit={dashboardStats.totalProfit}
-        bestPerformer={dashboardStats.bestPerformer}
-        className="mb-2"
-      />
-
-      {/* Trading Pairs Table Section */}
-      <div className="space-y-4">
-        {/* Search and Filter Bar */}
-        <Suspense fallback={<div>Loading filters...</div>}>
-          <ClientSortFilterBar
-            searchQuery={searchQuery}
-            filterBy={filterBy}
-            totalResults={totalFilteredPairs}
+    <GradientBackground>
+      <div className="flex flex-1 flex-col gap-6 p-6 pt-0">
+        {/* Dashboard Statistics */}
+        <div className="mb-2">
+          <DashboardStats
+            totalPairs={dashboardStats.totalPairs}
+            profitablePairs={dashboardStats.profitablePairs}
+            totalProfit={dashboardStats.totalProfit}
+            bestPerformer={dashboardStats.bestPerformer}
+            className="mb-0 opacity-95"
           />
-        </Suspense>
+        </div>
 
-        {/* Quick Actions */}
-        {totalFilteredPairs > 0 && (
-          <Card className="bg-slate-800 border-slate-700">
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <div className="text-slate-300">
-                  <span className="font-medium">Quick Actions:</span>
-                  <span className="text-slate-400 ml-2">
-                    {totalFilteredPairs} pairs available
+        {/* Trading Pairs Table Section */}
+        <div className="space-y-6">
+          {/* Search and Filter Bar */}
+          <div className="mb-4">
+            <ClientSortFilterBar
+              searchQuery={searchQuery}
+              filterBy={filterBy}
+              totalResults={totalFilteredPairs}
+            />
+          </div>
+
+          {/* Main Pairs Table */}
+          <div className="">
+            <Suspense
+              fallback={
+                <div className="flex items-center justify-center p-12">
+                  <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-white"></div>
+                  <span className="ml-3 text-white/80">
+                    Loading trading pairs...
                   </span>
                 </div>
-                <div className="flex gap-2">
-                  <Button
-                    onClick={() =>
-                      handleBulkSubscribe(
-                        filteredPairs
-                          .filter((p) => p.isPopular)
-                          .map((p) => p.id)
-                      )
-                    }
-                    disabled={
-                      filteredPairs.filter((p) => p.isPopular).length === 0
-                    }
-                    variant="outline"
-                    size="sm"
-                    className="border-blue-600 text-blue-400 hover:bg-blue-600/10"
-                  >
-                    Subscribe to Popular (
-                    {filteredPairs.filter((p) => p.isPopular).length})
-                  </Button>
-                  <Button
-                    onClick={() =>
-                      handleBulkSubscribe(
-                        filteredPairs
-                          .filter((p) => p.metrics.profit > 0)
-                          .slice(0, 5)
-                          .map((p) => p.id)
-                      )
-                    }
-                    disabled={
-                      filteredPairs.filter((p) => p.metrics.profit > 0)
-                        .length === 0
-                    }
-                    variant="outline"
-                    size="sm"
-                    className="border-green-600 text-green-400 hover:bg-green-600/10"
-                  >
-                    Subscribe to Top 5 Profitable
-                  </Button>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        )}
-
-        {/* Main Pairs Table */}
-        <Suspense fallback={<div>Loading table...</div>}>
-          <ClientPairTable
-            pairs={paginatedPairs}
-            isUserLoggedIn={isUserLoggedIn}
-            currentPage={currentPage}
-            totalPages={totalPages}
-            itemsPerPage={itemsPerPage}
-            totalItems={totalFilteredPairs}
-            onSubscribe={handleSubscribe}
-            onRenew={handleRenew}
-            onUpgrade={handleUpgrade}
-          />
-        </Suspense>
+              }
+            >
+              <ClientPairTable
+                pairs={paginatedPairs}
+                isUserLoggedIn={isUserLoggedIn}
+                currentPage={currentPage}
+                totalPages={totalPages}
+                itemsPerPage={itemsPerPage}
+                totalItems={totalFilteredPairs}
+              />
+            </Suspense>
+          </div>
+        </div>
       </div>
-
-      {/* Subscription Modal */}
-      <SubscriptionModal
-        isOpen={subscriptionModalOpen}
-        onClose={handleCloseSubscriptionModal}
-        pairs={filteredPairs}
-        selectedPairIds={selectedPairIds}
-        onSubscribe={handleSubscriptionSubmit}
-      />
-
-      {/* Payment Modal */}
-      {subscriptionData && (
-        <PaymentModal
-          isOpen={paymentModalOpen}
-          onClose={handleClosePaymentModal}
-          subscriptionData={subscriptionData}
-          onPaymentSuccess={handlePaymentSuccess}
-        />
-      )}
-    </div>
+    </GradientBackground>
   );
 }

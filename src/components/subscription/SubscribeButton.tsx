@@ -1,5 +1,7 @@
 'use client';
 
+import { useState, useEffect } from 'react';
+import { useRouter, usePathname } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -10,10 +12,32 @@ import {
   Check,
   Clock,
 } from 'lucide-react';
+import { SubscriptionModal } from './SubscriptionModal';
+import { PaymentModal } from './PaymentModal';
+
+interface TradingPair {
+  id: string;
+  symbol: string;
+  name: string;
+  metrics: {
+    roi: number;
+    riskReward: number;
+    totalTrades: number;
+    winRate: number;
+    maxDrawdown: number;
+    profit: number;
+  };
+  timeframe?: string;
+  isPopular?: boolean;
+  subscription?: {
+    status: 'active' | 'expiring' | 'expired' | 'pending';
+    expiryDate?: string;
+  };
+}
 
 interface SubscribeButtonProps {
-  pairId: string;
-  pairSymbol: string;
+  pair: TradingPair;
+  allPairs: TradingPair[];
   userSubscriptionStatus?:
     | 'none'
     | 'active'
@@ -21,21 +45,24 @@ interface SubscribeButtonProps {
     | 'expired'
     | 'pending';
   isUserLoggedIn: boolean;
-  onSubscribe: (
-    pairId: string,
-    action: 'subscribe' | 'renew' | 'upgrade'
-  ) => void;
   className?: string;
 }
 
 export function SubscribeButton({
-  pairId,
-  pairSymbol,
+  pair,
+  allPairs,
   userSubscriptionStatus = 'none',
   isUserLoggedIn,
-  onSubscribe,
   className,
 }: SubscribeButtonProps) {
+  const router = useRouter();
+  const pathname = usePathname();
+
+  // Modal state
+  const [subscriptionModalOpen, setSubscriptionModalOpen] = useState(false);
+  const [paymentModalOpen, setPaymentModalOpen] = useState(false);
+  const [subscriptionData, setSubscriptionData] = useState<any>(null);
+
   const getButtonConfig = () => {
     if (!isUserLoggedIn) {
       return {
@@ -99,47 +126,112 @@ export function SubscribeButton({
   const config = getButtonConfig();
   const IconComponent = config.icon;
 
+  // Modal handlers
+  const handleSubscribe = (
+    pairId: string,
+    action: 'subscribe' | 'renew' | 'upgrade'
+  ) => {
+    setSubscriptionModalOpen(true);
+  };
+
+  const handleSubscriptionSubmit = (data: any) => {
+    // Transform the subscription data to match PaymentModal interface
+    const paymentData = {
+      pairIds: data.pairIds,
+      pairNames: data.pairIds.map((id: string) => {
+        const foundPair = allPairs.find((p) => p.id === id);
+        return foundPair ? foundPair.symbol : '';
+      }),
+      plan: {
+        period: data.plan.period,
+        months: data.plan.months,
+        price: data.plan.price,
+      },
+      tradingViewUsername: data.tradingViewUsername,
+      totalAmount: data.plan.price * data.pairIds.length,
+    };
+
+    setSubscriptionData(paymentData);
+    setSubscriptionModalOpen(false);
+    setPaymentModalOpen(true);
+  };
+
+  const handlePaymentSuccess = () => {
+    setPaymentModalOpen(false);
+    setSubscriptionData(null);
+    // TODO: Refresh user subscription data
+  };
+
+  const handleCloseSubscriptionModal = () => {
+    setSubscriptionModalOpen(false);
+  };
+
+  const handleClosePaymentModal = () => {
+    setPaymentModalOpen(false);
+    setSubscriptionData(null);
+  };
+
   const handleClick = () => {
     if (!isUserLoggedIn) {
-      // Redirect to sign in
-      window.location.href =
-        '/signin?callbackUrl=' + encodeURIComponent(window.location.pathname);
+      // Redirect to sign in (only on client side)
+      router.push(`/signin?callbackUrl=${encodeURIComponent(pathname)}`);
       return;
     }
 
-    onSubscribe(pairId, config.action);
+    handleSubscribe(pair.id, config.action);
   };
 
   return (
-    <div className={`flex flex-col items-center gap-2 ${className}`}>
-      <Button
-        onClick={handleClick}
-        variant={config.variant}
-        disabled={config.disabled}
-        className={`w-full min-w-[120px] ${config.className || ''}`}
-        size="sm"
-      >
-        <IconComponent className="h-4 w-4 mr-2" />
-        {config.text}
-      </Button>
-
-      {userSubscriptionStatus === 'active' && (
-        <Badge
-          variant="outline"
-          className="text-xs bg-green-500/10 text-green-400 border-green-500/20"
+    <>
+      <div className={`flex flex-col items-center gap-2 ${className}`}>
+        <Button
+          onClick={handleClick}
+          variant={config.variant}
+          disabled={config.disabled}
+          className={`w-full min-w-[120px] ${config.className || ''}`}
+          size="sm"
         >
-          ✓ Subscribed
-        </Badge>
-      )}
+          <IconComponent className="h-4 w-4 mr-2" />
+          {config.text}
+        </Button>
 
-      {userSubscriptionStatus === 'expiring' && (
-        <Badge
-          variant="secondary"
-          className="text-xs bg-yellow-500/10 text-yellow-400 border-yellow-500/20"
-        >
-          ⚠️ Expires Soon
-        </Badge>
+        {userSubscriptionStatus === 'active' && (
+          <Badge
+            variant="outline"
+            className="text-xs bg-green-500/10 text-green-400 border-green-500/20"
+          >
+            ✓ Subscribed
+          </Badge>
+        )}
+
+        {userSubscriptionStatus === 'expiring' && (
+          <Badge
+            variant="secondary"
+            className="text-xs bg-yellow-500/10 text-yellow-400 border-yellow-500/20"
+          >
+            ⚠️ Expires Soon
+          </Badge>
+        )}
+      </div>
+
+      {/* Subscription Modal */}
+      <SubscriptionModal
+        isOpen={subscriptionModalOpen}
+        onClose={handleCloseSubscriptionModal}
+        pairs={allPairs}
+        selectedPairIds={[pair.id]}
+        onSubscribe={handleSubscriptionSubmit}
+      />
+
+      {/* Payment Modal */}
+      {subscriptionData && (
+        <PaymentModal
+          isOpen={paymentModalOpen}
+          onClose={handleClosePaymentModal}
+          subscriptionData={subscriptionData}
+          onPaymentSuccess={handlePaymentSuccess}
+        />
       )}
-    </div>
+    </>
   );
 }

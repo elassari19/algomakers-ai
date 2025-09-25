@@ -51,7 +51,6 @@ interface PairTableProps {
   pairs: PairData[];
   isLoading?: boolean;
   isUserLoggedIn: boolean;
-  onNavigate?: (pairId: string) => void;
   onSubscribe?: (
     pairId: string,
     action: 'subscribe' | 'renew' | 'upgrade'
@@ -71,7 +70,6 @@ export function PairTable({
   pairs,
   isLoading = false,
   isUserLoggedIn,
-  onNavigate,
   onSubscribe,
   className,
   pagination,
@@ -170,14 +168,11 @@ export function PairTable({
     );
   };
 
-  const handlePairClick = (pairId: string) => {
-    if (onNavigate) {
-      onNavigate(pairId);
-    }
-  };
   if (isLoading) {
     return (
-      <Card className={`bg-slate-800/50 border-slate-700 ${className}`}>
+      <Card
+        className={`bg-white/10 backdrop-blur-md border-white/20 shadow-xl hover:bg-white/15 transition-all duration-300 ${className}`}
+      >
         <CardHeader>
           <CardTitle className="text-white">Trading Pairs</CardTitle>
         </CardHeader>
@@ -185,7 +180,7 @@ export function PairTable({
           <div className="space-y-4">
             {[...Array(5)].map((_, i) => (
               <div key={i} className="animate-pulse">
-                <div className="h-12 bg-slate-700 rounded-lg"></div>
+                <div className="h-12 bg-white/10 backdrop-blur-sm rounded-lg border border-white/10"></div>
               </div>
             ))}
           </div>
@@ -196,7 +191,9 @@ export function PairTable({
 
   if (pairs.length === 0) {
     return (
-      <Card className={`bg-slate-800/50 border-slate-700 ${className}`}>
+      <Card
+        className={`bg-white/10 backdrop-blur-md border-white/20 shadow-xl hover:bg-white/15 transition-all duration-300 ${className}`}
+      >
         <CardHeader>
           <CardTitle className="text-white py-2">Trading Pairs</CardTitle>
         </CardHeader>
@@ -212,23 +209,25 @@ export function PairTable({
   }
 
   return (
-    <Card className={`bg-slate-800/50 border-slate-700 ${className}`}>
+    <Card
+      className={`bg-white/15 backdrop-blur-md border-white/20 shadow-xl hover:bg-white/15 transition-all duration-300 ${className}`}
+    >
       <CardHeader>
         <CardTitle className="text-white flex items-center gap-2 h-0">
           <TrendingUp className="h-5 w-5" />
           Trading Pairs
-          <span className="text-sm text-slate-400 font-normal">
+          <span className="text-sm text-white/70 font-normal">
             ({pairs.length} pairs available)
           </span>
         </CardTitle>
       </CardHeader>
       <CardContent>
-        <div className="rounded-lg border border-slate-700 overflow-hidden">
+        <div className="rounded-lg border border-white/20 overflow-hidden bg-white/5 backdrop-blur-sm">
           <Table>
             <TableHeader>
-              <TableRow className="border-slate-700 bg-slate-900/50">
-                <TableHead className="text-slate-300 w-32">Status</TableHead>
-                <TableHead className="text-slate-300">
+              <TableRow className="border-white/20 bg-white/5 backdrop-blur-sm">
+                <TableHead className="text-white/80 w-32">Status</TableHead>
+                <TableHead className="text-white/80">
                   <button
                     onClick={() => handleSort('symbol')}
                     className="flex items-center gap-2 hover:text-white transition-colors"
@@ -237,7 +236,7 @@ export function PairTable({
                     {getSortIcon('symbol')}
                   </button>
                 </TableHead>
-                <TableHead className="text-slate-300 text-center">
+                <TableHead className="text-white/80 text-center">
                   <button
                     onClick={() => handleSort('roi')}
                     className="flex items-center justify-center gap-2 hover:text-white transition-colors w-full"
@@ -246,7 +245,7 @@ export function PairTable({
                     {getSortIcon('roi')}
                   </button>
                 </TableHead>
-                <TableHead className="text-slate-300 text-center">
+                <TableHead className="text-white/80 text-center">
                   <button
                     onClick={() => handleSort('riskReward')}
                     className="flex items-center justify-center gap-2 hover:text-white transition-colors w-full"
@@ -255,7 +254,7 @@ export function PairTable({
                     {getSortIcon('riskReward')}
                   </button>
                 </TableHead>
-                <TableHead className="text-slate-300 text-center">
+                <TableHead className="text-white/80 text-center">
                   <button
                     onClick={() => handleSort('totalTrades')}
                     className="flex items-center justify-center gap-2 hover:text-white transition-colors w-full"
@@ -264,7 +263,7 @@ export function PairTable({
                     {getSortIcon('totalTrades')}
                   </button>
                 </TableHead>
-                <TableHead className="text-slate-300 text-center">
+                <TableHead className="text-white/80 text-center">
                   <button
                     onClick={() => handleSort('winRate')}
                     className="flex items-center justify-center gap-2 hover:text-white transition-colors w-full"
@@ -273,7 +272,7 @@ export function PairTable({
                     {getSortIcon('winRate')}
                   </button>
                 </TableHead>
-                <TableHead className="text-slate-300 text-center">
+                <TableHead className="text-white/80 text-center">
                   <button
                     onClick={() => handleSort('maxDrawdown')}
                     className="flex items-center justify-center gap-2 hover:text-white transition-colors w-full"
@@ -282,7 +281,7 @@ export function PairTable({
                     {getSortIcon('maxDrawdown')}
                   </button>
                 </TableHead>
-                <TableHead className="text-slate-300 text-center">
+                <TableHead className="text-white/80 text-center">
                   <button
                     onClick={() => handleSort('profit')}
                     className="flex items-center justify-center gap-2 hover:text-white transition-colors w-full"
@@ -291,7 +290,7 @@ export function PairTable({
                     {getSortIcon('profit')}
                   </button>
                 </TableHead>
-                <TableHead className="text-slate-300 text-center">
+                <TableHead className="text-white/80 text-center">
                   <button
                     onClick={() => handleSort('timeframe')}
                     className="flex items-center justify-center gap-2 hover:text-white transition-colors w-full"
@@ -300,7 +299,7 @@ export function PairTable({
                     {getSortIcon('timeframe')}
                   </button>
                 </TableHead>
-                <TableHead className="text-slate-300 text-center w-20">
+                <TableHead className="text-white/80 text-center w-20">
                   Actions
                 </TableHead>
               </TableRow>
@@ -310,12 +309,8 @@ export function PairTable({
                 <PairTableRow
                   key={pair.id}
                   pair={pair}
+                  allPairs={pairs}
                   isUserLoggedIn={isUserLoggedIn}
-                  onSubscribe={(pairId, action) => {
-                    if (onSubscribe) {
-                      onSubscribe(pairId, action);
-                    }
-                  }}
                 />
               ))}
             </TableBody>

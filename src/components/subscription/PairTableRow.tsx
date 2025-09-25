@@ -28,7 +28,7 @@ interface PairData {
   };
   subscription?: {
     status: 'active' | 'expiring' | 'expired' | 'pending';
-    expiryDate?: Date;
+    expiryDate?: string;
   };
   timeframe?: string;
   isPopular?: boolean;
@@ -36,17 +36,14 @@ interface PairData {
 
 interface PairTableRowProps {
   pair: PairData;
+  allPairs: PairData[];
   isUserLoggedIn: boolean;
-  onSubscribe: (
-    pairId: string,
-    action: 'subscribe' | 'renew' | 'upgrade'
-  ) => void;
 }
 
 export function PairTableRow({
   pair,
+  allPairs,
   isUserLoggedIn,
-  onSubscribe,
 }: PairTableRowProps) {
   const metrics = [
     {
@@ -100,11 +97,10 @@ export function PairTableRow({
       <TableCell className="w-32">
         <div className="flex flex-col gap-1">
           <SubscribeButton
-            pairId={pair.id}
-            pairSymbol={pair.symbol}
+            pair={pair}
+            allPairs={allPairs}
             userSubscriptionStatus={userSubscriptionStatus}
             isUserLoggedIn={isUserLoggedIn}
-            onSubscribe={onSubscribe}
           />
         </div>
       </TableCell>
