@@ -2,33 +2,9 @@
 
 import * as React from 'react';
 import Link from 'next/link';
-import {
-  AudioWaveform,
-  BookOpen,
-  Bot,
-  Command,
-  Frame,
-  GalleryVerticalEnd,
-  LayoutDashboard,
-  Map,
-  PieChart,
-  Puzzle,
-  Search,
-  Settings2,
-  SquareTerminal,
-  Star,
-  Wrench,
-  Lightbulb,
-  Pin,
-  HelpCircle,
-  ArrowUpRight,
-  BarChart2,
-  LineChart,
-} from 'lucide-react';
+import { LayoutDashboard, PieChart } from 'lucide-react';
 
 import { NavMain } from '@/components/nav-main';
-import { NavUser } from '@/components/nav-user';
-import { TeamSwitcher } from '@/components/team-switcher';
 import {
   Sidebar,
   SidebarContent,
@@ -50,14 +26,12 @@ const data = {
       title: 'Dashboard',
       url: '/dashboard',
       icon: LayoutDashboard,
-      isActive: true,
     },
     {
       title: 'My Subscriptions',
       url: '/subscriptions',
       icon: PieChart,
       badge: 'PRO',
-      isActive: false,
     },
     // {
     //   title: 'Explore by Symbols',

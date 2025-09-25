@@ -370,7 +370,7 @@ export default async function DashboardPage(props: IProps) {
 
   return (
     <GradientBackground>
-      <div className="flex flex-1 flex-col gap-6 p-6 pt-0">
+      <div className="flex flex-1 flex-col gap-6  md:p-6 pt-0">
         {/* Dashboard Statistics */}
         <div className="mb-2">
           <DashboardStats
@@ -386,11 +386,17 @@ export default async function DashboardPage(props: IProps) {
         <div className="space-y-6">
           {/* Search and Filter Bar */}
           <div className="mb-4">
-            <ClientSortFilterBar
-              searchQuery={searchQuery}
-              filterBy={filterBy}
-              totalResults={totalFilteredPairs}
-            />
+            <Suspense
+              fallback={
+                <div className="animate-pulse h-16 bg-white/10 rounded-md"></div>
+              }
+            >
+              <ClientSortFilterBar
+                searchQuery={searchQuery}
+                filterBy={filterBy}
+                totalResults={totalFilteredPairs}
+              />
+            </Suspense>
           </div>
 
           {/* Main Pairs Table */}

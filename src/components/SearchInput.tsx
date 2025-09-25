@@ -21,8 +21,8 @@ export function SearchInput({ placeholder }: Props) {
 
     params.set('page', '1');
 
-    if (e.target.value) {
-      e.target.value.length > 2 && params.set('q', e.target.value);
+    if (e.target.value && e.target.value.length > 2) {
+      params.set('q', e.target.value);
     } else {
       params.delete('q');
     }
@@ -35,6 +35,7 @@ export function SearchInput({ placeholder }: Props) {
       <Input
         type="text"
         placeholder={placeholder}
+        defaultValue={searchParams.get('q') || ''}
         onChange={handleSearch}
         className="pl-10 pr-10 bg-white/10 backdrop-blur-md border-white/20 text-white placeholder:text-slate-400 focus:border-white/40 focus:ring-white/20"
       />

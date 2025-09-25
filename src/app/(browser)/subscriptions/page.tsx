@@ -6,9 +6,10 @@ import { SubscriptionModal } from '@/components/subscription/SubscriptionModal';
 import { PaymentModal } from '@/components/subscription/PaymentModal';
 import { ClientPairTable } from '@/components/subscription/ClientPairTable';
 import { ClientSortFilterBar } from '@/components/subscription/ClientSortFilterBar';
+import { SuspenseWrapper } from '@/components/ui/suspense-wrapper';
 
 // Mock data - replace with real API calls
-const mockPairs = [
+export const mockPairs = [
   {
     id: '1',
     symbol: 'EURUSD',
@@ -173,22 +174,33 @@ export default function SubscriptionsPage() {
       </div>
 
       {/* Filters and Search */}
-      <ClientSortFilterBar
-        searchQuery=""
-        filterBy="all"
-        totalResults={mockPairs.length}
-      />
+      <SuspenseWrapper
+        fallback={
+          <div className="animate-pulse h-16 bg-white/10 rounded-md"></div>
+        }
+      >
+        <ClientSortFilterBar
+          searchQuery=""
+          filterBy="all"
+          totalResults={mockPairs.length}
+        />
+      </SuspenseWrapper>
 
       {/* Pairs Table */}
-      <ClientPairTable
-        pairs={mockPairs}
-        isUserLoggedIn={isUserLoggedIn}
-        currentPage={1}
-        totalPages={1}
-        itemsPerPage={10}
-        totalItems={mockPairs.length}
-        onSubscribe={handleSubscribe}
-      />
+      <SuspenseWrapper
+        fallback={
+          <div className="animate-pulse h-96 bg-white/10 rounded-md"></div>
+        }
+      >
+        <ClientPairTable
+          pairs={mockPairs}
+          isUserLoggedIn={isUserLoggedIn}
+          currentPage={1}
+          totalPages={1}
+          itemsPerPage={10}
+          totalItems={mockPairs.length}
+        />
+      </SuspenseWrapper>
 
       {/* Subscription Modal */}
       <SubscriptionModal

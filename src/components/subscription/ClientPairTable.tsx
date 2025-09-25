@@ -1,5 +1,4 @@
 import { PairTable } from './PairTable';
-import { PaginationControls } from '@/components/ui/pagination-controls';
 
 interface PairData {
   id: string;
@@ -44,15 +43,12 @@ export function ClientPairTable({
         pairs={pairs}
         isLoading={false}
         isUserLoggedIn={isUserLoggedIn}
-      />
-
-      {/* Pagination Controls */}
-      <PaginationControls
-        currentPage={currentPage}
-        totalPages={totalPages}
-        itemsPerPage={itemsPerPage}
-        totalItems={totalItems}
-        className="mt-4"
+        pagination={{
+          currentPage,
+          totalPages,
+          itemsPerPage,
+          totalItems,
+        }}
       />
     </div>
   );

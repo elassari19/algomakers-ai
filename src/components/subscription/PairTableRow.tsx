@@ -97,8 +97,8 @@ export function PairTableRow({
       <TableCell className="w-32">
         <div className="flex flex-col gap-1">
           <SubscribeButton
-            pair={pair}
-            allPairs={allPairs}
+            pairId={pair.id}
+            pairSymbol={pair.symbol}
             userSubscriptionStatus={userSubscriptionStatus}
             isUserLoggedIn={isUserLoggedIn}
           />

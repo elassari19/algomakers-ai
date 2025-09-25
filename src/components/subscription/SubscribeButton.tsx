@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { SubscriptionModal } from './SubscriptionModal';
 import { PaymentModal } from './PaymentModal';
+import { mockPairs } from '../../app/(browser)/subscriptions/page';
 
 interface TradingPair {
   id: string;
@@ -36,8 +37,8 @@ interface TradingPair {
 }
 
 interface SubscribeButtonProps {
-  pair: TradingPair;
-  allPairs: TradingPair[];
+  pairId: string;
+  pairSymbol?: string;
   userSubscriptionStatus?:
     | 'none'
     | 'active'
@@ -49,8 +50,8 @@ interface SubscribeButtonProps {
 }
 
 export function SubscribeButton({
-  pair,
-  allPairs,
+  pairId,
+  pairSymbol,
   userSubscriptionStatus = 'none',
   isUserLoggedIn,
   className,
@@ -139,7 +140,7 @@ export function SubscribeButton({
     const paymentData = {
       pairIds: data.pairIds,
       pairNames: data.pairIds.map((id: string) => {
-        const foundPair = allPairs.find((p) => p.id === id);
+        const foundPair = mockPairs.find((p) => p.id === id);
         return foundPair ? foundPair.symbol : '';
       }),
       plan: {
@@ -178,7 +179,7 @@ export function SubscribeButton({
       return;
     }
 
-    handleSubscribe(pair.id, config.action);
+    handleSubscribe(pairId, config.action);
   };
 
   return (
@@ -218,8 +219,8 @@ export function SubscribeButton({
       <SubscriptionModal
         isOpen={subscriptionModalOpen}
         onClose={handleCloseSubscriptionModal}
-        pairs={allPairs}
-        selectedPairIds={[pair.id]}
+        pairs={mockPairs}
+        selectedPairIds={[pairId]}
         onSubscribe={handleSubscriptionSubmit}
       />
 
