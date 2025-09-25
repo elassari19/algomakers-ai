@@ -1,12 +1,11 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, Suspense } from 'react';
 import { Button } from '@/components/ui/button';
 import { SubscriptionModal } from '@/components/subscription/SubscriptionModal';
 import { PaymentModal } from '@/components/subscription/PaymentModal';
 import { ClientPairTable } from '@/components/subscription/ClientPairTable';
 import { ClientSortFilterBar } from '@/components/subscription/ClientSortFilterBar';
-import { SuspenseWrapper } from '@/components/ui/suspense-wrapper';
 
 // Mock data - replace with real API calls
 export const mockPairs = [
@@ -174,7 +173,7 @@ export default function SubscriptionsPage() {
       </div>
 
       {/* Filters and Search */}
-      <SuspenseWrapper
+      <Suspense
         fallback={
           <div className="animate-pulse h-16 bg-white/10 rounded-md"></div>
         }
@@ -184,10 +183,10 @@ export default function SubscriptionsPage() {
           filterBy="all"
           totalResults={mockPairs.length}
         />
-      </SuspenseWrapper>
+      </Suspense>
 
       {/* Pairs Table */}
-      <SuspenseWrapper
+      <Suspense
         fallback={
           <div className="animate-pulse h-96 bg-white/10 rounded-md"></div>
         }
@@ -200,7 +199,7 @@ export default function SubscriptionsPage() {
           itemsPerPage={10}
           totalItems={mockPairs.length}
         />
-      </SuspenseWrapper>
+      </Suspense>
 
       {/* Subscription Modal */}
       <SubscriptionModal
