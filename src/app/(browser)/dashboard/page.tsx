@@ -3,6 +3,7 @@ import { DashboardStats } from '@/components/dashboard/DashboardStats';
 import { ClientSortFilterBar } from '@/components/subscription/ClientSortFilterBar';
 import { ClientPairTable } from '@/components/subscription/ClientPairTable';
 import { GradientBackground } from '@/components/ui/gradient-background';
+import { PairTable } from '../../../components/subscription/PairTable';
 
 // Mock data - replace with real API calls
 const mockPairs = [
@@ -263,7 +264,7 @@ export default async function DashboardPage(props: IProps) {
   const searchQuery = search || '';
   const filterBy = filter || 'all';
   const currentPage = parseInt(page || '1');
-  const itemsPerPage = parseInt(limit || '10');
+  const itemsPerPage = parseInt(limit || '5');
 
   // Mock user state - replace with real auth
   const isUserLoggedIn = true;
@@ -411,13 +412,16 @@ export default async function DashboardPage(props: IProps) {
                 </div>
               }
             >
-              <ClientPairTable
+              <PairTable
                 pairs={paginatedPairs}
+                isLoading={false}
                 isUserLoggedIn={isUserLoggedIn}
-                currentPage={currentPage}
-                totalPages={totalPages}
-                itemsPerPage={itemsPerPage}
-                totalItems={totalFilteredPairs}
+                pagination={{
+                  currentPage,
+                  totalPages,
+                  itemsPerPage,
+                  totalItems: totalFilteredPairs,
+                }}
               />
             </Suspense>
           </div>

@@ -80,10 +80,12 @@ export function PairTable({
 
   // Filter pairs based on search query
   const filteredPairs = searchQuery
-    ? pairs.filter((pair) =>
-        pair.symbol.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        pair.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        (pair.timeframe && pair.timeframe.toLowerCase().includes(searchQuery.toLowerCase()))
+    ? pairs.filter(
+        (pair) =>
+          pair.symbol.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          pair.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          (pair.timeframe &&
+            pair.timeframe.toLowerCase().includes(searchQuery.toLowerCase()))
       )
     : pairs;
 
@@ -201,7 +203,7 @@ export function PairTable({
 
   return (
     <Card
-      className={`bg-white/15 backdrop-blur-md border-white/20 shadow-xl hover:bg-white/15 transition-all duration-300 ${className}`}
+      className={`bg-white/5 backdrop-blur-md border-white/20 shadow-xl hover:bg-white/15 transition-all duration-300 ${className}`}
     >
       <CardHeader>
         <CardTitle className="text-white flex items-center gap-2 h-0">
@@ -212,7 +214,7 @@ export function PairTable({
           </span>
         </CardTitle>
       </CardHeader>
-      <CardContent>
+      <CardContent className="px-1 sm:px-3">
         <div className="rounded-lg border border-white/20 overflow-hidden bg-white/5 backdrop-blur-sm">
           <Table>
             <TableHeader>

@@ -19,7 +19,7 @@ import { useURLParams } from '@/hooks/useURLParams';
 interface PaginationControlsProps {
   currentPage: number;
   totalPages: number;
-  itemsPerPage: number;
+  itemsPerPage?: number; // Optional with default value of 5
   totalItems: number;
   className?: string;
 }
@@ -27,7 +27,7 @@ interface PaginationControlsProps {
 export function PaginationControls({
   currentPage,
   totalPages,
-  itemsPerPage,
+  itemsPerPage = 5, // Default to 5 items per page
   totalItems,
   className = '',
 }: PaginationControlsProps) {
@@ -51,7 +51,7 @@ export function PaginationControls({
     <div
       className={`flex flex-col sm:flex-row items-center justify-between gap-4 ${className}`}
     >
-      <div className="flex flex-col sm:flex-row items-center gap-2 sm:gap-4 w-full sm:w-auto">
+      <div className="flex flex-row items-center justify-center sm:justify-start gap-6 sm:gap-4 w-full sm:w-auto">
         <div className="flex items-center gap-2">
           <span className="text-sm text-slate-400 whitespace-nowrap">Show</span>
           <Select
@@ -105,7 +105,7 @@ export function PaginationControls({
         {/* Page info - responsive text */}
         <div className="flex items-center gap-1 px-2">
           <span className="text-sm text-slate-400 whitespace-nowrap">
-            <span className="hidden sm:inline">Page </span>
+            <span className="">Page </span>
             {currentPage} of {totalPages}
           </span>
         </div>

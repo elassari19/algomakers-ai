@@ -71,8 +71,8 @@ export function DashboardStats({
       {stats.map((stat) => {
         const IconComponent = stat.icon;
         return (
-          <GlassmorphismCard key={stat.title} className="py-3">
-            <CardHeader className="flex flex-row items-center justify-between py-2 pb-1">
+          <GlassmorphismCard key={stat.title} className="py-0 sm:py-3">
+            <CardHeader className="flex flex-row items-center justify-between py-2 sm:pb-1">
               <CardTitle className="text-sm font-semibold text-white/90">
                 {stat.title}
               </CardTitle>
@@ -85,18 +85,20 @@ export function DashboardStats({
               </div>
             </CardHeader>
             <CardContent className="pt-1">
-              <div className="flex flex-col space-y-1">
+              <div className="flex flex-row justify-between sm:flex-col space-y-1">
                 <span className="text-2xl font-bold text-white drop-shadow-sm">
                   {stat.value}
                 </span>
-                <p className="text-xs text-white/70 font-medium">
-                  {stat.description}
-                </p>
-                <p
-                  className={`text-xs font-semibold ${stat.color} drop-shadow-sm`}
-                >
-                  {stat.trend}
-                </p>
+                <div>
+                  <p className="text-xs text-white/70 font-medium">
+                    {stat.description}
+                  </p>
+                  <p
+                    className={`text-xs font-semibold ${stat.color} drop-shadow-sm`}
+                  >
+                    {stat.trend}
+                  </p>
+                </div>
               </div>
             </CardContent>
           </GlassmorphismCard>

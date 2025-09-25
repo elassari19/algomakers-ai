@@ -30,14 +30,14 @@ export function SearchInput({ placeholder }: Props) {
   }, 500);
 
   return (
-    <div className="relative">
+    <div className="relative w-full">
       <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-white/60" />
       <Input
         type="text"
         placeholder={placeholder}
         defaultValue={searchParams.get('q') || ''}
         onChange={handleSearch}
-        className="pl-10 pr-10 bg-white/10 backdrop-blur-md border-white/20 text-white placeholder:text-slate-400 focus:border-white/40 focus:ring-white/20"
+        className="w-full pl-10 pr-10 bg-white/10 backdrop-blur-md border-white/20 text-white placeholder:text-slate-400 focus:border-white/40 focus:ring-white/20"
       />
     </div>
   );

@@ -164,7 +164,11 @@ const data = {
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   return (
-    <Sidebar collapsible="icon" {...props}>
+    <Sidebar
+      collapsible="icon"
+      {...props}
+      className="bg-gradient-to-b from-black to-gray-800"
+    >
       <SidebarHeader>
         <Link
           href="/dashboard"

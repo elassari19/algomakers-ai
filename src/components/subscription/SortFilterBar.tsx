@@ -27,17 +27,19 @@ export function SortFilterBar({
       {/* Search and Filter */}
       <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
         {/* Results Count */}
-        <div className="text-sm text-white/80 font-medium">
+        <div className="hidden sm:block text-sm text-white/80 font-medium">
           {totalResults} {totalResults === 1 ? 'pair' : 'pairs'} found
         </div>
 
         <div className="flex flex-col sm:flex-row gap-4 w-full sm:w-auto">
-          <SearchInput placeholder={'Search pairs (min. 2 characters)...'} />
+          <div className="w-full sm:w-auto">
+            <SearchInput placeholder={'Search pairs (min. 2 characters)...'} />
+          </div>
 
           {/* Filter */}
-          <div className="flex gap-2">
+          <div className="flex gap-2 w-full sm:w-auto">
             <Select value={filterBy} onValueChange={onFilterChange}>
-              <SelectTrigger className="w-40 backdrop-blur-md bg-white/15 border border-white/30 text-white hover:bg-white/20 rounded-xl">
+              <SelectTrigger className="w-full sm:w-40 backdrop-blur-md bg-white/15 border border-white/30 text-white hover:bg-white/20 rounded-xl">
                 <SelectValue placeholder="Filter by" />
               </SelectTrigger>
               <SelectContent className="backdrop-blur-xl bg-white/10 border border-white/30 rounded-xl">
