@@ -7,17 +7,23 @@ import { toast } from 'sonner';
 
 import { ForgotPasswordForm } from '@/components/auth/ForgotPasswordForm';
 import { Toaster } from '@/components/ui/sonner';
+import { handleAuthError } from '@/lib/constant-errors';
 
 export default function ForgotPasswordPage() {
   const handleSuccess = (email: string) => {
     toast.success('New password sent!', {
       description: `Check your email at ${email} for your new temporary password.`,
+      duration: 3000,
+      style: { backgroundColor: '#22c55e', color: '#fff' },
     });
   };
 
   const handleError = (error: string) => {
+    const userFriendlyError = handleAuthError(error);
     toast.error('Failed to send password', {
-      description: error,
+      description: userFriendlyError,
+      duration: 3000,
+      style: { backgroundColor: '#ef4444', color: '#fff' },
     });
   };
 

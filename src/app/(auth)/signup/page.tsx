@@ -5,12 +5,15 @@ import { toast } from 'sonner';
 import { AuthForm } from '@/components/auth/AuthForm';
 import { Toaster } from '@/components/ui/sonner';
 import Link from 'next/link';
+import { handleAuthError } from '@/lib/constant-errors';
 
 export default function SignUpPage() {
   const handleSuccess = () => {
     toast.success('Account created successfully!', {
       description:
         'Please check your email to verify your account, then sign in.',
+      duration: 2000,
+      style: { backgroundColor: '#22c55e', color: '#fff' },
     });
     setTimeout(() => {
       window.location.href = '/signin';
@@ -18,8 +21,11 @@ export default function SignUpPage() {
   };
 
   const handleError = (error: string) => {
+    const userFriendlyError = handleAuthError(error);
     toast.error('Sign up failed', {
-      description: error || 'An error occurred while creating your account.',
+      description: userFriendlyError,
+      duration: 3000,
+      style: { backgroundColor: '#ef4444', color: '#fff' },
     });
   };
 

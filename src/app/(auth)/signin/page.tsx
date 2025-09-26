@@ -8,6 +8,7 @@ import { toast } from 'sonner';
 
 import { AuthForm } from '@/components/auth/AuthForm';
 import { Toaster } from '@/components/ui/sonner';
+import { handleAuthError } from '@/lib/constant-errors';
 
 function SignInForm() {
   const router = useRouter();
@@ -20,7 +21,8 @@ function SignInForm() {
     if (message === 'password-reset-success') {
       toast.success('Password reset successful!', {
         description: 'You can now sign in with your new password.',
-        duration: 5000,
+        duration: 2000,
+        style: { backgroundColor: '#22c55e', color: '#fff' },
       });
     }
   }, [message]);
@@ -28,6 +30,8 @@ function SignInForm() {
   const handleSuccess = () => {
     toast.success('Welcome back! Redirecting to dashboard...', {
       description: 'You have successfully signed in.',
+      duration: 1000,
+      style: { backgroundColor: '#22c55e', color: '#fff' },
     });
     setTimeout(() => {
       router.push(callbackUrl);
@@ -36,8 +40,11 @@ function SignInForm() {
   };
 
   const handleError = (error: string) => {
+    const userFriendlyError = handleAuthError(error);
     toast.error('Sign in failed', {
-      description: error || 'Invalid email or password. Please try again.',
+      description: userFriendlyError,
+      duration: 4000,
+      style: { backgroundColor: '#ef4444', color: '#fff' },
     });
   };
 

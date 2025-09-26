@@ -20,6 +20,8 @@ import { z } from 'zod';
 import { Eye, EyeOff, ArrowLeft, CheckCircle, AlertCircle } from 'lucide-react';
 import Link from 'next/link';
 import Image from 'next/image';
+import { handleAuthError } from '@/lib/constant-errors';
+import { toast } from 'sonner';
 
 const resetPasswordSchema = z
   .object({
@@ -68,7 +70,7 @@ function ResetPasswordForm() {
     const verifyToken = async () => {
       if (!token) {
         setTokenValid(false);
-        setError('No reset token provided');
+        setError(handleAuthError('No reset token provided'));
         return;
       }
 
@@ -83,11 +85,13 @@ function ResetPasswordForm() {
           setTokenEmail(data.email);
         } else {
           setTokenValid(false);
-          setError(data.error || 'Invalid or expired reset token');
+          setError(
+            handleAuthError(data.error || 'Invalid or expired reset token')
+          );
         }
       } catch (err) {
         setTokenValid(false);
-        setError('Failed to verify reset token');
+        setError(handleAuthError('Failed to verify reset token'));
       }
     };
 
@@ -113,15 +117,33 @@ function ResetPasswordForm() {
       const result = await response.json();
 
       if (response.ok) {
+        toast.success('Password reset successful!', {
+          description: 'You can now sign in with your new password.',
+          duration: 2000,
+          style: { backgroundColor: '#22c55e', color: '#fff' },
+        });
         setSuccess(true);
         setTimeout(() => {
           router.push('/signin?message=password-reset-success');
-        }, 3000);
+        }, 2000);
       } else {
-        setError(result.error || 'Failed to reset password');
+        const userFriendlyError = handleAuthError(error);
+
+        toast.error('Password reset failed', {
+          description: userFriendlyError,
+          duration: 4000,
+          style: { backgroundColor: '#ef4444', color: '#fff' },
+        });
+        setError(userFriendlyError);
       }
     } catch (err) {
-      setError('An unexpected error occurred');
+      const userFriendlyError = handleAuthError('An unexpected error occurred');
+      toast.error('Password reset failed', {
+        description: userFriendlyError,
+        duration: 4000,
+        style: { backgroundColor: '#ef4444', color: '#fff' },
+      });
+      setError(userFriendlyError);
     } finally {
       setIsLoading(false);
     }
