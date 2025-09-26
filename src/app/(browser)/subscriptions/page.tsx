@@ -2,7 +2,7 @@ import { Suspense } from 'react';
 import { ClientSortFilterBar } from '@/components/subscription/ClientSortFilterBar';
 import { PairTable } from '@/components/subscription/PairTable';
 import { GradientBackground } from '@/components/ui/gradient-background';
-import { mockPairs } from '../dashboard/page';
+import { mockPairs } from '@/lib/dummy-data';
 
 interface IProps {
   searchParams: Promise<{

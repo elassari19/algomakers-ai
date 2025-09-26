@@ -1,41 +1,12 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import {
-  CreditCard,
-  RefreshCw,
-  TrendingUp,
-  Lock,
-  Check,
-  Clock,
-  X,
-} from 'lucide-react';
+import { CreditCard, TrendingUp, Lock, Clock, X } from 'lucide-react';
 import { SubscriptionModal } from './SubscriptionModal';
 import { PaymentModal } from './PaymentModal';
-import { mockPairs } from '../../app/(browser)/dashboard/page';
-
-interface TradingPair {
-  id: string;
-  symbol: string;
-  name: string;
-  metrics: {
-    roi: number;
-    riskReward: number;
-    totalTrades: number;
-    winRate: number;
-    maxDrawdown: number;
-    profit: number;
-  };
-  timeframe?: string;
-  isPopular?: boolean;
-  subscription?: {
-    status: 'active' | 'expiring' | 'expired' | 'pending';
-    expiryDate?: string;
-  };
-}
+import { mockPairs } from '@/lib/dummy-data';
 
 interface SubscribeButtonProps {
   pairId: string;
