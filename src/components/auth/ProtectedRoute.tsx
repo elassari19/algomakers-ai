@@ -7,7 +7,7 @@ import { hasRolePrivilege, type UserRole } from '@/components/auth/RoleBadge';
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
-  requiredRole?: UserRole;
+  requiredRole?: UserRole | null;
   redirectTo?: string;
   fallback?: React.ReactNode;
 }
@@ -33,18 +33,18 @@ export function ProtectedRoute({
       return;
     }
 
-    if (
-      requiredRole &&
-      !hasRolePrivilege(session.user.role as UserRole, requiredRole)
-    ) {
-      console.log(
-        'User role:',
-        session.user.role,
-        'Required role:',
-        requiredRole
-      );
-      router.push('/unauthorized');
-      return;
+    // Skip role check if requiredRole is null (only authentication required)
+    if (requiredRole !== null) {
+      const userRole = session.user?.role as UserRole;
+
+      if (
+        requiredRole &&
+        (!userRole || !hasRolePrivilege(userRole, requiredRole))
+      ) {
+        console.log('User role:', userRole, 'Required role:', requiredRole);
+        router.push('/unauthorized');
+        return;
+      }
     }
   }, [session, status, router, requiredRole, redirectTo]);
 
