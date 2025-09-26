@@ -2,33 +2,9 @@
 
 import * as React from 'react';
 import Link from 'next/link';
-import {
-  AudioWaveform,
-  BookOpen,
-  Bot,
-  Command,
-  Frame,
-  GalleryVerticalEnd,
-  LayoutDashboard,
-  Map,
-  PieChart,
-  Puzzle,
-  Search,
-  Settings2,
-  SquareTerminal,
-  Star,
-  Wrench,
-  Lightbulb,
-  Pin,
-  HelpCircle,
-  ArrowUpRight,
-  BarChart2,
-  LineChart,
-} from 'lucide-react';
+import { LayoutDashboard, PieChart } from 'lucide-react';
 
 import { NavMain } from '@/components/nav-main';
-import { NavUser } from '@/components/nav-user';
-import { TeamSwitcher } from '@/components/team-switcher';
 import {
   Sidebar,
   SidebarContent,
@@ -50,7 +26,12 @@ const data = {
       title: 'Dashboard',
       url: '/dashboard',
       icon: LayoutDashboard,
-      isActive: true,
+    },
+    {
+      title: 'My Subscriptions',
+      url: '/subscriptions',
+      icon: PieChart,
+      badge: 'PRO',
     },
     // {
     //   title: 'Explore by Symbols',
@@ -183,7 +164,11 @@ const data = {
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   return (
-    <Sidebar collapsible="icon" {...props}>
+    <Sidebar
+      collapsible="icon"
+      {...props}
+      className="bg-gradient-to-b from-black to-gray-800"
+    >
       <SidebarHeader>
         <Link
           href="/dashboard"

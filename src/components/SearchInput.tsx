@@ -1,30 +1,44 @@
 'use client';
 
-import React, { useRef, useState } from 'react';
-import { Input } from './ui/input';
+import { Search } from 'lucide-react';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+import { useDebouncedCallback } from 'use-debounce';
+import { Input } from '@/components/ui/input';
 
-export function SearchInput() {
-  const [value, setValue] = useState('');
-  const [bouncing, setBouncing] = useState(false);
-  const timeoutRef = useRef<NodeJS.Timeout | null>(null);
+interface Props extends React.InputHTMLAttributes<HTMLInputElement> {}
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setValue(e.target.value);
-    setBouncing(true);
-    if (timeoutRef.current) clearTimeout(timeoutRef.current);
-    timeoutRef.current = setTimeout(() => setBouncing(false), 1000);
-  };
+export function SearchInput({ placeholder }: Props) {
+  // get search params
+  const searchParams = useSearchParams();
+  const { replace } = useRouter();
+  // get current url pathname
+  const pathname = usePathname();
+
+  // useDebouncedCallback using for delay
+  const handleSearch = useDebouncedCallback((e: any) => {
+    // update search params immediately
+    const params = new URLSearchParams(searchParams);
+
+    params.set('page', '1');
+
+    if (e.target.value && e.target.value.length > 2) {
+      params.set('q', e.target.value);
+    } else {
+      params.delete('q');
+    }
+    replace(`${pathname}?${params}`);
+  }, 500);
 
   return (
-    <Input
-      className={`flex-1 h-9 max-w-md rounded-lg bg-muted/40 border-none text-sm transition-transform duration-300 ${
-        bouncing ? 'animate-bounce' : ''
-      }`}
-      placeholder="Search pair for anything"
-      type="text"
-      aria-label="Search"
-      value={value}
-      onChange={handleChange}
-    />
+    <div className="relative w-full">
+      <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-white/60 pointer-events-none z-10" />
+      <Input
+        type="text"
+        placeholder={placeholder}
+        defaultValue={searchParams.get('q') || ''}
+        onChange={handleSearch}
+        className="w-full pl-10 pr-10 bg-white/10 backdrop-blur-md border-white/20 text-white placeholder:text-slate-400 focus:border-white/40 focus:ring-white/20"
+      />
+    </div>
   );
 }

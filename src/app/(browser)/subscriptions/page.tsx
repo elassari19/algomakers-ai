@@ -1,8 +1,7 @@
 import { Suspense } from 'react';
-import { DashboardStats } from '@/components/dashboard/DashboardStats';
 import { ClientSortFilterBar } from '@/components/subscription/ClientSortFilterBar';
+import { PairTable } from '@/components/subscription/PairTable';
 import { GradientBackground } from '@/components/ui/gradient-background';
-import { PairTable } from '../../../components/subscription/PairTable';
 import { mockPairs } from '@/lib/dummy-data';
 
 interface IProps {
@@ -15,7 +14,7 @@ interface IProps {
   }>;
 }
 
-export default async function DashboardPage(props: IProps) {
+export default async function SubscriptionsPage(props: IProps) {
   const { search, filter, limit, page, q } = await props.searchParams;
 
   // Extract URL params with defaults
@@ -27,32 +26,7 @@ export default async function DashboardPage(props: IProps) {
   // Mock user state - replace with real auth
   const isUserLoggedIn = true;
 
-  // Calculate stats from pairs data
-  const totalPairs = mockPairs.length;
-  const profitablePairs = mockPairs.filter(
-    (pair) => pair.metrics.profit > 0
-  ).length;
-  const totalProfit = mockPairs.reduce(
-    (sum, pair) => sum + pair.metrics.profit,
-    0
-  );
-
-  // Find best performer by ROI
-  const bestPerformer = mockPairs.reduce((best, current) =>
-    current.metrics.roi > best.metrics.roi ? current : best
-  );
-
-  const dashboardStats = {
-    totalPairs,
-    profitablePairs,
-    totalProfit,
-    bestPerformer: {
-      symbol: bestPerformer.symbol,
-      roi: bestPerformer.metrics.roi,
-    },
-  };
-
-  // Filter pairs based on URL params
+  // Filter subscribed pairs based on URL params
   function getFilteredPairs() {
     let filtered = mockPairs;
 
@@ -68,6 +42,21 @@ export default async function DashboardPage(props: IProps) {
     // Category filter
     if (filterBy !== 'all') {
       switch (filterBy) {
+        case 'active':
+          filtered = filtered.filter(
+            (pair) => pair.subscription?.status === 'active'
+          );
+          break;
+        case 'expiring':
+          filtered = filtered.filter(
+            (pair) => pair.subscription?.status === 'expiring'
+          );
+          break;
+        case 'pending':
+          filtered = filtered.filter(
+            (pair) => pair.subscription?.status === 'pending'
+          );
+          break;
         case 'forex':
           filtered = filtered.filter(
             (pair) =>
@@ -101,14 +90,6 @@ export default async function DashboardPage(props: IProps) {
         case 'popular':
           filtered = filtered.filter((pair) => pair.isPopular);
           break;
-        case 'subscribed':
-          filtered = filtered.filter(
-            (pair) =>
-              pair.subscription &&
-              (pair.subscription.status === 'active' ||
-                pair.subscription.status === 'expiring')
-          );
-          break;
       }
     }
 
@@ -129,16 +110,15 @@ export default async function DashboardPage(props: IProps) {
 
   return (
     <GradientBackground>
-      <div className="flex flex-1 flex-col gap-6  md:p-6 pt-0">
-        {/* Dashboard Statistics */}
-        <div className="mb-2">
-          <DashboardStats
-            totalPairs={dashboardStats.totalPairs}
-            profitablePairs={dashboardStats.profitablePairs}
-            totalProfit={dashboardStats.totalProfit}
-            bestPerformer={dashboardStats.bestPerformer}
-            className="mb-0 opacity-95"
-          />
+      <div className="flex flex-1 flex-col gap-6 md:p-6 pt-0">
+        {/* Header */}
+        <div className="mb-6">
+          <h1 className="text-3xl font-bold text-white mb-2">
+            My Subscriptions
+          </h1>
+          <p className="text-white/70">
+            Manage your subscribed trading pairs and monitor their performance.
+          </p>
         </div>
 
         {/* Trading Pairs Table Section */}
@@ -164,7 +144,7 @@ export default async function DashboardPage(props: IProps) {
                 <div className="flex items-center justify-center p-12">
                   <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-white"></div>
                   <span className="ml-3 text-white/80">
-                    Loading trading pairs...
+                    Loading subscriptions...
                   </span>
                 </div>
               }
