@@ -26,7 +26,6 @@ export function PairSubscribeWrapper({
       pairSymbol={pairSymbol}
       userSubscriptionStatus="none" // TODO: Get actual user subscription status from context/auth
       isUserLoggedIn={false} // TODO: Get actual auth status from context/auth
-      onSubscribe={handleSubscribe}
     />
   );
 }

@@ -1,12 +1,9 @@
 import { AppSidebar } from '@/components/app-sidebar';
-import { Separator } from '@/components/ui/separator';
 import {
   SidebarInset,
   SidebarProvider,
   SidebarTrigger,
 } from '@/components/ui/sidebar';
-import { SearchInput } from '@/components/SearchInput';
-import { UserAvatarMenu } from '@/components/auth/UserAvatarMenu';
 
 export default function BrowserLayout({
   children,
@@ -18,10 +15,10 @@ export default function BrowserLayout({
       <AppSidebar />
       <SidebarInset>
         <SidebarTrigger
-          size="icon"
-          className="absolute inset-y-2 -left-0 top-2 z-10 flex items-center cursor-pointer"
+          size="lg"
+          className="absolute inset-y-2 top-2 z-90 flex items-center cursor-pointer bg-red-500/30 backdrop-blur-sm hover:bg-gray-500/50 transition p-1 rounded-md"
         />
-        <main className="flex-1 p-4">{children}</main>
+        <div className="p-2 py-8 sm:p-2">{children}</div>
       </SidebarInset>
     </SidebarProvider>
   );

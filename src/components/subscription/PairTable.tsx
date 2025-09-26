@@ -16,20 +16,10 @@ import {
   ChevronUp,
   ChevronDown,
   ChevronsUpDown,
-  ChevronLeft,
-  ChevronRight,
-  ChevronsLeft,
-  ChevronsRight,
 } from 'lucide-react';
-import { useState } from 'react';
-import { Button } from '@/components/ui/button';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
+import { useState, useEffect } from 'react';
+import { PaginationControls } from '../ui/pagination-controls';
+import { useSearchParams, useRouter, usePathname } from 'next/navigation';
 
 interface PairData {
   id: string;
@@ -51,7 +41,6 @@ interface PairTableProps {
   pairs: PairData[];
   isLoading?: boolean;
   isUserLoggedIn: boolean;
-  onNavigate?: (pairId: string) => void;
   onSubscribe?: (
     pairId: string,
     action: 'subscribe' | 'renew' | 'upgrade'
@@ -62,8 +51,6 @@ interface PairTableProps {
     totalPages: number;
     itemsPerPage: number;
     totalItems: number;
-    onPageChange: (page: number) => void;
-    onItemsPerPageChange: (limit: number) => void;
   };
 }
 
@@ -71,25 +58,39 @@ export function PairTable({
   pairs,
   isLoading = false,
   isUserLoggedIn,
-  onNavigate,
-  onSubscribe,
   className,
   pagination,
 }: PairTableProps) {
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const pathname = usePathname();
+
   const [sortField, setSortField] = useState<
     keyof PairData['metrics'] | 'symbol' | 'timeframe'
   >('roi');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
 
-  // Use external pagination if provided, otherwise use internal state
-  const [internalCurrentPage, setInternalCurrentPage] = useState(1);
-  const [internalItemsPerPage, setInternalItemsPerPage] = useState(5);
+  // Get pagination and search values from URL params or use external pagination or defaults
+  const urlPage = parseInt(searchParams.get('page') || '1');
+  const urlLimit = parseInt(searchParams.get('limit') || '5');
+  const searchQuery = searchParams.get('q') || '';
 
-  const currentPage = pagination?.currentPage ?? internalCurrentPage;
-  const itemsPerPage = pagination?.itemsPerPage ?? internalItemsPerPage;
+  const currentPage = pagination?.currentPage ?? urlPage;
+  const itemsPerPage = pagination?.itemsPerPage ?? urlLimit;
+
+  // Filter pairs based on search query
+  const filteredPairs = searchQuery
+    ? pairs.filter(
+        (pair) =>
+          pair.symbol.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          pair.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          (pair.timeframe &&
+            pair.timeframe.toLowerCase().includes(searchQuery.toLowerCase()))
+      )
+    : pairs;
 
   // Sort pairs based on current sort field and direction
-  const sortedPairs = [...pairs].sort((a, b) => {
+  const sortedPairs = [...filteredPairs].sort((a, b) => {
     let aValue: any;
     let bValue: any;
 
@@ -113,17 +114,28 @@ export function PairTable({
     return sortDirection === 'asc' ? aValue - bValue : bValue - aValue;
   });
 
-  // Calculate pagination for internal use or use external values
+  // Calculate pagination - always use internal pagination unless external is provided
   const totalItemsCount = pagination?.totalItems ?? sortedPairs.length;
   const totalPages =
     pagination?.totalPages ?? Math.ceil(sortedPairs.length / itemsPerPage);
+
+  // Always slice the data for display unless external pagination is managing it
   const startIndex = (currentPage - 1) * itemsPerPage;
   const endIndex = startIndex + itemsPerPage;
   const paginatedPairs = pagination
-    ? sortedPairs
-    : sortedPairs.slice(startIndex, endIndex);
+    ? sortedPairs // External pagination manages the data
+    : sortedPairs.slice(startIndex, endIndex); // Internal pagination slices the data
 
-  // Reset to first page when sorting changes (only for internal pagination)
+  // Reset to page 1 if current page is beyond available pages due to search filtering
+  useEffect(() => {
+    if (!pagination && currentPage > totalPages && totalPages > 0) {
+      const params = new URLSearchParams(searchParams);
+      params.set('page', '1');
+      router.replace(`${pathname}?${params}`);
+    }
+  }, [currentPage, totalPages, pagination, searchParams, router, pathname]);
+
+  // Reset to first page when sorting changes
   const handleSort = (
     field: keyof PairData['metrics'] | 'symbol' | 'timeframe'
   ) => {
@@ -133,28 +145,7 @@ export function PairTable({
       setSortField(field);
       setSortDirection('desc');
     }
-    if (!pagination) {
-      setInternalCurrentPage(1); // Reset to first page
-    }
-  };
-
-  const handleItemsPerPageChange = (value: string) => {
-    const newItemsPerPage = Number(value);
-    if (pagination) {
-      pagination.onItemsPerPageChange(newItemsPerPage);
-    } else {
-      setInternalItemsPerPage(newItemsPerPage);
-      setInternalCurrentPage(1); // Reset to first page
-    }
-  };
-
-  const goToPage = (page: number) => {
-    const targetPage = Math.max(1, Math.min(page, totalPages));
-    if (pagination) {
-      pagination.onPageChange(targetPage);
-    } else {
-      setInternalCurrentPage(targetPage);
-    }
+    // Note: Page reset is handled by PaginationControls via URL params
   };
 
   const getSortIcon = (
@@ -170,14 +161,11 @@ export function PairTable({
     );
   };
 
-  const handlePairClick = (pairId: string) => {
-    if (onNavigate) {
-      onNavigate(pairId);
-    }
-  };
   if (isLoading) {
     return (
-      <Card className={`bg-slate-800/50 border-slate-700 ${className}`}>
+      <Card
+        className={`bg-white/10 backdrop-blur-md border-white/20 shadow-xl hover:bg-white/15 transition-all duration-300 ${className}`}
+      >
         <CardHeader>
           <CardTitle className="text-white">Trading Pairs</CardTitle>
         </CardHeader>
@@ -185,7 +173,7 @@ export function PairTable({
           <div className="space-y-4">
             {[...Array(5)].map((_, i) => (
               <div key={i} className="animate-pulse">
-                <div className="h-12 bg-slate-700 rounded-lg"></div>
+                <div className="h-12 bg-white/10 backdrop-blur-sm rounded-lg border border-white/10"></div>
               </div>
             ))}
           </div>
@@ -196,7 +184,9 @@ export function PairTable({
 
   if (pairs.length === 0) {
     return (
-      <Card className={`bg-slate-800/50 border-slate-700 ${className}`}>
+      <Card
+        className={`bg-white/10 backdrop-blur-md border-white/20 shadow-xl hover:bg-white/15 transition-all duration-300 ${className}`}
+      >
         <CardHeader>
           <CardTitle className="text-white py-2">Trading Pairs</CardTitle>
         </CardHeader>
@@ -212,23 +202,25 @@ export function PairTable({
   }
 
   return (
-    <Card className={`bg-slate-800/50 border-slate-700 ${className}`}>
+    <Card
+      className={`bg-white/5 backdrop-blur-md border-white/20 shadow-xl hover:bg-white/15 transition-all duration-300 ${className}`}
+    >
       <CardHeader>
         <CardTitle className="text-white flex items-center gap-2 h-0">
           <TrendingUp className="h-5 w-5" />
           Trading Pairs
-          <span className="text-sm text-slate-400 font-normal">
+          <span className="text-sm text-white/70 font-normal">
             ({pairs.length} pairs available)
           </span>
         </CardTitle>
       </CardHeader>
-      <CardContent>
-        <div className="rounded-lg border border-slate-700 overflow-hidden">
+      <CardContent className="px-1 sm:px-3">
+        <div className="rounded-lg border border-white/20 overflow-hidden bg-white/5 backdrop-blur-sm">
           <Table>
             <TableHeader>
-              <TableRow className="border-slate-700 bg-slate-900/50">
-                <TableHead className="text-slate-300 w-32">Status</TableHead>
-                <TableHead className="text-slate-300">
+              <TableRow className="border-white/20 bg-white/5 backdrop-blur-sm">
+                <TableHead className="text-white/80 w-32">Status</TableHead>
+                <TableHead className="text-white/80">
                   <button
                     onClick={() => handleSort('symbol')}
                     className="flex items-center gap-2 hover:text-white transition-colors"
@@ -237,7 +229,7 @@ export function PairTable({
                     {getSortIcon('symbol')}
                   </button>
                 </TableHead>
-                <TableHead className="text-slate-300 text-center">
+                <TableHead className="text-white/80 text-center">
                   <button
                     onClick={() => handleSort('roi')}
                     className="flex items-center justify-center gap-2 hover:text-white transition-colors w-full"
@@ -246,7 +238,7 @@ export function PairTable({
                     {getSortIcon('roi')}
                   </button>
                 </TableHead>
-                <TableHead className="text-slate-300 text-center">
+                <TableHead className="text-white/80 text-center">
                   <button
                     onClick={() => handleSort('riskReward')}
                     className="flex items-center justify-center gap-2 hover:text-white transition-colors w-full"
@@ -255,7 +247,7 @@ export function PairTable({
                     {getSortIcon('riskReward')}
                   </button>
                 </TableHead>
-                <TableHead className="text-slate-300 text-center">
+                <TableHead className="text-white/80 text-center">
                   <button
                     onClick={() => handleSort('totalTrades')}
                     className="flex items-center justify-center gap-2 hover:text-white transition-colors w-full"
@@ -264,7 +256,7 @@ export function PairTable({
                     {getSortIcon('totalTrades')}
                   </button>
                 </TableHead>
-                <TableHead className="text-slate-300 text-center">
+                <TableHead className="text-white/80 text-center">
                   <button
                     onClick={() => handleSort('winRate')}
                     className="flex items-center justify-center gap-2 hover:text-white transition-colors w-full"
@@ -273,7 +265,7 @@ export function PairTable({
                     {getSortIcon('winRate')}
                   </button>
                 </TableHead>
-                <TableHead className="text-slate-300 text-center">
+                <TableHead className="text-white/80 text-center">
                   <button
                     onClick={() => handleSort('maxDrawdown')}
                     className="flex items-center justify-center gap-2 hover:text-white transition-colors w-full"
@@ -282,7 +274,7 @@ export function PairTable({
                     {getSortIcon('maxDrawdown')}
                   </button>
                 </TableHead>
-                <TableHead className="text-slate-300 text-center">
+                <TableHead className="text-white/80 text-center">
                   <button
                     onClick={() => handleSort('profit')}
                     className="flex items-center justify-center gap-2 hover:text-white transition-colors w-full"
@@ -291,7 +283,7 @@ export function PairTable({
                     {getSortIcon('profit')}
                   </button>
                 </TableHead>
-                <TableHead className="text-slate-300 text-center">
+                <TableHead className="text-white/80 text-center">
                   <button
                     onClick={() => handleSort('timeframe')}
                     className="flex items-center justify-center gap-2 hover:text-white transition-colors w-full"
@@ -300,7 +292,7 @@ export function PairTable({
                     {getSortIcon('timeframe')}
                   </button>
                 </TableHead>
-                <TableHead className="text-slate-300 text-center w-20">
+                <TableHead className="text-white/80 text-center w-20">
                   Actions
                 </TableHead>
               </TableRow>
@@ -310,122 +302,23 @@ export function PairTable({
                 <PairTableRow
                   key={pair.id}
                   pair={pair}
+                  allPairs={pairs}
                   isUserLoggedIn={isUserLoggedIn}
-                  onSubscribe={(pairId, action) => {
-                    if (onSubscribe) {
-                      onSubscribe(pairId, action);
-                    }
-                  }}
                 />
               ))}
             </TableBody>
           </Table>
         </div>
 
-        {/* Pagination Controls */}
+        {/* Pagination Controls - only show if there are multiple pages */}
         {totalPages > 1 && (
-          <div className="flex items-center justify-between px-4 py-4 border-t border-slate-700">
-            <div className="flex items-center gap-4">
-              <div className="flex items-center gap-2 text-sm text-slate-400">
-                <span>Rows per page:</span>
-                <Select
-                  value={itemsPerPage.toString()}
-                  onValueChange={handleItemsPerPageChange}
-                >
-                  <SelectTrigger className="w-16 h-8 bg-slate-800 border-slate-600">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent className="bg-slate-800 border-slate-600">
-                    <SelectItem value="5">5</SelectItem>
-                    <SelectItem value="10">10</SelectItem>
-                    <SelectItem value="20">20</SelectItem>
-                    <SelectItem value="50">50</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="text-sm text-slate-400">
-                Showing {startIndex + 1} to{' '}
-                {Math.min(endIndex, totalItemsCount)} of {totalItemsCount} pairs
-              </div>
-            </div>
-
-            <div className="flex items-center gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => goToPage(1)}
-                disabled={currentPage === 1}
-                className="h-8 w-8 p-0 bg-slate-800 border-slate-600 hover:bg-slate-700"
-              >
-                <ChevronsLeft className="h-4 w-4" />
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => goToPage(currentPage - 1)}
-                disabled={currentPage === 1}
-                className="h-8 w-8 p-0 bg-slate-800 border-slate-600 hover:bg-slate-700"
-              >
-                <ChevronLeft className="h-4 w-4" />
-              </Button>
-
-              <div className="flex items-center gap-1">
-                {Array.from({ length: totalPages }, (_, i) => i + 1)
-                  .filter((page) => {
-                    // Show first page, last page, current page, and pages around current
-                    return (
-                      page === 1 ||
-                      page === totalPages ||
-                      Math.abs(page - currentPage) <= 1
-                    );
-                  })
-                  .map((page, index, array) => {
-                    // Add ellipsis if there's a gap
-                    const showEllipsisBefore =
-                      index > 0 && page - array[index - 1] > 1;
-
-                    return (
-                      <div key={page} className="flex items-center">
-                        {showEllipsisBefore && (
-                          <span className="px-2 text-slate-400">...</span>
-                        )}
-                        <Button
-                          variant={currentPage === page ? 'default' : 'outline'}
-                          size="sm"
-                          onClick={() => goToPage(page)}
-                          className={`h-8 w-8 p-0 ${
-                            currentPage === page
-                              ? 'bg-blue-600 hover:bg-blue-700'
-                              : 'bg-slate-800 border-slate-600 hover:bg-slate-700'
-                          }`}
-                        >
-                          {page}
-                        </Button>
-                      </div>
-                    );
-                  })}
-              </div>
-
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => goToPage(currentPage + 1)}
-                disabled={currentPage === totalPages}
-                className="h-8 w-8 p-0 bg-slate-800 border-slate-600 hover:bg-slate-700"
-              >
-                <ChevronRight className="h-4 w-4" />
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => goToPage(totalPages)}
-                disabled={currentPage === totalPages}
-                className="h-8 w-8 p-0 bg-slate-800 border-slate-600 hover:bg-slate-700"
-              >
-                <ChevronsRight className="h-4 w-4" />
-              </Button>
-            </div>
-          </div>
+          <PaginationControls
+            currentPage={currentPage}
+            totalPages={totalPages}
+            itemsPerPage={itemsPerPage}
+            totalItems={totalItemsCount}
+            className="mt-4"
+          />
         )}
       </CardContent>
     </Card>
