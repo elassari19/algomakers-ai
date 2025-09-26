@@ -93,8 +93,8 @@ const authOptions: AuthOptions = {
     },
   },
   pages: {
-    signIn: '/auth/signin',
-    error: '/auth/error',
+    signIn: '/signin',
+    error: '/signin',
   },
   events: {
     async signIn({ user, account, isNewUser }) {

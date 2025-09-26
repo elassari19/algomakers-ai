@@ -15,7 +15,7 @@ interface ProtectedRouteProps {
 export function ProtectedRoute({
   children,
   requiredRole = 'user',
-  redirectTo = '/auth/signin',
+  redirectTo = '/signin',
   fallback,
 }: ProtectedRouteProps) {
   const { data: session, status } = useSession();
@@ -37,6 +37,12 @@ export function ProtectedRoute({
       requiredRole &&
       !hasRolePrivilege(session.user.role as UserRole, requiredRole)
     ) {
+      console.log(
+        'User role:',
+        session.user.role,
+        'Required role:',
+        requiredRole
+      );
       router.push('/unauthorized');
       return;
     }
