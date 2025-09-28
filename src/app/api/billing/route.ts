@@ -53,10 +53,14 @@ export async function GET(request: NextRequest) {
     const payments = await prisma.payment.findMany({
       where,
       include: {
-        pair: {
-          select: {
-            name: true,
-            symbol: true,
+        paymentItems: {
+          include: {
+            pair: {
+              select: {
+                name: true,
+                symbol: true,
+              },
+            },
           },
         },
         subscription: {
@@ -80,8 +84,11 @@ export async function GET(request: NextRequest) {
       const searchLower = search.toLowerCase();
       filteredPayments = payments.filter(
         (payment) =>
-          payment.pair.name.toLowerCase().includes(searchLower) ||
-          payment.pair.symbol.toLowerCase().includes(searchLower) ||
+          payment.paymentItems.some(
+            (pi) =>
+              pi.pair.name.toLowerCase().includes(searchLower) ||
+              pi.pair.symbol.toLowerCase().includes(searchLower)
+          ) ||
           (payment.orderId &&
             payment.orderId.toLowerCase().includes(searchLower)) ||
           (payment.invoiceId &&
@@ -93,11 +100,14 @@ export async function GET(request: NextRequest) {
     const stats = {
       totalSpent: payments
         .filter((p) => p.status === 'PAID')
-        .reduce((sum, p) => sum + Number(p.actuallyPaid || p.amount), 0),
+        .reduce((sum, p) => sum + Number(p.actuallyPaid || p.totalAmount), 0),
       totalPayments: payments.length,
-      activeSubscriptions: payments.filter(
-        (p) => p.subscription?.status === 'ACTIVE'
-      ).length,
+      activeSubscriptions: payments.reduce(
+        (count, p) =>
+          count +
+          (p.subscription ? (p.subscription.status === 'ACTIVE' ? 1 : 0) : 0),
+        0
+      ),
       pendingPayments: payments.filter((p) => p.status === 'PENDING').length,
     };
 
@@ -106,9 +116,14 @@ export async function GET(request: NextRequest) {
       id: payment.id,
       orderId: payment.orderId,
       invoiceId: payment.invoiceId,
-      pairName: payment.pair.name,
-      pairSymbol: payment.pair.symbol,
-      amount: Number(payment.amount),
+      pairs: payment.paymentItems.map((pi) => ({
+        name: pi.pair.name,
+        symbol: pi.pair.symbol,
+        basePrice: Number(pi.basePrice),
+        discountRate: Number(pi.discountRate),
+        finalPrice: Number(pi.finalPrice),
+      })),
+      totalAmount: Number(payment.totalAmount),
       actuallyPaid: payment.actuallyPaid
         ? Number(payment.actuallyPaid)
         : undefined,
@@ -117,15 +132,17 @@ export async function GET(request: NextRequest) {
       txHash: payment.txHash,
       createdAt: payment.createdAt,
       expiresAt: payment.expiresAt,
-      subscription: payment.subscription
-        ? {
-            id: payment.subscription.id,
-            period: payment.subscription.period,
-            startDate: payment.subscription.startDate,
-            expiryDate: payment.subscription.expiryDate,
-            status: payment.subscription.status,
-          }
-        : undefined,
+      subscriptions: payment.subscription
+        ? [
+            {
+              id: payment.subscription.id,
+              period: payment.subscription.period,
+              startDate: payment.subscription.startDate,
+              expiryDate: payment.subscription.expiryDate,
+              status: payment.subscription.status,
+            },
+          ]
+        : [],
     }));
 
     return NextResponse.json({

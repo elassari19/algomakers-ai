@@ -116,38 +116,46 @@ async function handlePaymentSuccess(webhook: NOWPaymentsWebhook) {
       return;
     }
 
-    // Get payment records to create subscriptions
+    // Get payment records with their pairs to create subscriptions
     const payments = await prisma.payment.findMany({
       where: { invoiceId: webhook.payment_id },
       include: {
         user: true,
-        pair: true,
+        paymentItems: {
+          include: {
+            pair: true,
+          },
+        },
       },
     });
 
-    // Create subscription records for each payment/pair
+    // Create subscription records for each payment/pair combination
     for (const payment of payments) {
-      try {
-        // Calculate expiry date based on plan (you'll need to store plan info)
-        const expiryDate = calculateExpiryDate(new Date(), 1); // Default to 1 month
+      for (const paymentItem of payment.paymentItems) {
+        try {
+          // Calculate expiry date based on plan (you'll need to store plan info)
+          const expiryDate = calculateExpiryDate(new Date(), 1); // Default to 1 month
 
-        await prisma.subscription.create({
-          data: {
-            userId: payment.userId,
-            pairId: payment.pairId,
-            period: SubscriptionPeriod.ONE_MONTH, // You'll need to store the actual period
-            startDate: new Date(),
-            expiryDate: expiryDate,
-            status: SubscriptionStatus.PENDING, // Admin needs to send TradingView invite
-            paymentId: payment.id,
-            inviteStatus: InviteStatus.PENDING,
-          },
-        });
-      } catch (error) {
-        console.error(
-          `Failed to create subscription for payment ${payment.id}:`,
-          error
-        );
+          await prisma.subscription.create({
+            data: {
+              userId: payment.userId,
+              pairId: paymentItem.pairId,
+              period: paymentItem.period,
+              startDate: new Date(),
+              expiryDate: expiryDate,
+              status: SubscriptionStatus.PENDING, // Admin needs to send TradingView invite
+              paymentId: payment.id,
+              inviteStatus: InviteStatus.PENDING,
+              basePrice: paymentItem.basePrice,
+              discountRate: paymentItem.discountRate,
+            },
+          });
+        } catch (error) {
+          console.error(
+            `Failed to create subscription for payment ${payment.id} and pair ${paymentItem.pairId}:`,
+            error
+          );
+        }
       }
     }
 

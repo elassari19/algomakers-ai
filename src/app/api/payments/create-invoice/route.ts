@@ -206,8 +206,22 @@ export async function POST(request: NextRequest) {
       invoiceUrl: invoice.invoice_url,
     };
 
-    // Store payment records in database for each pair
-    const payments = [];
+    // Create a single payment record with multiple pairs
+    const paymentRecord = await prisma.payment.create({
+      data: {
+        userId: userId,
+        totalAmount: body.amount,
+        network: mapNetworkToEnum(body.network),
+        status: PaymentStatus.PENDING,
+        invoiceId: transformedInvoice.nowPaymentsId,
+        orderId: orderId,
+        expiresAt: new Date(transformedInvoice.expiresAt),
+        orderData: body.orderData,
+      },
+    });
+
+    // Create PaymentItem records for each pair
+    const paymentItems = [];
     for (const pairSymbol of pairIds) {
       try {
         // Find or create the pair first
@@ -222,27 +236,28 @@ export async function POST(request: NextRequest) {
               symbol: pairSymbol,
               name: pairSymbol.replace('USDT', '/USDT'),
               metrics: {}, // Empty metrics for now
+              price: body.amount / pairIds.length, // Default price split
+              discountRate: 0, // Default no discount
             },
           });
         }
 
-        const payment = await prisma.payment.create({
+        const paymentItem = await prisma.paymentItem.create({
           data: {
-            userId: userId,
-            pairId: pair.id, // Use the actual pair UUID
-            amount: body.amount,
-            network: mapNetworkToEnum(body.network),
-            status: PaymentStatus.PENDING,
-            invoiceId: transformedInvoice.nowPaymentsId,
-            orderId: orderId,
-            expiresAt: new Date(transformedInvoice.expiresAt),
-            orderData: body.orderData,
+            paymentId: paymentRecord.id,
+            pairId: pair.id,
+            basePrice: pair.price || body.amount / pairIds.length,
+            discountRate: pair.discountRate || 0,
+            finalPrice:
+              (Number(pair.price) || body.amount / pairIds.length) *
+              (1 - (Number(pair.discountRate) || 0) / 100),
+            period: 'ONE_MONTH', // Default period
           },
         });
-        payments.push(payment);
+        paymentItems.push(paymentItem);
       } catch (error) {
         console.error(
-          `Failed to create payment record for pair ${pairSymbol}:`,
+          `Failed to create payment item record for ${pairSymbol}:`,
           error
         );
         // Continue with other pairs, don't fail the entire request
@@ -251,7 +266,15 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       ...transformedInvoice,
-      payments: payments.map((p) => ({ id: p.id, pairId: p.pairId })),
+      payment: {
+        id: paymentRecord.id,
+        pairs: paymentItems.map((pi) => ({
+          pairId: pi.pairId,
+          price: pi.basePrice,
+          discountRate: pi.discountRate,
+          finalPrice: pi.finalPrice,
+        })),
+      },
     });
   } catch (error) {
     console.error('Error creating NOWPayments invoice:', error);

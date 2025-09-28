@@ -29,10 +29,14 @@ export async function GET(
             email: true,
           },
         },
-        pair: {
-          select: {
-            name: true,
-            symbol: true,
+        paymentItems: {
+          include: {
+            pair: {
+              select: {
+                name: true,
+                symbol: true,
+              },
+            },
           },
         },
         subscription: {
@@ -56,9 +60,14 @@ export async function GET(
       paymentId: payment.id,
       customerName: payment.user.name || 'N/A',
       customerEmail: payment.user.email,
-      pairName: payment.pair.name,
-      pairSymbol: payment.pair.symbol,
-      amount: Number(payment.amount),
+      pairs: payment.paymentItems.map((pi) => ({
+        name: pi.pair.name,
+        symbol: pi.pair.symbol,
+        basePrice: Number(pi.basePrice),
+        discountRate: Number(pi.discountRate),
+        finalPrice: Number(pi.finalPrice),
+      })),
+      totalAmount: Number(payment.totalAmount),
       actuallyPaid: payment.actuallyPaid
         ? Number(payment.actuallyPaid)
         : undefined,
@@ -66,7 +75,7 @@ export async function GET(
       status: payment.status,
       txHash: payment.txHash,
       createdAt: payment.createdAt,
-      subscription: payment.subscription,
+      subscriptions: payment.subscription,
     };
 
     // For now, return invoice data as JSON
