@@ -526,7 +526,7 @@ export default function BillingPage() {
 
   return (
     <GradientBackground>
-      <div className="flex flex-1 flex-col gap-6 md:p-6 pt-0">
+      <div className="flex flex-col justify-between h-full gap-4 md:p-6 pt-0">
         {/* Header */}
         {/* <div className="">
           <h1 className="text-3xl font-bold text-white mb-2">
@@ -538,49 +538,51 @@ export default function BillingPage() {
         </div> */}
 
         {/* Billing Overview Stats */}
-        <OverviewSection
-          overviewData={[
-            {
-              title: 'Total Spent',
-              currentValue: `$${stats.totalSpent.toFixed(2)}`,
-              icon: DollarSign,
-              description: 'Total amount spent',
-              pastValue: 'All-time spending',
-              color: 'text-green-300',
-              bgColor: 'bg-green-400/20',
-            },
-            {
-              title: 'Total Payments',
-              currentValue: stats.totalPayments,
-              icon: CreditCard,
-              description: 'Payment transactions',
-              pastValue: 'Including all statuses',
-              color: 'text-blue-300',
-              bgColor: 'bg-blue-400/20',
-            },
-            {
-              title: 'Active Subscriptions',
-              currentValue: stats.activeSubscriptions,
-              icon: Users,
-              description: 'Currently active',
-              pastValue: 'Subscription services',
-              color: 'text-emerald-300',
-              bgColor: 'bg-emerald-400/20',
-            },
-            {
-              title: 'Pending Payments',
-              currentValue: stats.pendingPayments,
-              icon: Clock,
-              description: 'Awaiting payment',
-              pastValue: 'Requires attention',
-              color: 'text-yellow-300',
-              bgColor: 'bg-yellow-400/20',
-            },
-          ]}
-        />
+        <div className="flex-shrink-0">
+          <OverviewSection
+            overviewData={[
+              {
+                title: 'Total Spent',
+                currentValue: `$${stats.totalSpent.toFixed(2)}`,
+                icon: DollarSign,
+                description: 'Total amount spent',
+                pastValue: 'All-time spending',
+                color: 'text-green-300',
+                bgColor: 'bg-green-400/20',
+              },
+              {
+                title: 'Total Payments',
+                currentValue: stats.totalPayments,
+                icon: CreditCard,
+                description: 'Payment transactions',
+                pastValue: 'Including all statuses',
+                color: 'text-blue-300',
+                bgColor: 'bg-blue-400/20',
+              },
+              {
+                title: 'Active Subscriptions',
+                currentValue: stats.activeSubscriptions,
+                icon: Users,
+                description: 'Currently active',
+                pastValue: 'Subscription services',
+                color: 'text-emerald-300',
+                bgColor: 'bg-emerald-400/20',
+              },
+              {
+                title: 'Pending Payments',
+                currentValue: stats.pendingPayments,
+                icon: Clock,
+                description: 'Awaiting payment',
+                pastValue: 'Requires attention',
+                color: 'text-yellow-300',
+                bgColor: 'bg-yellow-400/20',
+              },
+            ]}
+          />
+        </div>
 
         {/* Filter Bar */}
-        <div className="">
+        <div className="flex-shrink-0">
           <SortFilterBar
             filterBy={filterBy}
             onFilterChange={setFilterBy}
@@ -589,7 +591,7 @@ export default function BillingPage() {
         </div>
 
         {/* Main Billing Table */}
-        <div className="space-y-6">
+        <div className="flex-1 min-h-0">
           <ReusableTable
             data={filteredPayments}
             columns={paymentColumns}
