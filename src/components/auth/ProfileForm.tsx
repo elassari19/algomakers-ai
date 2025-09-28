@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { User, Mail, Eye, EyeOff, Save, X } from 'lucide-react';
+import { User, Mail, Eye, EyeOff, Save, X, Check } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -30,49 +30,55 @@ import { Separator } from '@/components/ui/separator';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { TradingViewUsernameField } from './TradingViewUsernameField';
 import { PasswordStrengthMeter } from './PasswordStrengthMeter';
+import { toast } from 'sonner';
+import { Toaster } from '../ui/sonner';
 
-const profileSchema = z
+// Individual form schemas
+const nameSchema = z.object({
+  name: z.string().min(2, 'Name must be at least 2 characters'),
+});
+
+const emailSchema = z.object({
+  email: z.string().email('Please enter a valid email address'),
+});
+
+const tradingViewSchema = z.object({
+  tradingviewUsername: z.string().optional(), // Fixed: changed from tradingViewUsername to tradingviewUsername
+});
+
+const passwordSchema = z
   .object({
-    name: z.string().min(2, 'Name must be at least 2 characters'),
-    email: z.string().email('Please enter a valid email address'),
-    tradingViewUsername: z.string().optional(),
-    currentPassword: z.string().optional(),
-    newPassword: z.string().optional(),
-    confirmPassword: z.string().optional(),
+    currentPassword: z.string().min(1, 'Current password is required'),
+    newPassword: z
+      .string()
+      .min(8, 'Password must be at least 8 characters')
+      .regex(
+        /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/,
+        'Password must contain at least one lowercase letter, one uppercase letter, and one number'
+      ),
+    confirmPassword: z.string(),
   })
-  .refine(
-    (data) => {
-      // If changing password, all password fields are required
-      if (data.newPassword || data.confirmPassword || data.currentPassword) {
-        return (
-          data.currentPassword &&
-          data.newPassword &&
-          data.confirmPassword &&
-          data.newPassword === data.confirmPassword &&
-          data.newPassword.length >= 8
-        );
-      }
-      return true;
-    },
-    {
-      message: 'All password fields are required when changing password',
-      path: ['newPassword'],
-    }
-  );
+  .refine((data) => data.newPassword === data.confirmPassword, {
+    message: "Passwords don't match",
+    path: ['confirmPassword'],
+  });
 
-type ProfileFormData = z.infer<typeof profileSchema>;
+type NameFormData = z.infer<typeof nameSchema>;
+type EmailFormData = z.infer<typeof emailSchema>;
+type TradingViewFormData = z.infer<typeof tradingViewSchema>;
+type PasswordFormData = z.infer<typeof passwordSchema>;
 
 interface User {
   id: string;
   name: string;
   email: string;
   image?: string;
-  tradingViewUsername?: string;
+  tradingviewUsername?: string; // Fixed: changed from tradingViewUsername to tradingviewUsername
 }
 
 interface ProfileFormProps {
   user: User;
-  onSuccess?: (data: ProfileFormData) => void;
+  onSuccess?: (data: any) => void;
   onError?: (error: string) => void;
   onCancel?: () => void;
   className?: string;
@@ -85,146 +91,309 @@ export function ProfileForm({
   onCancel,
   className,
 }: ProfileFormProps) {
-  const [isLoading, setSIsLoading] = useState(false);
+  const [loadingStates, setLoadingStates] = useState({
+    name: false,
+    email: false,
+    tradingView: false,
+    password: false,
+  });
+
   const [showCurrentPassword, setShowCurrentPassword] = useState(false);
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [isChangingPassword, setIsChangingPassword] = useState(false);
 
-  const form = useForm<ProfileFormData>({
-    resolver: zodResolver(profileSchema),
+  // Individual forms
+  const nameForm = useForm<NameFormData>({
+    resolver: zodResolver(nameSchema),
+    defaultValues: { name: user.name || '' },
+  });
+
+  const emailForm = useForm<EmailFormData>({
+    resolver: zodResolver(emailSchema),
+    defaultValues: { email: user.email || '' },
+  });
+
+  const tradingViewForm = useForm<TradingViewFormData>({
+    resolver: zodResolver(tradingViewSchema),
+    defaultValues: { tradingviewUsername: user.tradingviewUsername || '' }, // Fixed: field name
+  });
+
+  const passwordForm = useForm<PasswordFormData>({
+    resolver: zodResolver(passwordSchema),
     defaultValues: {
-      name: user.name || '',
-      email: user.email || '',
-      tradingViewUsername: user.tradingViewUsername || '',
       currentPassword: '',
       newPassword: '',
       confirmPassword: '',
     },
   });
 
-  const watchedNewPassword = form.watch('newPassword');
+  const watchedNewPassword = passwordForm.watch('newPassword');
 
-  const onSubmit = async (data: ProfileFormData) => {
-    setSIsLoading(true);
+  const setLoading = (field: keyof typeof loadingStates, loading: boolean) => {
+    setLoadingStates((prev) => ({ ...prev, [field]: loading }));
+  };
 
+  const handleApiCall = async (data: any) => {
+    const response = await fetch('/api/auth/profile', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || 'Failed to update profile');
+    }
+
+    return response.json();
+  };
+
+  const onSubmitName = async (data: NameFormData) => {
+    setLoading('name', true);
     try {
-      const updateData: Partial<ProfileFormData> = {
+      const result = await handleApiCall({
+        action: 'update-name',
         name: data.name,
-        email: data.email,
-        tradingViewUsername: data.tradingViewUsername,
-      };
-
-      // Only include password fields if changing password
-      if (isChangingPassword && data.newPassword) {
-        updateData.currentPassword = data.currentPassword;
-        updateData.newPassword = data.newPassword;
-      }
-
-      const response = await fetch('/api/user/profile', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(updateData),
       });
 
-      if (!response.ok) {
-        const error = await response.text();
-        onError?.(error || 'Failed to update profile');
-        return;
-      }
-
-      const updatedUser = await response.json();
-      onSuccess?.(updatedUser);
+      onSuccess?.(result);
+      toast.success('Name updated successfully', {
+        icon: <Check className="h-5 w-5" />,
+        duration: 3000,
+        style: { backgroundColor: 'green', color: 'white' },
+      });
     } catch (error) {
-      onError?.(error instanceof Error ? error.message : 'An error occurred');
+      const message =
+        error instanceof Error ? error.message : 'Failed to update name';
+      onError?.(message);
+      toast.error(message, {
+        duration: 3000,
+        style: { backgroundColor: 'red', color: 'white' },
+      });
     } finally {
-      setSIsLoading(false);
+      setLoading('name', false);
+    }
+  };
+
+  const onSubmitEmail = async (data: EmailFormData) => {
+    setLoading('email', true);
+    try {
+      const result = await handleApiCall({
+        action: 'update-email',
+        email: data.email,
+      });
+
+      onSuccess?.(result);
+      toast.success('Email updated successfully', {
+        icon: <Check className="h-5 w-5" />,
+        duration: 3000,
+        style: { backgroundColor: 'green', color: 'white' },
+      });
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : 'Failed to update email';
+      onError?.(message);
+      toast.error(message, {
+        duration: 3000,
+        style: { backgroundColor: 'red', color: 'white' },
+      });
+    } finally {
+      setLoading('email', false);
+    }
+  };
+
+  const onSubmitTradingView = async (data: TradingViewFormData) => {
+    setLoading('tradingView', true);
+    try {
+      const result = await handleApiCall({
+        action: 'update-tradingview',
+        tradingviewUsername: data.tradingviewUsername, // Fixed: field name
+      });
+
+      onSuccess?.(result);
+      toast.success('TradingView username updated successfully', {
+        icon: <Check className="h-5 w-5" />,
+        duration: 3000,
+        style: { backgroundColor: 'green', color: 'white' },
+      });
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : 'Failed to update TradingView username';
+      onError?.(message);
+      toast.error(message, {
+        duration: 3000,
+        style: { backgroundColor: 'red', color: 'white' },
+      });
+    } finally {
+      setLoading('tradingView', false);
+    }
+  };
+
+  const onSubmitPassword = async (data: PasswordFormData) => {
+    setLoading('password', true);
+    try {
+      const result = await handleApiCall({
+        action: 'update-password',
+        currentPassword: data.currentPassword,
+        newPassword: data.newPassword,
+      });
+
+      onSuccess?.(result);
+      toast.success('Password updated successfully', {
+        icon: <Check className="h-5 w-5" />,
+        duration: 3000,
+        style: { backgroundColor: 'green', color: 'white' },
+      });
+
+      // Reset password form and hide section
+      passwordForm.reset();
+      setIsChangingPassword(false);
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : 'Failed to update password';
+      onError?.(message);
+      toast.error(message, {
+        duration: 3000,
+        style: { backgroundColor: 'red', color: 'white' },
+      });
+    } finally {
+      setLoading('password', false);
     }
   };
 
   const handleCancelPasswordChange = () => {
     setIsChangingPassword(false);
-    form.setValue('currentPassword', '');
-    form.setValue('newPassword', '');
-    form.setValue('confirmPassword', '');
-    form.clearErrors(['currentPassword', 'newPassword', 'confirmPassword']);
+    passwordForm.reset();
   };
 
   return (
     <div className={className}>
-      <Form {...form}>
-        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-          {/* Profile Information */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center space-x-2">
-                <User className="h-5 w-5" />
-                <span>Profile Information</span>
-              </CardTitle>
-              <CardDescription>
-                Update your personal information and preferences.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {/* Avatar Section */}
-              <div className="flex items-center space-x-4">
-                <Avatar className="h-20 w-20">
-                  <AvatarImage src={user.image} alt={user.name} />
-                  <AvatarFallback className="text-lg">
-                    {user.name
-                      .split(' ')
-                      .map((n) => n[0])
-                      .join('')
-                      .toUpperCase()}
-                  </AvatarFallback>
-                </Avatar>
-                <div>
-                  <h3 className="font-medium">Profile Picture</h3>
-                  <p className="text-sm text-muted-foreground">
-                    Profile pictures are managed through your social login
-                    provider.
-                  </p>
-                </div>
-              </div>
+      <Toaster toastOptions={{ duration: 3000 }} position="top-center" />
 
-              <Separator />
+      {/* Profile Information */}
+      <Card className="mb-6">
+        <CardHeader>
+          <CardTitle className="flex items-center space-x-2">
+            <User className="h-5 w-5" />
+            <span>Profile Information</span>
+          </CardTitle>
+          <CardDescription>
+            Update your personal information and preferences.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          {/* Avatar Section */}
+          <div className="flex items-center space-x-4">
+            <Avatar className="h-20 w-20">
+              <AvatarImage src={user.image} alt={user.name} />
+              <AvatarFallback className="text-lg">
+                {user.name
+                  .split(' ')
+                  .map((n) => n[0])
+                  .join('')
+                  .toUpperCase()}
+              </AvatarFallback>
+            </Avatar>
+            <div>
+              <h3 className="font-medium">Profile Picture</h3>
+              <p className="text-sm text-muted-foreground">
+                Profile pictures are managed through your social login provider.
+              </p>
+            </div>
+          </div>
 
-              {/* Name Field */}
+          <Separator />
+
+          {/* Name Section */}
+          <Form {...nameForm}>
+            <form
+              onSubmit={nameForm.handleSubmit(onSubmitName)}
+              className="space-y-4"
+            >
               <FormField
-                control={form.control}
+                control={nameForm.control}
                 name="name"
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Full Name</FormLabel>
                     <FormControl>
-                      <Input
-                        placeholder="Enter your full name"
-                        {...field}
-                        disabled={isLoading}
-                      />
+                      <div className="flex gap-2">
+                        <Input
+                          placeholder="Enter your full name"
+                          {...field}
+                          disabled={loadingStates.name}
+                          className="flex-1"
+                        />
+                        <Button
+                          type="submit"
+                          size="sm"
+                          disabled={
+                            loadingStates.name || !nameForm.formState.isDirty
+                          }
+                        >
+                          {loadingStates.name ? (
+                            'Saving...'
+                          ) : (
+                            <>
+                              <Save className="mr-1 h-3 w-3" />
+                              Save
+                            </>
+                          )}
+                        </Button>
+                      </div>
                     </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
               />
+            </form>
+          </Form>
 
-              {/* Email Field */}
+          <Separator />
+
+          {/* Email Section */}
+          <Form {...emailForm}>
+            <form
+              onSubmit={emailForm.handleSubmit(onSubmitEmail)}
+              className="space-y-4"
+            >
               <FormField
-                control={form.control}
+                control={emailForm.control}
                 name="email"
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Email Address</FormLabel>
                     <FormControl>
-                      <div className="relative">
-                        <Mail className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
-                        <Input
-                          placeholder="Enter your email address"
-                          className="pl-10"
-                          type="email"
-                          {...field}
-                          disabled={isLoading}
-                        />
+                      <div className="flex gap-2">
+                        <div className="relative flex-1">
+                          <Mail className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+                          <Input
+                            placeholder="Enter your email address"
+                            className="pl-10"
+                            type="email"
+                            {...field}
+                            disabled={loadingStates.email}
+                          />
+                        </div>
+                        <Button
+                          type="submit"
+                          size="sm"
+                          disabled={
+                            loadingStates.email || !emailForm.formState.isDirty
+                          }
+                        >
+                          {loadingStates.email ? (
+                            'Saving...'
+                          ) : (
+                            <>
+                              <Save className="mr-1 h-3 w-3" />
+                              Save
+                            </>
+                          )}
+                        </Button>
                       </div>
                     </FormControl>
                     <FormDescription>
@@ -234,19 +403,52 @@ export function ProfileForm({
                   </FormItem>
                 )}
               />
+            </form>
+          </Form>
 
-              {/* TradingView Username */}
+          <Separator />
+
+          {/* TradingView Username Section */}
+          <Form {...tradingViewForm}>
+            <form
+              onSubmit={tradingViewForm.handleSubmit(onSubmitTradingView)}
+              className="space-y-4"
+            >
               <FormField
-                control={form.control}
-                name="tradingViewUsername"
+                control={tradingViewForm.control}
+                name="tradingviewUsername" // Fixed: field name
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>TradingView Username</FormLabel>
                     <FormControl>
-                      <TradingViewUsernameField
-                        {...field}
-                        disabled={isLoading}
-                      />
+                      <div className="flex gap-2">
+                        <div className="flex-1">
+                          <TradingViewUsernameField
+                            {...field}
+                            value={field.value || ''} // Fixed: use field.value instead of defaultValue
+                            disabled={loadingStates.tradingView}
+                          />
+                        </div>
+                        <div className="flex gap-1">
+                          <Button
+                            type="submit"
+                            size="sm"
+                            disabled={
+                              loadingStates.tradingView ||
+                              !tradingViewForm.formState.isDirty
+                            }
+                          >
+                            {loadingStates.tradingView ? (
+                              'Saving...'
+                            ) : (
+                              <>
+                                <Save className="mr-1 h-3 w-3" />
+                                Save
+                              </>
+                            )}
+                          </Button>
+                        </div>
+                      </div>
                     </FormControl>
                     <FormDescription>
                       Connect your TradingView account to receive personalized
@@ -256,47 +458,53 @@ export function ProfileForm({
                   </FormItem>
                 )}
               />
-            </CardContent>
-          </Card>
+            </form>
+          </Form>
+        </CardContent>
+      </Card>
 
-          {/* Password Change Section */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center justify-between">
-                <div className="flex items-center space-x-2">
-                  <span>Change Password</span>
-                </div>
-                {!isChangingPassword && (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setIsChangingPassword(true)}
-                    disabled={isLoading}
-                  >
-                    Change Password
-                  </Button>
-                )}
-              </CardTitle>
-              <CardDescription>
-                {isChangingPassword
-                  ? 'Enter your current password and choose a new one.'
-                  : 'Keep your account secure with a strong password.'}
-              </CardDescription>
-            </CardHeader>
+      {/* Password Change Section */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center justify-between">
+            <div className="flex items-center space-x-2">
+              <span>Change Password</span>
+            </div>
+            {!isChangingPassword && (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setIsChangingPassword(true)}
+                disabled={loadingStates.password}
+              >
+                Change Password
+              </Button>
+            )}
+          </CardTitle>
+          <CardDescription>
+            {isChangingPassword
+              ? 'Enter your current password and choose a new one.'
+              : 'Keep your account secure with a strong password.'}
+          </CardDescription>
+        </CardHeader>
 
-            {isChangingPassword && (
-              <CardContent className="space-y-4">
-                <Alert>
-                  <AlertDescription>
-                    Changing your password will sign you out of all other
-                    devices.
-                  </AlertDescription>
-                </Alert>
+        {isChangingPassword && (
+          <CardContent className="space-y-4">
+            <Alert>
+              <AlertDescription>
+                Changing your password will sign you out of all other devices.
+              </AlertDescription>
+            </Alert>
 
+            <Form {...passwordForm}>
+              <form
+                onSubmit={passwordForm.handleSubmit(onSubmitPassword)}
+                className="space-y-4"
+              >
                 {/* Current Password */}
                 <FormField
-                  control={form.control}
+                  control={passwordForm.control}
                   name="currentPassword"
                   render={({ field }) => (
                     <FormItem>
@@ -308,7 +516,7 @@ export function ProfileForm({
                             placeholder="Enter current password"
                             className="pr-10"
                             {...field}
-                            disabled={isLoading}
+                            disabled={loadingStates.password}
                           />
                           <Button
                             type="button"
@@ -318,7 +526,7 @@ export function ProfileForm({
                             onClick={() =>
                               setShowCurrentPassword(!showCurrentPassword)
                             }
-                            disabled={isLoading}
+                            disabled={loadingStates.password}
                           >
                             {showCurrentPassword ? (
                               <EyeOff className="h-4 w-4" />
@@ -335,7 +543,7 @@ export function ProfileForm({
 
                 {/* New Password */}
                 <FormField
-                  control={form.control}
+                  control={passwordForm.control}
                   name="newPassword"
                   render={({ field }) => (
                     <FormItem>
@@ -347,7 +555,7 @@ export function ProfileForm({
                             placeholder="Enter new password"
                             className="pr-10"
                             {...field}
-                            disabled={isLoading}
+                            disabled={loadingStates.password}
                           />
                           <Button
                             type="button"
@@ -355,7 +563,7 @@ export function ProfileForm({
                             size="icon"
                             className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
                             onClick={() => setShowNewPassword(!showNewPassword)}
-                            disabled={isLoading}
+                            disabled={loadingStates.password}
                           >
                             {showNewPassword ? (
                               <EyeOff className="h-4 w-4" />
@@ -375,7 +583,7 @@ export function ProfileForm({
 
                 {/* Confirm Password */}
                 <FormField
-                  control={form.control}
+                  control={passwordForm.control}
                   name="confirmPassword"
                   render={({ field }) => (
                     <FormItem>
@@ -387,7 +595,7 @@ export function ProfileForm({
                             placeholder="Confirm new password"
                             className="pr-10"
                             {...field}
-                            disabled={isLoading}
+                            disabled={loadingStates.password}
                           />
                           <Button
                             type="button"
@@ -397,7 +605,7 @@ export function ProfileForm({
                             onClick={() =>
                               setShowConfirmPassword(!showConfirmPassword)
                             }
-                            disabled={isLoading}
+                            disabled={loadingStates.password}
                           >
                             {showConfirmPassword ? (
                               <EyeOff className="h-4 w-4" />
@@ -413,45 +621,31 @@ export function ProfileForm({
                 />
 
                 <div className="flex space-x-2">
+                  <Button type="submit" disabled={loadingStates.password}>
+                    {loadingStates.password ? (
+                      'Updating...'
+                    ) : (
+                      <>
+                        <Save className="mr-2 h-4 w-4" />
+                        Update Password
+                      </>
+                    )}
+                  </Button>
                   <Button
                     type="button"
                     variant="outline"
                     onClick={handleCancelPasswordChange}
-                    disabled={isLoading}
+                    disabled={loadingStates.password}
                   >
                     <X className="mr-2 h-4 w-4" />
                     Cancel
                   </Button>
                 </div>
-              </CardContent>
-            )}
-          </Card>
-
-          {/* Action Buttons */}
-          <div className="flex flex-col-reverse sm:flex-row sm:justify-end sm:space-x-2 space-y-2 space-y-reverse sm:space-y-0">
-            {onCancel && (
-              <Button
-                type="button"
-                variant="outline"
-                onClick={onCancel}
-                disabled={isLoading}
-              >
-                Cancel
-              </Button>
-            )}
-            <Button type="submit" disabled={isLoading}>
-              {isLoading ? (
-                'Saving...'
-              ) : (
-                <>
-                  <Save className="mr-2 h-4 w-4" />
-                  Save Changes
-                </>
-              )}
-            </Button>
-          </div>
-        </form>
-      </Form>
+              </form>
+            </Form>
+          </CardContent>
+        )}
+      </Card>
     </div>
   );
 }
