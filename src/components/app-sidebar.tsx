@@ -2,7 +2,7 @@
 
 import * as React from 'react';
 import Link from 'next/link';
-import { LayoutDashboard, PieChart } from 'lucide-react';
+import { LayoutDashboard, PieChart, Receipt } from 'lucide-react';
 
 import { NavMain } from '@/components/nav-main';
 import {
@@ -32,6 +32,11 @@ const data = {
       url: '/subscriptions',
       icon: PieChart,
       badge: 'PRO',
+    },
+    {
+      title: 'Billing & Invoices',
+      url: '/billing',
+      icon: Receipt,
     },
     // {
     //   title: 'Explore by Symbols',
