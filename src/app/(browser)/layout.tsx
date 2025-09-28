@@ -18,7 +18,7 @@ export default function BrowserLayout({
         <AppHeader />
         <SidebarTrigger
           size="lg"
-          className="absolute inset-y-2 top-2 z-90 flex items-center cursor-pointer bg-red-500/30 backdrop-blur-sm hover:bg-gray-500/50 transition p-1 rounded-md"
+          className="absolute inset-y-2 top-1 z-90 flex items-center cursor-pointer transition p-1 rounded-md"
         />
         <div className="p-2 py-8 sm:p-2">{children}</div>
       </SidebarInset>

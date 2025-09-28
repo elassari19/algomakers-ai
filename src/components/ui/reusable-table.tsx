@@ -10,10 +10,26 @@ import {
 } from '@/components/ui/table';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { EmptyState } from '@/components/ui/empty-state';
-import { Search, ChevronUp, ChevronDown, ChevronsUpDown } from 'lucide-react';
+import {
+  Search,
+  ChevronUp,
+  ChevronDown,
+  ChevronsUpDown,
+  X,
+} from 'lucide-react';
 import { useState, useEffect, ReactNode } from 'react';
 import { PaginationControls } from '../ui/pagination-controls';
 import { useSearchParams, useRouter, usePathname } from 'next/navigation';
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from '@/components/ui/sheet';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { Button } from '@/components/ui/button';
 
 export interface Column<T = any> {
   key: string;
@@ -40,6 +56,11 @@ export interface ReusableTableProps<T = any> {
   itemsPerPage?: number; // Number of items per page (default: 10)
   onRowClick?: (row: T, index: number) => void;
   rowClassName?: (row: T, index: number) => string;
+  // Row detail slider props
+  enableRowDetails?: boolean; // Enable the built-in row detail slider
+  rowDetailTitle?: (row: T) => string; // Custom title for the detail slider
+  rowDetailContent?: (row: T) => ReactNode; // Custom content for the detail slider
+  excludeFromDetails?: string[]; // Keys to exclude from auto-generated details
 }
 
 export function ReusableTable<T = any>({
@@ -57,6 +78,10 @@ export function ReusableTable<T = any>({
   itemsPerPage = 5,
   onRowClick,
   rowClassName,
+  enableRowDetails = false,
+  rowDetailTitle,
+  rowDetailContent,
+  excludeFromDetails = ['id'],
 }: ReusableTableProps<T>) {
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -64,6 +89,8 @@ export function ReusableTable<T = any>({
 
   const [sortField, setSortField] = useState<string>('');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
+  const [selectedRow, setSelectedRow] = useState<T | null>(null);
+  const [isDetailOpen, setIsDetailOpen] = useState(false);
 
   // Get pagination and search values from URL params
   const urlPage = parseInt(searchParams.get('page') || '1');
@@ -195,6 +222,85 @@ export function ReusableTable<T = any>({
     }
   };
 
+  // Handle row click - either custom handler or detail slider
+  const handleRowClick = (row: T, index: number, event: React.MouseEvent) => {
+    // Check if the click originated from an interactive element
+    const target = event.target as HTMLElement;
+    const isInteractiveElement = target.closest(
+      'button, a, input, select, textarea, [role="button"]'
+    );
+
+    // Don't trigger row action if clicking on interactive elements
+    if (isInteractiveElement) {
+      return;
+    }
+
+    if (onRowClick) {
+      onRowClick(row, index);
+    } else if (enableRowDetails) {
+      setSelectedRow(row);
+      setIsDetailOpen(true);
+    }
+  };
+
+  // Generate auto detail content from row data
+  const generateAutoDetailContent = (row: T) => {
+    const entries = Object.entries(row as any).filter(
+      ([key]) => !excludeFromDetails.includes(key)
+    );
+
+    return (
+      <div className="space-y-4">
+        {entries.map(([key, value]) => {
+          // Format key to be more readable
+          const formattedKey = key
+            .split(/(?=[A-Z])|_|-/)
+            .map(
+              (word) =>
+                word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()
+            )
+            .join(' ');
+
+          // Format value based on type
+          let formattedValue: string;
+          if (value instanceof Date) {
+            formattedValue = value.toLocaleDateString('en-US', {
+              year: 'numeric',
+              month: 'long',
+              day: 'numeric',
+              hour: '2-digit',
+              minute: '2-digit',
+            });
+          } else if (typeof value === 'object' && value !== null) {
+            formattedValue = JSON.stringify(value, null, 2);
+          } else {
+            formattedValue = String(value || 'N/A');
+          }
+
+          return (
+            <div
+              key={key}
+              className="border-b border-white/10 pb-3 last:border-b-0"
+            >
+              <dt className="text-sm font-medium text-white/90 mb-1">
+                {formattedKey}
+              </dt>
+              <dd className="text-sm text-white/70 break-words">
+                {typeof value === 'object' && value !== null ? (
+                  <pre className="whitespace-pre-wrap font-mono text-xs bg-white/5 p-2 rounded">
+                    {formattedValue}
+                  </pre>
+                ) : (
+                  formattedValue
+                )}
+              </dd>
+            </div>
+          );
+        })}
+      </div>
+    );
+  };
+
   if (isLoading) {
     return (
       <Card
@@ -259,68 +365,79 @@ export function ReusableTable<T = any>({
       </CardHeader>
       <CardContent className="px-1 sm:px-3">
         <div className="rounded-lg border border-white/20 overflow-hidden bg-white/5 backdrop-blur-sm">
-          <Table>
-            <TableHeader>
-              <TableRow className="border-white/20 bg-white/5 backdrop-blur-sm">
-                {columns.map((column) => (
-                  <TableHead
-                    key={column.key}
-                    className={`text-white/80 ${
-                      column.width || ''
-                    } ${getAlignmentClass(column.align)}`}
-                  >
-                    {column.sortable ? (
-                      <button
-                        onClick={() => handleSort(column.key)}
-                        className={`flex items-center gap-2 hover:text-white transition-colors ${
-                          column.align === 'center'
-                            ? 'justify-center w-full'
-                            : column.align === 'right'
-                            ? 'justify-end w-full'
-                            : ''
-                        }`}
-                      >
-                        {column.header}
-                        {getSortIcon(column.key)}
-                      </button>
-                    ) : (
-                      column.header
-                    )}
-                  </TableHead>
-                ))}
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {paginatedData.map((row, index) => (
-                <TableRow
-                  key={index}
-                  className={`border-white/10 hover:bg-white/5 transition-colors ${
-                    onRowClick ? 'cursor-pointer' : ''
-                  } ${rowClassName ? rowClassName(row, index) : ''}`}
-                  onClick={() => onRowClick?.(row, index)}
-                >
-                  {columns.map((column) => {
-                    const value = column.accessor
-                      ? column.accessor(row)
-                      : getNestedValue(row, column.key);
-
-                    return (
-                      <TableCell
+          <div className="relative">
+            {/* Fixed Header */}
+            <div className="sticky top-0 z-10 bg-white/5 backdrop-blur-sm border-b border-white/20">
+              <Table>
+                <TableHeader>
+                  <TableRow className="border-white/20 bg-white/5 backdrop-blur-sm">
+                    {columns.map((column) => (
+                      <TableHead
                         key={column.key}
-                        className={`text-white/80 ${getAlignmentClass(
-                          column.align
-                        )}`}
+                        className={`text-white/80 ${
+                          column.width || ''
+                        } ${getAlignmentClass(column.align)}`}
                       >
-                        {column.render
-                          ? column.render(value, row, index)
-                          : String(value || '')}
-                      </TableCell>
-                    );
-                  })}
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+                        {column.sortable ? (
+                          <button
+                            onClick={() => handleSort(column.key)}
+                            className={`flex items-center gap-2 hover:text-white transition-colors ${
+                              column.align === 'center'
+                                ? 'justify-center w-full'
+                                : column.align === 'right'
+                                ? 'justify-end w-full'
+                                : ''
+                            }`}
+                          >
+                            {column.header}
+                            {getSortIcon(column.key)}
+                          </button>
+                        ) : (
+                          column.header
+                        )}
+                      </TableHead>
+                    ))}
+                  </TableRow>
+                </TableHeader>
+              </Table>
+            </div>
+
+            {/* Scrollable Body */}
+            <ScrollArea className="h-[400px]">
+              <Table>
+                <TableBody>
+                  {paginatedData.map((row, index) => (
+                    <TableRow
+                      key={index}
+                      className={`border-white/10 hover:bg-white/5 transition-colors ${
+                        onRowClick || enableRowDetails ? 'cursor-pointer' : ''
+                      } ${rowClassName ? rowClassName(row, index) : ''}`}
+                      onClick={(event) => handleRowClick(row, index, event)}
+                    >
+                      {columns.map((column) => {
+                        const value = column.accessor
+                          ? column.accessor(row)
+                          : getNestedValue(row, column.key);
+
+                        return (
+                          <TableCell
+                            key={column.key}
+                            className={`text-white/80 ${getAlignmentClass(
+                              column.align
+                            )}`}
+                          >
+                            {column.render
+                              ? column.render(value, row, index)
+                              : String(value || '')}
+                          </TableCell>
+                        );
+                      })}
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </ScrollArea>
+          </div>
         </div>
 
         {/* Pagination Controls - only show if there are multiple pages */}
@@ -334,6 +451,30 @@ export function ReusableTable<T = any>({
           />
         )}
       </CardContent>
+
+      {/* Row Detail Slider */}
+      {enableRowDetails && (
+        <Sheet open={isDetailOpen} onOpenChange={setIsDetailOpen}>
+          <SheetContent className="w-full md:w-[32rem] max-w-none bg-gradient-to-b from-[#6a1b9a] to-[#2d1b24] p-6">
+            <SheetHeader className="px-2 h-10">
+              <SheetTitle className="text-white text-lg">
+                {selectedRow && rowDetailTitle
+                  ? rowDetailTitle(selectedRow)
+                  : 'Item Details'}
+              </SheetTitle>
+            </SheetHeader>
+            <ScrollArea className="h-[calc(100vh-120px)] px-2">
+              {selectedRow && (
+                <div className="space-y-1">
+                  {rowDetailContent
+                    ? rowDetailContent(selectedRow)
+                    : generateAutoDetailContent(selectedRow)}
+                </div>
+              )}
+            </ScrollArea>
+          </SheetContent>
+        </Sheet>
+      )}
     </Card>
   );
 }
