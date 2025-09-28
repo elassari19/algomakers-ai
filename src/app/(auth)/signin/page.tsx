@@ -6,7 +6,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { toast } from 'sonner';
 
-import { AuthForm } from '@/components/auth/AuthForm';
+import { AuthForm, AuthRedirect } from '@/components/auth';
 import { Toaster } from '@/components/ui/sonner';
 import { handleAuthError } from '@/lib/constant-errors';
 
@@ -104,7 +104,7 @@ function SignInForm() {
 
 export default function SignInPage() {
   return (
-    <>
+    <AuthRedirect>
       <Suspense
         fallback={
           <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 flex items-center justify-center">
@@ -115,6 +115,6 @@ export default function SignInPage() {
         <SignInForm />
       </Suspense>
       <Toaster position="top-center" />
-    </>
+    </AuthRedirect>
   );
 }

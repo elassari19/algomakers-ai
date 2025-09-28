@@ -2,7 +2,7 @@
 
 import Image from 'next/image';
 import { toast } from 'sonner';
-import { AuthForm } from '@/components/auth/AuthForm';
+import { AuthForm, AuthRedirect } from '@/components/auth';
 import { Toaster } from '@/components/ui/sonner';
 import Link from 'next/link';
 import { handleAuthError } from '@/lib/constant-errors';
@@ -30,7 +30,7 @@ export default function SignUpPage() {
   };
 
   return (
-    <>
+    <AuthRedirect>
       <div className="min-h-screen flex">
         {/* Left side - Illuminated image */}
         <div className="hidden lg:flex lg:w-[55%] relative rounded-tr-3xl rounded-br-3xl overflow-hidden">
@@ -80,6 +80,6 @@ export default function SignUpPage() {
         </div>
       </div>
       <Toaster position="top-center" />
-    </>
+    </AuthRedirect>
   );
 }

@@ -1,5 +1,6 @@
 // Auth & User Components
 export { AuthForm } from './AuthForm';
+export { AuthRedirect } from './AuthRedirect';
 export { SocialLoginButtons } from './SocialLoginButtons';
 export { PasswordStrengthMeter } from './PasswordStrengthMeter';
 export { ForgotPasswordForm } from './ForgotPasswordForm';
