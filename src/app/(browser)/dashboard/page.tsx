@@ -59,7 +59,7 @@ interface IProps {
   };
 }
 
-export default function DashboardPage() {
+function DashboardContent() {
   const searchParams = useSearchParams();
   const search = searchParams.get('search');
   const filter = searchParams.get('filter');
@@ -616,5 +616,22 @@ export default function DashboardPage() {
         </div>
       </div>
     </GradientBackground>
+  );
+}
+
+export default function DashboardPage() {
+  return (
+    <Suspense
+      fallback={
+        <GradientBackground>
+          <div className="flex items-center justify-center min-h-screen">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white"></div>
+            <span className="ml-3 text-white/80">Loading dashboard...</span>
+          </div>
+        </GradientBackground>
+      }
+    >
+      <DashboardContent />
+    </Suspense>
   );
 }

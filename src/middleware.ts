@@ -18,6 +18,9 @@ export default withAuth(
           '/signup',
           '/forgot-password',
           '/reset-password',
+          '/dashboard',
+          '/subscriptions',
+          '/billing',
         ];
 
         // Check if the current path is a public route
