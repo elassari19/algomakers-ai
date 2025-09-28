@@ -1,4 +1,5 @@
 import { AppSidebar } from '@/components/app-sidebar';
+import { AppHeader } from '@/components/AppHeader';
 import {
   SidebarInset,
   SidebarProvider,
@@ -14,6 +15,7 @@ export default function BrowserLayout({
     <SidebarProvider>
       <AppSidebar />
       <SidebarInset>
+        <AppHeader />
         <SidebarTrigger
           size="lg"
           className="absolute inset-y-2 top-2 z-90 flex items-center cursor-pointer bg-red-500/30 backdrop-blur-sm hover:bg-gray-500/50 transition p-1 rounded-md"
