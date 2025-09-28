@@ -403,7 +403,7 @@ export function ReusableTable<T = any>({
             </div>
 
             {/* Scrollable Body */}
-            <ScrollArea className="h-[400px]">
+            <ScrollArea className="h-[300px] overflow-y-auto">
               <Table>
                 <TableBody>
                   {paginatedData.map((row, index) => (
@@ -441,15 +441,13 @@ export function ReusableTable<T = any>({
         </div>
 
         {/* Pagination Controls - only show if there are multiple pages */}
-        {totalPages > 1 && (
-          <PaginationControls
-            currentPage={currentPage}
-            totalPages={totalPages}
-            itemsPerPage={currentItemsPerPage}
-            totalItems={totalItemsCount}
-            className="mt-4"
-          />
-        )}
+        <PaginationControls
+          currentPage={currentPage}
+          totalPages={totalPages}
+          itemsPerPage={currentItemsPerPage}
+          totalItems={totalItemsCount}
+          className="mt-4"
+        />
       </CardContent>
 
       {/* Row Detail Slider */}

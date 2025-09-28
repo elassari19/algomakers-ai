@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { ReusableTable, Column } from '@/components/ui/reusable-table';
 import { GradientBackground } from '@/components/ui/gradient-background';
 import { Badge } from '@/components/ui/badge';
@@ -526,19 +526,9 @@ export default function BillingPage() {
 
   return (
     <GradientBackground>
-      <div className="flex flex-col justify-between h-full gap-4 md:p-6 pt-0">
-        {/* Header */}
-        {/* <div className="">
-          <h1 className="text-3xl font-bold text-white mb-2">
-            Billing & Invoices
-          </h1>
-          <p className="text-white/70">
-            Manage your payment history and download invoices.
-          </p>
-        </div> */}
-
+      <div className="min-h-screen flex flex-col justify-between p-4">
         {/* Billing Overview Stats */}
-        <div className="flex-shrink-0">
+        <div className="">
           <OverviewSection
             overviewData={[
               {
@@ -581,216 +571,233 @@ export default function BillingPage() {
           />
         </div>
 
-        {/* Filter Bar */}
-        <div className="flex-shrink-0">
-          <SortFilterBar
-            filterBy={filterBy}
-            onFilterChange={setFilterBy}
-            totalResults={filteredPayments.length}
-          />
-        </div>
-
-        {/* Main Billing Table */}
-        <div className="flex-1 min-h-0">
-          <ReusableTable
-            data={filteredPayments}
-            columns={paymentColumns}
-            title="Payment History"
-            icon={Receipt}
-            isLoading={loading}
-            searchable={true}
-            searchFields={['orderId', 'pairName', 'invoiceId']}
-            emptyStateTitle="No payments found"
-            emptyStateDescription="No payments found matching your criteria"
-            enableRowDetails={true}
-            rowDetailTitle={(payment) => `Payment Details - ${payment.orderId}`}
-            excludeFromDetails={['id']}
-            rowDetailContent={(payment) => (
-              <div className="space-y-6">
-                {/* Payment Overview */}
-                <div className="bg-white/10 p-4 rounded-lg border border-white/20">
-                  <h3 className="text-white font-semibold mb-3 flex items-center gap-2">
-                    <Receipt className="h-5 w-5" />
-                    Payment Overview
-                  </h3>
-                  <div className="grid grid-cols-2 gap-4 text-sm">
-                    <div>
-                      <p className="text-white/70">Order ID</p>
-                      <p className="text-white font-mono">{payment.orderId}</p>
-                    </div>
-                    <div>
-                      <p className="text-white/70">Invoice ID</p>
-                      <p className="text-white font-mono">
-                        {payment.invoiceId}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-white/70">Strategy Pair</p>
-                      <p className="text-white font-semibold">
-                        {payment.pairName}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-white/70">Payment Network</p>
-                      <p className="text-white">
-                        {payment.network.replace('_', ' ')}
-                      </p>
-                    </div>
-                  </div>
+        <div className="flex flex-col justify-end mb-12">
+          {/* Main Billing Table */}
+          <div className="flex-1 min-h-0 space-y-4">
+            <Suspense
+              fallback={
+                <div className="flex items-center justify-center p-12">
+                  <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-white"></div>
+                  <span className="ml-3 text-white/80">
+                    Loading trading pairs...
+                  </span>
                 </div>
-
-                {/* Amount & Status */}
-                <div className="bg-white/10 p-4 rounded-lg border border-white/20">
-                  <h3 className="text-white font-semibold mb-3 flex items-center gap-2">
-                    <DollarSign className="h-5 w-5" />
-                    Amount & Status
-                  </h3>
-                  <div className="space-y-3">
-                    <div className="flex justify-between items-center">
-                      <span className="text-white/70">Amount Due:</span>
-                      <span className="text-white font-semibold text-lg">
-                        ${payment.amount.toFixed(2)}
-                      </span>
+              }
+            >
+              <SortFilterBar
+                filterBy={filterBy}
+                onFilterChange={setFilterBy}
+                totalResults={filteredPayments.length}
+              />
+              <ReusableTable
+                data={filteredPayments}
+                columns={paymentColumns}
+                title="Payment History"
+                icon={Receipt}
+                isLoading={loading}
+                searchable={true}
+                searchFields={['orderId', 'pairName', 'invoiceId']}
+                emptyStateTitle="No payments found"
+                emptyStateDescription="No payments found matching your criteria"
+                enableRowDetails={true}
+                rowDetailTitle={(payment) =>
+                  `Payment Details - ${payment.orderId}`
+                }
+                excludeFromDetails={['id']}
+                rowDetailContent={(payment) => (
+                  <div className="space-y-6">
+                    {/* Payment Overview */}
+                    <div className="bg-white/10 p-4 rounded-lg border border-white/20">
+                      <h3 className="text-white font-semibold mb-3 flex items-center gap-2">
+                        <Receipt className="h-5 w-5" />
+                        Payment Overview
+                      </h3>
+                      <div className="grid grid-cols-2 gap-4 text-sm">
+                        <div>
+                          <p className="text-white/70">Order ID</p>
+                          <p className="text-white font-mono">
+                            {payment.orderId}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-white/70">Invoice ID</p>
+                          <p className="text-white font-mono">
+                            {payment.invoiceId}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-white/70">Strategy Pair</p>
+                          <p className="text-white font-semibold">
+                            {payment.pairName}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-white/70">Payment Network</p>
+                          <p className="text-white">
+                            {payment.network.replace('_', ' ')}
+                          </p>
+                        </div>
+                      </div>
                     </div>
-                    {payment.actuallyPaid &&
-                      payment.actuallyPaid !== payment.amount && (
+
+                    {/* Amount & Status */}
+                    <div className="bg-white/10 p-4 rounded-lg border border-white/20">
+                      <h3 className="text-white font-semibold mb-3 flex items-center gap-2">
+                        <DollarSign className="h-5 w-5" />
+                        Amount & Status
+                      </h3>
+                      <div className="space-y-3">
                         <div className="flex justify-between items-center">
-                          <span className="text-white/70">Amount Paid:</span>
-                          <span className="text-orange-400 font-semibold">
-                            ${payment.actuallyPaid.toFixed(2)}
+                          <span className="text-white/70">Amount Due:</span>
+                          <span className="text-white font-semibold text-lg">
+                            ${payment.amount.toFixed(2)}
                           </span>
                         </div>
-                      )}
-                    <div className="flex justify-between items-center">
-                      <span className="text-white/70">Status:</span>
-                      <span
-                        className={`px-3 py-1 rounded-full text-xs font-semibold ${
-                          payment.status === 'PAID'
-                            ? 'bg-green-500/20 text-green-400'
-                            : payment.status === 'PENDING'
-                            ? 'bg-yellow-500/20 text-yellow-400'
-                            : payment.status === 'UNDERPAID'
-                            ? 'bg-orange-500/20 text-orange-400'
-                            : 'bg-red-500/20 text-red-400'
-                        }`}
-                      >
-                        {payment.status}
-                      </span>
+                        {payment.actuallyPaid &&
+                          payment.actuallyPaid !== payment.amount && (
+                            <div className="flex justify-between items-center">
+                              <span className="text-white/70">
+                                Amount Paid:
+                              </span>
+                              <span className="text-orange-400 font-semibold">
+                                ${payment.actuallyPaid.toFixed(2)}
+                              </span>
+                            </div>
+                          )}
+                        <div className="flex justify-between items-center">
+                          <span className="text-white/70">Status:</span>
+                          <span
+                            className={`px-3 py-1 rounded-full text-xs font-semibold ${
+                              payment.status === 'PAID'
+                                ? 'bg-green-500/20 text-green-400'
+                                : payment.status === 'PENDING'
+                                ? 'bg-yellow-500/20 text-yellow-400'
+                                : payment.status === 'UNDERPAID'
+                                ? 'bg-orange-500/20 text-orange-400'
+                                : 'bg-red-500/20 text-red-400'
+                            }`}
+                          >
+                            {payment.status}
+                          </span>
+                        </div>
+                      </div>
                     </div>
-                  </div>
-                </div>
 
-                {/* Transaction Details */}
-                {payment.txHash && (
-                  <div className="bg-white/10 p-4 rounded-lg border border-white/20">
-                    <h3 className="text-white font-semibold mb-3">
-                      Transaction Hash
-                    </h3>
-                    <div className="bg-black/20 p-3 rounded border border-white/10">
-                      <p className="text-white/80 font-mono text-sm break-all">
-                        {payment.txHash}
-                      </p>
-                    </div>
-                  </div>
-                )}
-
-                {/* Subscription Details */}
-                {payment.subscription && (
-                  <div className="bg-white/10 p-4 rounded-lg border border-white/20">
-                    <h3 className="text-white font-semibold mb-3 flex items-center gap-2">
-                      <Users className="h-5 w-5" />
-                      Subscription Details
-                    </h3>
-                    <div className="space-y-2 text-sm">
-                      <div className="flex justify-between">
-                        <span className="text-white/70">Subscription ID:</span>
-                        <span className="text-white font-mono">
-                          {payment.subscription.id}
-                        </span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-white/70">Period:</span>
-                        <span className="text-white">
-                          {payment.subscription.period.replace('_', ' ')}
-                        </span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-white/70">Start Date:</span>
-                        <span className="text-white">
-                          {payment.subscription.startDate.toLocaleDateString()}
-                        </span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-white/70">Expiry Date:</span>
-                        <span className="text-white">
-                          {payment.subscription.expiryDate.toLocaleDateString()}
-                        </span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-white/70">Status:</span>
-                        <span
-                          className={`px-2 py-1 rounded text-xs font-semibold ${
-                            payment.subscription.status === 'ACTIVE'
-                              ? 'bg-green-500/20 text-green-400'
-                              : 'bg-red-500/20 text-red-400'
-                          }`}
-                        >
-                          {payment.subscription.status}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {/* Dates */}
-                <div className="bg-white/10 p-4 rounded-lg border border-white/20">
-                  <h3 className="text-white font-semibold mb-3 flex items-center gap-2">
-                    <Calendar className="h-5 w-5" />
-                    Important Dates
-                  </h3>
-                  <div className="space-y-2 text-sm">
-                    <div className="flex justify-between">
-                      <span className="text-white/70">Created:</span>
-                      <span className="text-white">
-                        {payment.createdAt.toLocaleDateString('en-US', {
-                          year: 'numeric',
-                          month: 'long',
-                          day: 'numeric',
-                          hour: '2-digit',
-                          minute: '2-digit',
-                        })}
-                      </span>
-                    </div>
-                    {payment.expiresAt && (
-                      <div className="flex justify-between">
-                        <span className="text-white/70">Expires:</span>
-                        <span className="text-white">
-                          {payment.expiresAt.toLocaleDateString('en-US', {
-                            year: 'numeric',
-                            month: 'long',
-                            day: 'numeric',
-                            hour: '2-digit',
-                            minute: '2-digit',
-                          })}
-                        </span>
+                    {/* Transaction Details */}
+                    {payment.txHash && (
+                      <div className="bg-white/10 p-4 rounded-lg border border-white/20">
+                        <h3 className="text-white font-semibold mb-3">
+                          Transaction Hash
+                        </h3>
+                        <div className="bg-black/20 p-3 rounded border border-white/10">
+                          <p className="text-white/80 font-mono text-sm break-all">
+                            {payment.txHash}
+                          </p>
+                        </div>
                       </div>
                     )}
-                  </div>
-                </div>
 
-                {/* Actions */}
-                <div className="flex gap-3 pt-4">
-                  <Button
-                    onClick={() => downloadInvoice(payment)}
-                    className="flex-1 bg-gradient-to-r from-purple-500 to-pink-600 text-white"
-                  >
-                    <Download className="h-4 w-4 mr-2" />
-                    Download Invoice
-                  </Button>
-                </div>
-              </div>
-            )}
-          />
+                    {/* Subscription Details */}
+                    {payment.subscription && (
+                      <div className="bg-white/10 p-4 rounded-lg border border-white/20">
+                        <h3 className="text-white font-semibold mb-3 flex items-center gap-2">
+                          <Users className="h-5 w-5" />
+                          Subscription Details
+                        </h3>
+                        <div className="space-y-2 text-sm">
+                          <div className="flex justify-between">
+                            <span className="text-white/70">
+                              Subscription ID:
+                            </span>
+                            <span className="text-white font-mono">
+                              {payment.subscription.id}
+                            </span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-white/70">Period:</span>
+                            <span className="text-white">
+                              {payment.subscription.period.replace('_', ' ')}
+                            </span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-white/70">Start Date:</span>
+                            <span className="text-white">
+                              {payment.subscription.startDate.toLocaleDateString()}
+                            </span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-white/70">Expiry Date:</span>
+                            <span className="text-white">
+                              {payment.subscription.expiryDate.toLocaleDateString()}
+                            </span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-white/70">Status:</span>
+                            <span
+                              className={`px-2 py-1 rounded text-xs font-semibold ${
+                                payment.subscription.status === 'ACTIVE'
+                                  ? 'bg-green-500/20 text-green-400'
+                                  : 'bg-red-500/20 text-red-400'
+                              }`}
+                            >
+                              {payment.subscription.status}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Dates */}
+                    <div className="bg-white/10 p-4 rounded-lg border border-white/20">
+                      <h3 className="text-white font-semibold mb-3 flex items-center gap-2">
+                        <Calendar className="h-5 w-5" />
+                        Important Dates
+                      </h3>
+                      <div className="space-y-2 text-sm">
+                        <div className="flex justify-between">
+                          <span className="text-white/70">Created:</span>
+                          <span className="text-white">
+                            {payment.createdAt.toLocaleDateString('en-US', {
+                              year: 'numeric',
+                              month: 'long',
+                              day: 'numeric',
+                              hour: '2-digit',
+                              minute: '2-digit',
+                            })}
+                          </span>
+                        </div>
+                        {payment.expiresAt && (
+                          <div className="flex justify-between">
+                            <span className="text-white/70">Expires:</span>
+                            <span className="text-white">
+                              {payment.expiresAt.toLocaleDateString('en-US', {
+                                year: 'numeric',
+                                month: 'long',
+                                day: 'numeric',
+                                hour: '2-digit',
+                                minute: '2-digit',
+                              })}
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Actions */}
+                    <div className="flex gap-3 pt-4">
+                      <Button
+                        onClick={() => downloadInvoice(payment)}
+                        className="flex-1 bg-gradient-to-r from-purple-500 to-pink-600 text-white"
+                      >
+                        <Download className="h-4 w-4 mr-2" />
+                        Download Invoice
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              />
+            </Suspense>
+          </div>
         </div>
       </div>
     </GradientBackground>
