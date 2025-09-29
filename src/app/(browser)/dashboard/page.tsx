@@ -191,7 +191,7 @@ function DashboardContent() {
         </div>
 
         {/* Trading Pairs Table Section */}
-        <div className="flex flex-col justify-end mb-12">
+        <div className="flex flex-col justify-end my-12">
           {/* Main Pairs Table */}
           <div className="flex-1 min-h-0 space-y-4">
             <Suspense

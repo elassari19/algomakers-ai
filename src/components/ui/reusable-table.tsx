@@ -90,7 +90,7 @@ export function ReusableTable<T = any>({
   searchFields = [],
   emptyStateTitle = 'No data found',
   emptyStateDescription = "We couldn't find any data matching your criteria.",
-  itemsPerPage = 5,
+  itemsPerPage = 20,
   onRowClick,
   rowClassName,
   enableRowDetails = false,
@@ -416,149 +416,138 @@ export function ReusableTable<T = any>({
             </span>
           </div>
 
-          {enableColumnSelector && (
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-8 w-8 p-0 text-white/70 hover:text-white hover:bg-white/10"
-                >
-                  <Settings className="h-4 w-4" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent
-                align="end"
-                className="w-56 bg-slate-900/95 backdrop-blur-md border-white/20"
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-8 w-8 p-0 text-white/70 hover:text-white hover:bg-white/10"
               >
-                <DropdownMenuLabel className="text-white/90">
-                  Toggle Columns
-                </DropdownMenuLabel>
-                <DropdownMenuSeparator className="bg-white/20" />
+                <Settings className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent
+              align="end"
+              className="w-56 bg-slate-900/95 backdrop-blur-md border-white/20"
+            >
+              <DropdownMenuLabel className="text-white/90">
+                Toggle Columns
+              </DropdownMenuLabel>
+              <DropdownMenuSeparator className="bg-white/20" />
 
-                <div className="px-2 py-1">
-                  <div className="flex items-center gap-2 mb-2">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => toggleAllColumns(true)}
-                      className="h-6 px-2 text-xs text-white/70 hover:text-white hover:bg-white/10"
-                    >
-                      <Eye className="h-3 w-3 mr-1" />
-                      Show All
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => toggleAllColumns(false)}
-                      className="h-6 px-2 text-xs text-white/70 hover:text-white hover:bg-white/10"
-                    >
-                      <EyeOff className="h-3 w-3 mr-1" />
-                      Hide All
-                    </Button>
-                  </div>
-                </div>
-
-                <DropdownMenuSeparator className="bg-white/20" />
-
-                {columns.map((column) => (
-                  <DropdownMenuItem
-                    key={column.key}
-                    className="flex items-center gap-2 text-white/80 cursor-pointer"
-                    onSelect={(e) => {
-                      e.preventDefault();
-                      toggleColumnVisibility(column.key);
-                    }}
+              <div className="px-2 py-1">
+                <div className="flex items-center gap-2 mb-2">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => toggleAllColumns(true)}
+                    className="h-6 px-2 text-xs text-white/70 hover:text-white hover:bg-white/10"
                   >
-                    <Checkbox
-                      checked={visibleColumns.includes(column.key)}
-                      onChange={() => {}} // Handled by the parent onSelect
-                      className="border-white/30 data-[state=checked]:bg-blue-600 data-[state=checked]:border-blue-600"
-                    />
-                    <span className="flex-1">{column.header}</span>
-                  </DropdownMenuItem>
-                ))}
-              </DropdownMenuContent>
-            </DropdownMenu>
-          )}
+                    <Eye className="h-3 w-3 mr-1" />
+                    Show All
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => toggleAllColumns(false)}
+                    className="h-6 px-2 text-xs text-white/70 hover:text-white hover:bg-white/10"
+                  >
+                    <EyeOff className="h-3 w-3 mr-1" />
+                    Hide All
+                  </Button>
+                </div>
+              </div>
+
+              <DropdownMenuSeparator className="bg-white/20" />
+
+              {columns.map((column) => (
+                <DropdownMenuItem
+                  key={column.key}
+                  className="flex items-center gap-2 text-white/80 cursor-pointer"
+                  onSelect={(e) => {
+                    e.preventDefault();
+                    toggleColumnVisibility(column.key);
+                  }}
+                >
+                  <Checkbox
+                    checked={visibleColumns.includes(column.key)}
+                    onChange={() => {}} // Handled by the parent onSelect
+                    className="border-white/30 data-[state=checked]:bg-blue-600 data-[state=checked]:border-blue-600"
+                  />
+                  <span className="flex-1">{column.header}</span>
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
         </CardTitle>
         {subtitle && <p className="text-white/70 text-sm">{subtitle}</p>}
       </CardHeader>
       <CardContent className="px-1 sm:px-3">
         <div className="rounded-lg border border-white/20 overflow-hidden bg-white/5 backdrop-blur-sm">
-          <div className="relative">
-            {/* Fixed Header */}
-            <div className="sticky top-0 z-10 bg-white/5 backdrop-blur-sm border-b border-white/20">
-              <Table>
-                <TableHeader>
-                  <TableRow className="border-white/20 bg-white/5 backdrop-blur-sm">
-                    {displayColumns.map((column) => (
-                      <TableHead
-                        key={column.key}
-                        className={`text-white/80 ${
-                          column.width || ''
-                        } ${getAlignmentClass(column.align)}`}
-                      >
-                        {column.sortable ? (
-                          <button
-                            onClick={() => handleSort(column.key)}
-                            className={`flex items-center gap-2 hover:text-white transition-colors ${
-                              column.align === 'center'
-                                ? 'justify-center w-full'
-                                : column.align === 'right'
-                                ? 'justify-end w-full'
-                                : ''
-                            }`}
-                          >
-                            {column.header}
-                            {getSortIcon(column.key)}
-                          </button>
-                        ) : (
-                          column.header
-                        )}
-                      </TableHead>
-                    ))}
-                  </TableRow>
-                </TableHeader>
-              </Table>
-            </div>
-
-            {/* Scrollable Body */}
-            <ScrollArea className="h-[300px] overflow-y-auto">
-              <Table>
-                <TableBody>
-                  {paginatedData.map((row, index) => (
-                    <TableRow
-                      key={index}
-                      className={`border-white/10 ${
-                        onRowClick || enableRowDetails ? 'cursor-pointer' : ''
-                      } ${rowClassName ? rowClassName(row, index) : ''}`}
-                      onClick={(event) => handleRowClick(row, index, event)}
+          <ScrollArea className="">
+            <Table>
+              <TableHeader className="sticky top-0 z-10 bg-white/5 backdrop-blur-sm">
+                <TableRow className="border-white/20 bg-white/5 backdrop-blur-sm">
+                  {displayColumns.map((column) => (
+                    <TableHead
+                      key={column.key}
+                      className={`text-white/80 ${
+                        column.width || ''
+                      } ${getAlignmentClass(column.align)}`}
                     >
-                      {displayColumns.map((column) => {
-                        const value = column.accessor
-                          ? column.accessor(row)
-                          : getNestedValue(row, column.key);
-
-                        return (
-                          <TableCell
-                            key={column.key}
-                            className={`text-white/80 ${getAlignmentClass(
-                              column.align
-                            )}`}
-                          >
-                            {column.render
-                              ? column.render(value, row, index)
-                              : String(value || '')}
-                          </TableCell>
-                        );
-                      })}
-                    </TableRow>
+                      {column.sortable ? (
+                        <button
+                          onClick={() => handleSort(column.key)}
+                          className={`flex items-center gap-2 hover:text-white transition-colors ${
+                            column.align === 'center'
+                              ? 'justify-center w-full'
+                              : column.align === 'right'
+                              ? 'justify-end w-full'
+                              : ''
+                          }`}
+                        >
+                          {column.header}
+                          {getSortIcon(column.key)}
+                        </button>
+                      ) : (
+                        column.header
+                      )}
+                    </TableHead>
                   ))}
-                </TableBody>
-              </Table>
-            </ScrollArea>
-          </div>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {paginatedData.map((row, index) => (
+                  <TableRow
+                    key={index}
+                    className={`border-white/10 ${
+                      onRowClick || enableRowDetails ? 'cursor-pointer' : ''
+                    } ${rowClassName ? rowClassName(row, index) : ''}`}
+                    onClick={(event) => handleRowClick(row, index, event)}
+                  >
+                    {displayColumns.map((column) => {
+                      const value = column.accessor
+                        ? column.accessor(row)
+                        : getNestedValue(row, column.key);
+
+                      return (
+                        <TableCell
+                          key={column.key}
+                          className={`text-white/80 ${
+                            column.width || ''
+                          } ${getAlignmentClass(column.align)}`}
+                        >
+                          {column.render
+                            ? column.render(value, row, index)
+                            : String(value || '')}
+                        </TableCell>
+                      );
+                    })}
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </ScrollArea>
         </div>
 
         {/* Pagination Controls - only show if there are multiple pages */}
