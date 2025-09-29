@@ -459,6 +459,14 @@ function DashboardContent() {
                 enableRowDetails={true}
                 rowDetailTitle={(pair) => `${pair.symbol} - ${pair.name}`}
                 excludeFromDetails={['id']}
+                enableColumnSelector={true}
+                defaultVisibleColumns={[
+                  'subscription',
+                  'symbol',
+                  'metrics.roi',
+                  'metrics.winRate',
+                  'actions',
+                ]}
                 rowDetailContent={(pair) => (
                   <div className="space-y-6">
                     {/* Trading Performance */}

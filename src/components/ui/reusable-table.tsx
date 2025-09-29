@@ -16,6 +16,9 @@ import {
   ChevronDown,
   ChevronsUpDown,
   X,
+  Settings,
+  Eye,
+  EyeOff,
 } from 'lucide-react';
 import { useState, useEffect, ReactNode } from 'react';
 import { PaginationControls } from '../ui/pagination-controls';
@@ -30,6 +33,15 @@ import {
 } from '@/components/ui/sheet';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Button } from '@/components/ui/button';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  DropdownMenuSeparator,
+  DropdownMenuLabel,
+} from '@/components/ui/dropdown-menu';
+import { Checkbox } from '@/components/ui/checkbox';
 
 export interface Column<T = any> {
   key: string;
@@ -61,6 +73,9 @@ export interface ReusableTableProps<T = any> {
   rowDetailTitle?: (row: T) => string; // Custom title for the detail slider
   rowDetailContent?: (row: T) => ReactNode; // Custom content for the detail slider
   excludeFromDetails?: string[]; // Keys to exclude from auto-generated details
+  // Column visibility props
+  enableColumnSelector?: boolean; // Enable column visibility selector
+  defaultVisibleColumns?: string[]; // Default visible columns (if not specified, all columns are visible)
 }
 
 export function ReusableTable<T = any>({
@@ -82,6 +97,8 @@ export function ReusableTable<T = any>({
   rowDetailTitle,
   rowDetailContent,
   excludeFromDetails = ['id'],
+  enableColumnSelector = false,
+  defaultVisibleColumns,
 }: ReusableTableProps<T>) {
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -91,6 +108,42 @@ export function ReusableTable<T = any>({
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
   const [selectedRow, setSelectedRow] = useState<T | null>(null);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
+
+  // Column visibility state
+  const [visibleColumns, setVisibleColumns] = useState<string[]>(() => {
+    if (defaultVisibleColumns) {
+      return defaultVisibleColumns;
+    }
+    return columns.map((col) => col.key);
+  });
+
+  // Filter columns based on visibility
+  const displayColumns = columns.filter((col) =>
+    visibleColumns.includes(col.key)
+  );
+
+  // Handle column visibility toggle
+  const toggleColumnVisibility = (columnKey: string) => {
+    setVisibleColumns((prev) => {
+      if (prev.includes(columnKey)) {
+        // Don't allow hiding all columns
+        if (prev.length === 1) return prev;
+        return prev.filter((key) => key !== columnKey);
+      } else {
+        return [...prev, columnKey];
+      }
+    });
+  };
+
+  // Show/hide all columns
+  const toggleAllColumns = (show: boolean) => {
+    if (show) {
+      setVisibleColumns(columns.map((col) => col.key));
+    } else {
+      // Keep at least one column visible
+      setVisibleColumns([columns[0].key]);
+    }
+  };
 
   // Get pagination and search values from URL params
   const urlPage = parseInt(searchParams.get('page') || '1');
@@ -304,7 +357,7 @@ export function ReusableTable<T = any>({
   if (isLoading) {
     return (
       <Card
-        className={`bg-white/10 backdrop-blur-md border-white/20 shadow-xl hover:bg-white/15 transition-all duration-300 ${className}`}
+        className={`bg-white/10 backdrop-blur-md border-white/20 shadow-xl ${className}`}
       >
         <CardHeader>
           <CardTitle className="text-white flex items-center gap-2">
@@ -351,15 +404,83 @@ export function ReusableTable<T = any>({
 
   return (
     <Card
-      className={`bg-white/5 backdrop-blur-md border-white/20 shadow-xl hover:bg-white/15 transition-all duration-300 ${className}`}
+      className={`bg-white/5 backdrop-blur-md border-white/20 shadow-xl ${className}`}
     >
       <CardHeader>
-        <CardTitle className="text-white flex items-center gap-2 h-0">
-          {Icon && <Icon className="h-5 w-5" />}
-          {title}
-          <span className="text-sm text-white/70 font-normal">
-            ({data.length} {data.length === 1 ? 'item' : 'items'} available)
-          </span>
+        <CardTitle className="text-white flex items-center justify-between h-0">
+          <div className="flex items-center gap-2">
+            {Icon && <Icon className="h-5 w-5" />}
+            {title}
+            <span className="text-sm text-white/70 font-normal">
+              ({data.length} {data.length === 1 ? 'item' : 'items'} available)
+            </span>
+          </div>
+
+          {enableColumnSelector && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-8 w-8 p-0 text-white/70 hover:text-white hover:bg-white/10"
+                >
+                  <Settings className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent
+                align="end"
+                className="w-56 bg-slate-900/95 backdrop-blur-md border-white/20"
+              >
+                <DropdownMenuLabel className="text-white/90">
+                  Toggle Columns
+                </DropdownMenuLabel>
+                <DropdownMenuSeparator className="bg-white/20" />
+
+                <div className="px-2 py-1">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => toggleAllColumns(true)}
+                      className="h-6 px-2 text-xs text-white/70 hover:text-white hover:bg-white/10"
+                    >
+                      <Eye className="h-3 w-3 mr-1" />
+                      Show All
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => toggleAllColumns(false)}
+                      className="h-6 px-2 text-xs text-white/70 hover:text-white hover:bg-white/10"
+                    >
+                      <EyeOff className="h-3 w-3 mr-1" />
+                      Hide All
+                    </Button>
+                  </div>
+                </div>
+
+                <DropdownMenuSeparator className="bg-white/20" />
+
+                {columns.map((column) => (
+                  <DropdownMenuItem
+                    key={column.key}
+                    className="flex items-center gap-2 text-white/80 cursor-pointer"
+                    onSelect={(e) => {
+                      e.preventDefault();
+                      toggleColumnVisibility(column.key);
+                    }}
+                  >
+                    <Checkbox
+                      checked={visibleColumns.includes(column.key)}
+                      onChange={() => {}} // Handled by the parent onSelect
+                      className="border-white/30 data-[state=checked]:bg-blue-600 data-[state=checked]:border-blue-600"
+                    />
+                    <span className="flex-1">{column.header}</span>
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
         </CardTitle>
         {subtitle && <p className="text-white/70 text-sm">{subtitle}</p>}
       </CardHeader>
@@ -371,7 +492,7 @@ export function ReusableTable<T = any>({
               <Table>
                 <TableHeader>
                   <TableRow className="border-white/20 bg-white/5 backdrop-blur-sm">
-                    {columns.map((column) => (
+                    {displayColumns.map((column) => (
                       <TableHead
                         key={column.key}
                         className={`text-white/80 ${
@@ -409,12 +530,12 @@ export function ReusableTable<T = any>({
                   {paginatedData.map((row, index) => (
                     <TableRow
                       key={index}
-                      className={`border-white/10 hover:bg-white/5 transition-colors ${
+                      className={`border-white/10 ${
                         onRowClick || enableRowDetails ? 'cursor-pointer' : ''
                       } ${rowClassName ? rowClassName(row, index) : ''}`}
                       onClick={(event) => handleRowClick(row, index, event)}
                     >
-                      {columns.map((column) => {
+                      {displayColumns.map((column) => {
                         const value = column.accessor
                           ? column.accessor(row)
                           : getNestedValue(row, column.key);
