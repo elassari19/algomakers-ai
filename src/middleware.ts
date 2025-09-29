@@ -21,6 +21,7 @@ export default withAuth(
           '/dashboard',
           '/subscriptions',
           '/billing',
+          '/pair',
         ];
 
         // Check if the current path is a public route

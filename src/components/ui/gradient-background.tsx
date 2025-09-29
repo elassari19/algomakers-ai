@@ -21,7 +21,7 @@ export function GradientBackground({
   className = '',
 }: GradientBackgroundProps) {
   return (
-    <div className={`relative min-h-screen overflow-hidden ${className}`}>
+    <div className={`relative min-h-screen ${className}`}>
       {/* Fixed Gradient Background */}
       <div className="fixed inset-0 -z-10">
         {/* Base background */}

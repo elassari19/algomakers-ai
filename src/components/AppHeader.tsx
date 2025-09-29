@@ -162,7 +162,7 @@ export function AppHeader() {
 
   return (
     <header className="sticky top-0 z-40 w-full border-b border-white/20 bg-white/5 backdrop-blur-md">
-      <div className="flex h-10 items-center justify-between px-4 sm:px-6 sm:pl-12">
+      <div className="flex h-10 items-center justify-between pl-8 px-4 sm:px-6 sm:pl-12">
         {/* Left side - Breadcrumbs */}
         <div className="flex items-center space-x-4">
           <Breadcrumb>

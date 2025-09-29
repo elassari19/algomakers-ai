@@ -14,15 +14,13 @@ export default function BrowserLayout({
   return (
     <SidebarProvider>
       <AppSidebar />
-      <SidebarInset className="h-screen overflow-hidden">
+      <SidebarInset className="h-screen">
         <AppHeader />
         <SidebarTrigger
           size="lg"
           className="absolute inset-y-2 top-1 z-90 flex items-center cursor-pointer transition p-1 rounded-md"
         />
-        <div className="flex-1 p-2 py-8 sm:p-2 h-[calc(100vh-4rem)] overflow-hidden">
-          {children}
-        </div>
+        <div className="flex-1 p-2 py-8 sm:p-2">{children}</div>
       </SidebarInset>
     </SidebarProvider>
   );
