@@ -159,9 +159,9 @@ function SubscriptionsContent() {
 
   return (
     <GradientBackground>
-      <div className="min-h-screen flex flex-col justify-between p-4">
+      <div className="min-h-screen flex flex-col justify-between p-0 md:p-4">
         {/* Header */}
-        <div className="">
+        <div className="mb-4">
           <h1 className="text-3xl font-bold text-white mb-2">
             My Subscriptions
           </h1>

@@ -526,9 +526,9 @@ export default function BillingPage() {
 
   return (
     <GradientBackground>
-      <div className="min-h-screen flex flex-col justify-between p-4">
+      <div className="min-h-screen flex flex-col justify-between p-0 md:p-4">
         {/* Billing Overview Stats */}
-        <div className="">
+        <div className="mb-4">
           <OverviewSection
             overviewData={[
               {
