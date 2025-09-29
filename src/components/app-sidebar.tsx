@@ -2,7 +2,7 @@
 
 import * as React from 'react';
 import Link from 'next/link';
-import { LayoutDashboard, PieChart, Receipt } from 'lucide-react';
+import { LayoutDashboard, PieChart, Receipt, Briefcase } from 'lucide-react';
 
 import { NavMain } from '@/components/nav-main';
 import {
@@ -26,6 +26,12 @@ const data = {
       title: 'Dashboard',
       url: '/dashboard',
       icon: LayoutDashboard,
+    },
+    {
+      title: 'Portfolio',
+      url: '/portfolio',
+      icon: Briefcase,
+      badge: 'NEW',
     },
     {
       title: 'My Subscriptions',

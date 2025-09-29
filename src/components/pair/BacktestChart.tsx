@@ -152,19 +152,19 @@ export function BacktestChart({ data, symbol, metrics }: BacktestChartProps) {
 
   return (
     <Card className="bg-slate-900 border-slate-800">
-      <CardHeader>
-        <CardTitle className="text-white text-lg">
+      <CardHeader className="px-2 py-0 sm:px-4 sm:py-4">
+        <CardTitle className="text-white text-base sm:text-lg">
           Historical Performance
         </CardTitle>
-        <div className="text-sm text-slate-400">
+        <div className="text-xs sm:text-sm text-slate-400">
           Historical growth of a {formatCurrency(data.initialBalance)} capital
           over time
         </div>
       </CardHeader>
-      <CardContent className="space-y-4">
+      <CardContent className="space-y-4 px-2 sm:px-4">
         {/* Chart Controls */}
-        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-          <div className="flex items-center gap-6">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex flex-row sm:items-center sm:gap-6">
             <div className="flex items-center space-x-2">
               <Checkbox
                 id="roi-line"
@@ -174,12 +174,11 @@ export function BacktestChart({ data, symbol, metrics }: BacktestChartProps) {
               />
               <label
                 htmlFor="roi-line"
-                className="text-sm font-medium text-green-400 cursor-pointer"
+                className="text-xs sm:text-sm font-medium text-green-400 cursor-pointer"
               >
                 ROI
               </label>
             </div>
-
             <div className="flex items-center space-x-2">
               <Checkbox
                 id="buyhold-line"
@@ -189,12 +188,11 @@ export function BacktestChart({ data, symbol, metrics }: BacktestChartProps) {
               />
               <label
                 htmlFor="buyhold-line"
-                className="text-sm font-medium text-blue-400 cursor-pointer"
+                className="text-xs sm:text-sm font-medium text-blue-400 cursor-pointer"
               >
                 Buy & Hold
               </label>
             </div>
-
             <div className="flex items-center space-x-2">
               <Checkbox
                 id="drawdown-line"
@@ -204,18 +202,18 @@ export function BacktestChart({ data, symbol, metrics }: BacktestChartProps) {
               />
               <label
                 htmlFor="drawdown-line"
-                className="text-sm font-medium text-purple-400 cursor-pointer"
+                className="text-xs sm:text-sm font-medium text-purple-400 cursor-pointer"
               >
                 Max DrawDown
               </label>
             </div>
           </div>
-
           {/* Period Controls */}
-          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
-            {/* Date Range Picker */}
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
             <div className="flex items-center gap-2">
-              <span className="text-sm text-slate-400">Date Range:</span>
+              {/* <span className="text-xs sm:text-sm text-slate-400">
+                Date Range:
+              </span> */}
               <DateRangePicker
                 date={customDateRange}
                 onDateChange={handleCustomDateChange}
@@ -229,102 +227,106 @@ export function BacktestChart({ data, symbol, metrics }: BacktestChartProps) {
         </div>
 
         {/* Chart */}
-        <div className="h-96">
-          <ResponsiveContainer width="100%" height="100%">
-            <LineChart
-              data={filteredChartData}
-              margin={{
-                top: 5,
-                right: 30,
-                left: 20,
-                bottom: 5,
-              }}
-            >
-              <CartesianGrid
-                strokeDasharray="3 3"
-                stroke="#334155"
-                opacity={0.3}
-              />
-              <XAxis
-                dataKey="date"
-                tickFormatter={formatDate}
-                stroke="#64748b"
-                fontSize={12}
-              />
-              <YAxis
-                tickFormatter={(value) => `${value.toFixed(0)}%`}
-                stroke="#64748b"
-                fontSize={12}
-              />
-              <Tooltip
-                contentStyle={{
-                  backgroundColor: '#1e293b',
-                  border: '1px solid #334155',
-                  borderRadius: '8px',
-                  color: '#f1f5f9',
+        <div className="h-72 sm:h-96 w-full overflow-x-auto scrollbar-thin scrollbar-thumb-slate-700 scrollbar-track-slate-900">
+          <div className="min-w-[600px] sm:min-w-[900px] w-full h-full border *:border-slate-800 rounded">
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart
+                data={filteredChartData}
+                margin={{
+                  top: 5,
+                  right: 30,
+                  left: 20,
+                  bottom: 5,
                 }}
-                labelFormatter={formatTooltipLabel}
-                formatter={formatTooltipValue}
-              />
-
-              {showROI && (
-                <Line
-                  type="monotone"
-                  dataKey="roi"
-                  stroke="#10b981"
-                  strokeWidth={2}
-                  dot={false}
-                  name="ROI"
-                  activeDot={{
-                    r: 4,
-                    fill: '#10b981',
-                    stroke: '#065f46',
-                    strokeWidth: 2,
-                  }}
+              >
+                <CartesianGrid
+                  strokeDasharray="3 3"
+                  stroke="#334155"
+                  opacity={0.3}
                 />
-              )}
-
-              {showBuyHold && (
-                <Line
-                  type="monotone"
-                  dataKey="buyHold"
-                  stroke="#3b82f6"
-                  strokeWidth={2}
-                  dot={false}
-                  name="Buy & Hold"
-                  strokeDasharray="5 5"
-                  activeDot={{
-                    r: 4,
-                    fill: '#3b82f6',
-                    stroke: '#1e40af',
-                    strokeWidth: 2,
-                  }}
+                <XAxis
+                  dataKey="date"
+                  tickFormatter={formatDate}
+                  stroke="#64748b"
+                  fontSize={10}
+                  tick={{ fontSize: 10 }}
                 />
-              )}
-
-              {showMaxDrawdown && (
-                <Line
-                  type="monotone"
-                  dataKey="drawdownValue"
-                  stroke="#a855f7"
-                  strokeWidth={2}
-                  dot={false}
-                  name="Max DrawDown"
-                  strokeDasharray="2 2"
-                  activeDot={{
-                    r: 4,
-                    fill: '#a855f7',
-                    stroke: '#7c3aed',
-                    strokeWidth: 2,
-                  }}
+                <YAxis
+                  tickFormatter={(value) => `${value.toFixed(0)}%`}
+                  stroke="#64748b"
+                  fontSize={10}
+                  tick={{ fontSize: 10 }}
                 />
-              )}
-            </LineChart>
-          </ResponsiveContainer>
+                <Tooltip
+                  contentStyle={{
+                    backgroundColor: '#1e293b',
+                    border: '1px solid #334155',
+                    borderRadius: '8px',
+                    color: '#f1f5f9',
+                  }}
+                  labelFormatter={formatTooltipLabel}
+                  formatter={formatTooltipValue}
+                />
+
+                {showROI && (
+                  <Line
+                    type="monotone"
+                    dataKey="roi"
+                    stroke="#10b981"
+                    strokeWidth={2}
+                    dot={false}
+                    name="ROI"
+                    activeDot={{
+                      r: 4,
+                      fill: '#10b981',
+                      stroke: '#065f46',
+                      strokeWidth: 2,
+                    }}
+                  />
+                )}
+
+                {showBuyHold && (
+                  <Line
+                    type="monotone"
+                    dataKey="buyHold"
+                    stroke="#3b82f6"
+                    strokeWidth={2}
+                    dot={false}
+                    name="Buy & Hold"
+                    strokeDasharray="5 5"
+                    activeDot={{
+                      r: 4,
+                      fill: '#3b82f6',
+                      stroke: '#1e40af',
+                      strokeWidth: 2,
+                    }}
+                  />
+                )}
+
+                {showMaxDrawdown && (
+                  <Line
+                    type="monotone"
+                    dataKey="drawdownValue"
+                    stroke="#a855f7"
+                    strokeWidth={2}
+                    dot={false}
+                    name="Max DrawDown"
+                    strokeDasharray="2 2"
+                    activeDot={{
+                      r: 4,
+                      fill: '#a855f7',
+                      stroke: '#7c3aed',
+                      strokeWidth: 2,
+                    }}
+                  />
+                )}
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
         </div>
 
         {/* Chart Footer */}
-        <div className="flex justify-between items-center text-xs text-slate-500">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center text-xs text-slate-500 gap-2 mt-2">
           <span>
             Period:{' '}
             {filteredChartData.length > 0

@@ -22,6 +22,7 @@ const variantStyles = {
     'bg-gradient-to-br from-purple-600/20 to-indigo-400/20 border-purple-400/30',
   green:
     'bg-gradient-to-br from-green-600/20 to-emerald-400/20 border-green-400/30',
+  gray: 'bg-white/10 backdrop-blur-md border-white/20',
 };
 
 export function GlassmorphismCard({

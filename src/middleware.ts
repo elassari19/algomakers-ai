@@ -22,6 +22,7 @@ export default withAuth(
           '/subscriptions',
           '/billing',
           '/pair',
+          '/portfolio',
         ];
 
         // Check if the current path is a public route

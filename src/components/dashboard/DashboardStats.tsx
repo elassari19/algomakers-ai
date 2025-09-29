@@ -96,12 +96,19 @@ export function DashboardStats({
   totalProfit,
   bestPerformer,
   className,
+  labels,
 }: {
   totalPairs: number;
   profitablePairs: number;
   totalProfit: number;
   bestPerformer: { symbol: string; roi: number };
   className?: string;
+  labels?: {
+    totalPairs?: string;
+    profitablePairs?: string;
+    totalProfit?: string;
+    bestPerformer?: string;
+  };
 }) {
   const winRate =
     totalPairs > 0 ? ((profitablePairs / totalPairs) * 100).toFixed(1) : '0';
@@ -111,32 +118,48 @@ export function DashboardStats({
 
   const overviewData: OverviewDataItem[] = [
     {
-      title: 'Total Pairs',
+      title: labels?.totalPairs || 'Total Pairs',
       currentValue: totalPairs,
       icon: BarChart3,
-      description: 'Available trading pairs',
-      pastValue: '+2 new pairs this month',
+      description:
+        labels?.totalPairs === 'Total Portfolios'
+          ? 'Created portfolios'
+          : 'Available trading pairs',
+      pastValue:
+        labels?.totalPairs === 'Total Portfolios'
+          ? '+1 new portfolio this month'
+          : '+2 new pairs this month',
     },
     {
-      title: 'Profitable Pairs',
+      title: labels?.profitablePairs || 'Profitable Pairs',
       currentValue: profitablePairs,
       icon: Target,
       description: `${winRate}% win rate`,
-      pastValue: `${profitablePairs} out of ${totalPairs} pairs`,
+      pastValue: `${profitablePairs} out of ${totalPairs} ${
+        labels?.profitablePairs === 'Profitable Portfolios'
+          ? 'portfolios'
+          : 'pairs'
+      }`,
     },
     {
-      title: 'Total Profit',
+      title: labels?.totalProfit || 'Total Profit',
       currentValue: `$${totalProfit.toLocaleString()}`,
       icon: DollarSign,
-      description: 'Combined performance',
+      description:
+        labels?.totalProfit === 'Total Portfolio Value'
+          ? 'Combined portfolio value'
+          : 'Combined performance',
       pastValue: '+15.2% this quarter',
     },
     {
-      title: 'Best Performer',
+      title: labels?.bestPerformer || 'Best Performer',
       currentValue: bestPerformer.symbol,
       icon: Award,
       description: `${bestPerformer.roi}% ROI`,
-      pastValue: 'Top performing pair',
+      pastValue:
+        labels?.bestPerformer === 'Best Portfolio'
+          ? 'Top performing portfolio'
+          : 'Top performing pair',
     },
   ];
 
