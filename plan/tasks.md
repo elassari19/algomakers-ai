@@ -53,7 +53,7 @@
 
 ---
 
-### 5. User Dashboard (`/dashboard`)
+### 5. User Dashboard (`/console`)
 
 - [ ] Quick stats (active, expiring, pending)
 - [ ] List of subscriptions (pair, period, status, expiry, actions)
@@ -64,7 +64,7 @@
 
 ---
 
-### 6. Admin Console (`/admin`)
+### 6. Admin Console (`/console/[id]`)
 
 - [ ] User search (email, TV username, payment ID)
 - [ ] Subscriptions table (CRUD: extend, revoke, resend invite)
@@ -75,7 +75,7 @@
 
 ---
 
-### 7. Backtest Data Management (`/admin/backtests`)
+### 7. Backtest Data Management (`/console/[id]/backtests`)
 
 - [ ] Upload backtest Excel/CSV files with validation
 - [ ] Parse and validate backtest data (trades, equity curve, metrics)
@@ -88,7 +88,7 @@
 
 ---
 
-### 8. Reporting & Analytics (`/admin/reports`)
+### 8. Reporting & Analytics (`/console/[id]/reports`)
 
 - [ ] KPI cards (MRR, churn, ARPU, active subs)
 - [ ] Charts: subscriptions by pair, new vs renewal, revenue trend
