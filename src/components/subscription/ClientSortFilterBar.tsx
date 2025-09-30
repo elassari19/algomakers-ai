@@ -6,11 +6,13 @@ import { SortFilterBar } from './SortFilterBar';
 interface ClientSortFilterBarProps {
   filterBy: string;
   totalResults: number;
+  className?: string;
 }
 
 export function ClientSortFilterBar({
   filterBy,
   totalResults,
+  className,
 }: ClientSortFilterBarProps) {
   const searchParams = useSearchParams();
   const { replace } = useRouter();
@@ -34,6 +36,7 @@ export function ClientSortFilterBar({
         filterBy={filterBy}
         onFilterChange={handleFilterChange}
         totalResults={totalResults}
+        className={className}
       />
     </div>
   );

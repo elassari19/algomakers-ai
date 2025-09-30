@@ -23,9 +23,11 @@ export function SortFilterBar({
   className,
 }: SortFilterBarProps) {
   return (
-    <div className={`space-y-4 ${className}`}>
+    <div className={`space-y-4 `}>
       {/* Search and Filter */}
-      <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
+      <div
+        className={`flex flex-col sm:flex-row justify-between items-center gap-4 ${className}`}
+      >
         {/* Results Count */}
         <div className="hidden sm:block text-sm text-white/80 font-medium">
           {totalResults} {totalResults === 1 ? 'pair' : 'pairs'} found
