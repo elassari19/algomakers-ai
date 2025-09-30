@@ -73,15 +73,22 @@ model VerificationToken {
 }
 
 model Pair {
-  id            String         @id @default(uuid())
-  symbol        String
-  name          String
-  metrics       Json
-  price         Decimal        // Base price for the pair
-  discountRate  Decimal        @default(0) // Discount percentage (0-100)
-  createdAt     DateTime       @default(now())
-  subscriptions Subscription[]
-  paymentItems  PaymentItem[]
+  id                    String         @id @default(uuid())
+  symbol                String
+  metrics               Json
+  priceOneMonth         Decimal        // Price for one month
+  priceThreeMonths      Decimal        // Price for three months
+  priceSixMonths        Decimal        // Price for six months
+  priceTwelveMonths     Decimal        // Price for twelve months
+  discountThreeMonths   Decimal        @default(0) // Discount for three months
+  discountOneMonth      Decimal        @default(0) // Discount for one month
+  discountSixMonths     Decimal        @default(0) // Discount for six months
+  discountTwelveMonths  Decimal        @default(0) // Discount for twelve months
+  timeframe             String
+  createdAt             DateTime       @default(now())
+  updatedAt             DateTime       @updatedAt
+  subscriptions         Subscription[]
+  paymentItems          PaymentItem[]
 }
 
 model Subscription {

@@ -59,9 +59,17 @@ export const sessionSchema = z.object({
 // Pair schema
 export const pairSchema = z.object({
   id: z.string().uuid().optional(),
-  symbol: z.string(),
-  name: z.string(),
-  metrics: z.record(z.string(), z.any()),
+  symbol: z.string().min(3),
+  metrics: z.record(z.string(), z.array(z.object({}))),
+  priceOneMonth: z.union([z.number(), z.string()]),
+  priceThreeMonths: z.union([z.number(), z.string()]),
+  priceSixMonths: z.union([z.number(), z.string()]),
+  priceTwelveMonths: z.union([z.number(), z.string()]),
+  discountOneMonth: z.union([z.number(), z.string()]).default(0),
+  discountThreeMonths: z.union([z.number(), z.string()]).default(0),
+  discountSixMonths: z.union([z.number(), z.string()]).default(0),
+  discountTwelveMonths: z.union([z.number(), z.string()]).default(0),
+  timeframe: z.string(),
   createdAt: z.date().optional(),
 });
 
