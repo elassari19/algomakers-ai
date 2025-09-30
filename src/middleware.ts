@@ -23,6 +23,7 @@ export default withAuth(
           '/billing',
           '/pair',
           '/portfolio',
+          '/console', // Make /console public for now
         ];
 
         // Check if the current path is a public route
@@ -38,6 +39,12 @@ export default withAuth(
 
         // For all other routes, require authentication
         return !!token;
+
+        // --- Example: Protect /console for admin/support only ---
+        // Uncomment to restrict /console to admin/support roles only
+        // if (pathname.startsWith('/console')) {
+        //   return !!token && ['admin', 'support'].includes(token?.role);
+        // }
       },
     },
     pages: {
