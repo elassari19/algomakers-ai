@@ -4,10 +4,29 @@ import { prisma } from '@/lib/prisma';
 // GET /api/backtest?symbol=BTCUSD&timeframe=1H
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
+  const id = searchParams.get('id');
   const symbol = searchParams.get('symbol');
   const timeframe = searchParams.get('timeframe');
 
-  // If symbol and timeframe are provided, fetch one; else, fetch all
+  // If id is provided, fetch by id
+  if (id) {
+    try {
+      const pair = await prisma.pair.findUnique({ where: { id } });
+      if (!pair) {
+        return NextResponse.json({ found: false });
+      }
+      return NextResponse.json({ found: true, pair });
+    } catch (error) {
+      console.error('Error fetching backtest by id:', error);
+      const message =
+        typeof error === 'object' && error !== null && 'message' in error
+          ? (error as any).message
+          : String(error);
+      return NextResponse.json({ error: message }, { status: 500 });
+    }
+  }
+
+  // If symbol and timeframe are provided, fetch one
   if (symbol && timeframe) {
     try {
       const pair = await prisma.pair.findFirst({
@@ -25,21 +44,21 @@ export async function GET(request: Request) {
           : String(error);
       return NextResponse.json({ error: message }, { status: 500 });
     }
-  } else {
-    // Fetch all pairs
-    try {
-      const pairs = await prisma.pair.findMany({
-        orderBy: { createdAt: 'desc' },
-      });
-      return NextResponse.json({ pairs });
-    } catch (error) {
-      console.error('Error fetching all backtests:', error);
-      const message =
-        typeof error === 'object' && error !== null && 'message' in error
-          ? (error as any).message
-          : String(error);
-      return NextResponse.json({ error: message }, { status: 500 });
-    }
+  }
+
+  // Else, fetch all pairs
+  try {
+    const pairs = await prisma.pair.findMany({
+      orderBy: { createdAt: 'desc' },
+    });
+    return NextResponse.json({ pairs });
+  } catch (error) {
+    console.error('Error fetching all backtests:', error);
+    const message =
+      typeof error === 'object' && error !== null && 'message' in error
+        ? (error as any).message
+        : String(error);
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }
 

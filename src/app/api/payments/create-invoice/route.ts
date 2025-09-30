@@ -220,7 +220,7 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    // Create PaymentItem records for each pair
+    // Create PaymentItem records for each pair (schema.prisma compliant)
     const paymentItems = [];
     for (const pairSymbol of pairIds) {
       try {
@@ -234,10 +234,16 @@ export async function POST(request: NextRequest) {
           pair = await prisma.pair.create({
             data: {
               symbol: pairSymbol,
-              name: pairSymbol.replace('USDT', '/USDT'),
               metrics: {}, // Empty metrics for now
-              price: body.amount / pairIds.length, // Default price split
-              discountRate: 0, // Default no discount
+              priceOneMonth: body.amount / pairIds.length,
+              priceThreeMonths: body.amount / pairIds.length,
+              priceSixMonths: body.amount / pairIds.length,
+              priceTwelveMonths: body.amount / pairIds.length,
+              discountOneMonth: 0,
+              discountThreeMonths: 0,
+              discountSixMonths: 0,
+              discountTwelveMonths: 0,
+              timeframe: body.orderData?.plan?.period || '1M',
             },
           });
         }
@@ -246,11 +252,11 @@ export async function POST(request: NextRequest) {
           data: {
             paymentId: paymentRecord.id,
             pairId: pair.id,
-            basePrice: pair.price || body.amount / pairIds.length,
-            discountRate: pair.discountRate || 0,
+            basePrice: pair.priceOneMonth || body.amount / pairIds.length,
+            discountRate: pair.discountOneMonth || 0,
             finalPrice:
-              (Number(pair.price) || body.amount / pairIds.length) *
-              (1 - (Number(pair.discountRate) || 0) / 100),
+              (Number(pair.priceOneMonth) || body.amount / pairIds.length) *
+              (1 - (Number(pair.discountOneMonth) || 0) / 100),
             period: 'ONE_MONTH', // Default period
           },
         });
@@ -270,9 +276,10 @@ export async function POST(request: NextRequest) {
         id: paymentRecord.id,
         pairs: paymentItems.map((pi) => ({
           pairId: pi.pairId,
-          price: pi.basePrice,
+          basePrice: pi.basePrice,
           discountRate: pi.discountRate,
           finalPrice: pi.finalPrice,
+          period: pi.period,
         })),
       },
     });

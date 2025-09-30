@@ -57,7 +57,7 @@ export async function GET(request: NextRequest) {
           include: {
             pair: {
               select: {
-                name: true,
+                id: true,
                 symbol: true,
               },
             },
@@ -86,7 +86,7 @@ export async function GET(request: NextRequest) {
         (payment) =>
           payment.paymentItems.some(
             (pi) =>
-              pi.pair.name.toLowerCase().includes(searchLower) ||
+              pi.pair.id.toLowerCase().includes(searchLower) ||
               pi.pair.symbol.toLowerCase().includes(searchLower)
           ) ||
           (payment.orderId &&
@@ -117,7 +117,7 @@ export async function GET(request: NextRequest) {
       orderId: payment.orderId,
       invoiceId: payment.invoiceId,
       pairs: payment.paymentItems.map((pi) => ({
-        name: pi.pair.name,
+        id: pi.pair.id,
         symbol: pi.pair.symbol,
         basePrice: Number(pi.basePrice),
         discountRate: Number(pi.discountRate),

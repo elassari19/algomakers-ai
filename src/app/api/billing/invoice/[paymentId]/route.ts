@@ -33,7 +33,7 @@ export async function GET(
           include: {
             pair: {
               select: {
-                name: true,
+                id: true,
                 symbol: true,
               },
             },
@@ -61,7 +61,7 @@ export async function GET(
       customerName: payment.user.name || 'N/A',
       customerEmail: payment.user.email,
       pairs: payment.paymentItems.map((pi) => ({
-        name: pi.pair.name,
+        id: pi.pair.id,
         symbol: pi.pair.symbol,
         basePrice: Number(pi.basePrice),
         discountRate: Number(pi.discountRate),

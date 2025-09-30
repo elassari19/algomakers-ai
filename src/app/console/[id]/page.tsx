@@ -38,9 +38,8 @@ function ActionButtons({
   return (
     <div className="flex gap-2 items-center">
       <Link
-        href={`/console/1/backtest/${row.id}`}
+        href={`/console/1/${row.id}`}
         className="hover:text-white text-white/70"
-        target="_blank"
         title="View"
       >
         <Eye size={20} />
