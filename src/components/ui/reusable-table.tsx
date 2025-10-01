@@ -76,6 +76,7 @@ export interface ReusableTableProps<T = any> {
   // Column visibility props
   enableColumnSelector?: boolean; // Enable column visibility selector
   defaultVisibleColumns?: string[]; // Default visible columns (if not specified, all columns are visible)
+  frozenColumnKey?: string; // Key of the column to freeze (sticky left)
 }
 
 export function ReusableTable<T = any>({
@@ -99,6 +100,7 @@ export function ReusableTable<T = any>({
   excludeFromDetails = ['id'],
   enableColumnSelector = false,
   defaultVisibleColumns,
+  frozenColumnKey,
 }: ReusableTableProps<T>) {
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -488,12 +490,21 @@ export function ReusableTable<T = any>({
             <Table className="min-w-[600px] w-full">
               <TableHeader className="sticky top-0 z-10 bg-white/5 backdrop-blur-sm">
                 <TableRow className="border-white/20 bg-white/5 backdrop-blur-sm">
-                  {displayColumns.map((column) => (
+                  {displayColumns.map((column, colIdx) => (
                     <TableHead
                       key={column.key}
                       className={`text-white/80 ${
                         column.width || ''
-                      } ${getAlignmentClass(column.align)}`}
+                      } ${getAlignmentClass(column.align)} ${
+                        frozenColumnKey && column.key === frozenColumnKey
+                          ? 'sticky left-0 z-20 bg-slate-700/80 backdrop-blur-lg'
+                          : ''
+                      }`}
+                      style={
+                        frozenColumnKey && column.key === frozenColumnKey
+                          ? { left: 0, zIndex: 20 }
+                          : undefined
+                      }
                     >
                       {column.sortable ? (
                         <button
@@ -525,7 +536,7 @@ export function ReusableTable<T = any>({
                     } ${rowClassName ? rowClassName(row, index) : ''}`}
                     onClick={(event) => handleRowClick(row, index, event)}
                   >
-                    {displayColumns.map((column) => {
+                    {displayColumns.map((column, colIdx) => {
                       const value = column.accessor
                         ? column.accessor(row)
                         : getNestedValue(row, column.key);
@@ -535,7 +546,16 @@ export function ReusableTable<T = any>({
                           key={column.key}
                           className={`text-white/80 ${
                             column.width || ''
-                          } ${getAlignmentClass(column.align)}`}
+                          } ${getAlignmentClass(column.align)} ${
+                            frozenColumnKey && column.key === frozenColumnKey
+                              ? 'sticky left-0 z-10 bg-slate-600/80 backdrop-blur-md'
+                              : ''
+                          }`}
+                          style={
+                            frozenColumnKey && column.key === frozenColumnKey
+                              ? { left: 0, zIndex: 10 }
+                              : undefined
+                          }
                         >
                           {column.render
                             ? column.render(value, row, index)

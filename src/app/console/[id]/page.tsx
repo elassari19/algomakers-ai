@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { toast } from 'sonner';
+import { Toaster } from '@/components/ui/sonner';
 import * as XLSX from 'xlsx';
 import { DashboardStats } from '@/components/dashboard/DashboardStats';
 import { SortFilterBar } from '@/components/subscription/SortFilterBar';
@@ -13,7 +14,6 @@ import { Card } from '@/components/ui/card';
 // Modal implementation (replace with your Modal component)
 import UploadDialog from './UploadDialog';
 import { GradientBackground } from '@/components/ui/gradient-background';
-import { Toaster } from '../../../components/ui/sonner';
 
 // Table columns definition
 import Link from 'next/link';
@@ -68,6 +68,51 @@ function ActionButtons({
   );
 }
 
+// Helper to parse file and extract fields (symbol/timeframe from Properties, metrics as stringified data)
+const parseFile = async (file: File) => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      try {
+        let symbol = '';
+        let timeframe = '';
+        let data: Record<string, any> = {};
+        if (file.name.endsWith('.csv')) {
+          const text = evt.target?.result;
+          const rows = XLSX.utils.sheet_to_json(
+            XLSX.read(text, { type: 'string' }).Sheets.Sheet1,
+            { defval: '' }
+          ) as Record<string, any>[];
+          data = { Sheet1: rows };
+        } else {
+          const workbook = XLSX.read(evt.target?.result, { type: 'array' });
+          const sheets = workbook.SheetNames;
+          data = {};
+          sheets.forEach((sheet) => {
+            data[sheet] = XLSX.utils.sheet_to_json(workbook.Sheets[sheet], {
+              defval: '',
+            });
+          });
+        }
+        // Extract symbol/timeframe from Properties sheet if present
+        if (data['Properties'] && Array.isArray(data['Properties'])) {
+          symbol = data['Properties'][2]?.value || '';
+          timeframe = data['Properties'][3]?.value || '';
+        }
+        resolve({
+          symbol,
+          timeframe,
+          metrics: JSON.stringify(data),
+        });
+      } catch (err) {
+        reject(err);
+      }
+    };
+    if (file.name.endsWith('.csv')) reader.readAsText(file);
+    else reader.readAsArrayBuffer(file);
+  });
+};
+
 const ConsolePage = () => {
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [deleteRow, setDeleteRow] = useState<any>(null);
@@ -97,9 +142,7 @@ const ConsolePage = () => {
     setDeleteRow(null);
   };
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [uploadedFile, setUploadedFile] = useState<File | null>(null);
-  const [sheetData, setSheetData] = useState<Record<string, any[]>>({});
-  const [activeSheet, setActiveSheet] = useState<string>('');
+  const [uploadedFiles, setUploadedFiles] = useState<File[]>([]);
   const [step, setStep] = useState<'upload' | 'form' | 'update'>('upload');
   const [formData, setFormData] = useState<any>(null);
   // Remove formMode, always add
@@ -181,27 +224,36 @@ const ConsolePage = () => {
       header: 'Discount (1M)',
       sortable: true,
       align: 'center',
+      render: (value) =>
+        value !== undefined && value !== null ? `${value}%` : '',
     },
     {
       key: 'discountThreeMonths',
       header: 'Discount (3M)',
       sortable: true,
       align: 'center',
+      render: (value) =>
+        value !== undefined && value !== null ? `${value}%` : '',
     },
     {
       key: 'discountSixMonths',
       header: 'Discount (6M)',
       sortable: true,
       align: 'center',
+      render: (value) =>
+        value !== undefined && value !== null ? `${value}%` : '',
     },
     {
       key: 'discountTwelveMonths',
       header: 'Discount (12M)',
       sortable: true,
       align: 'center',
+      render: (value) =>
+        value !== undefined && value !== null ? `${value}%` : '',
     },
     { key: 'id', header: 'ID', sortable: false },
     { key: 'createdAt', header: 'Created At', sortable: true },
+    { key: 'updatedAt', header: 'Updated At', sortable: true },
     {
       key: 'action',
       header: 'Action',
@@ -273,31 +325,22 @@ const ConsolePage = () => {
 
   // Handle cancel button
   const handleCancel = () => {
-    setUploadedFile(null);
-    setSheetData({});
-    setActiveSheet('');
+    setUploadedFiles([]);
     setSymbol('');
     setTimeframe('');
     setStep('upload');
     setFormData(null);
   };
 
-  useEffect(() => {
-    if (sheetData && sheetData['Properties']) {
-      const symbol = sheetData['Properties']['2'].value;
-      const timeframe = sheetData['Properties']?.['3']?.value || '';
-      setSymbol(symbol);
-      setTimeframe(timeframe);
-    }
-  }, [sheetData, setSymbol, setTimeframe]);
+  // Remove sheetData/activeSheet effect (not needed for multi-file, no preview)
 
   // Separate add and update handlers
   const handleAddSubmit = async (values: any) => {
     try {
-      // Attach metrics from sheetData
+      // Attach metrics as empty object for now (multi-file mode)
       const payload = {
         ...values,
-        metrics: sheetData || {},
+        metrics: {},
       };
       const response = await fetch('/api/backtest', {
         method: 'POST',
@@ -314,7 +357,6 @@ const ConsolePage = () => {
       toast.success('Backtest added successfully!', {
         style: { background: '#22c55e', color: 'white' },
       });
-      setSheetData({});
     } catch (err) {
       console.log(err);
       toast.error('Error adding backtest', {
@@ -351,7 +393,7 @@ const ConsolePage = () => {
         </div>
 
         {/* Actions Bar & Table Section */}
-        <div className="flex flex-col justify-end my-12">
+        <div className="flex flex-col justify-end mt-12">
           <div className="flex-1 min-h-0 space-y-4">
             {/* Actions Bar */}
             <div className="flex flex-col sm:flex-row justify-between items-center gap-4 mb-4">
@@ -372,15 +414,91 @@ const ConsolePage = () => {
             <UploadDialog
               open={isModalOpen}
               onOpenChange={setIsModalOpen}
-              uploadedFile={uploadedFile}
-              setUploadedFile={setUploadedFile}
-              sheetData={sheetData}
-              setSheetData={setSheetData}
-              activeSheet={activeSheet}
-              setActiveSheet={setActiveSheet}
-              onNextStep={handleNextStep}
-              symbol={symbol}
-              timeframe={timeframe}
+              uploadedFiles={uploadedFiles}
+              setUploadedFiles={setUploadedFiles}
+              onAddAllBacktest={async (files) => {
+                let newFiles = [...uploadedFiles];
+                for (const file of files) {
+                  try {
+                    const parsed: any = await parseFile(file);
+                    const res = await fetch('/api/backtest', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify(parsed),
+                    });
+                    if (res.ok) {
+                      toast.success(
+                        `Added: ${parsed.symbol} ${parsed.timeframe}`,
+                        { style: { background: '#22c55e', color: 'white' } }
+                      );
+                      newFiles = newFiles.filter((f) => f !== file);
+                    } else {
+                      const err = await res.json();
+                      toast.error(
+                        `Failed: ${parsed.symbol} ${parsed.timeframe} - ${err.error}`,
+                        { style: { background: '#ef4444', color: 'white' } }
+                      );
+                    }
+                  } catch (err) {
+                    toast.error(`Parse error: ${file.name}`, {
+                      style: { background: '#ef4444', color: 'white' },
+                    });
+                  }
+                }
+                setUploadedFiles(newFiles);
+                fetchAllBacktests();
+              }}
+              onUpdateAllBacktest={async (files) => {
+                let newFiles = [...uploadedFiles];
+                for (const file of files) {
+                  try {
+                    const parsed: any = await parseFile(file);
+                    // Get id for update
+                    let id = null;
+                    try {
+                      const res = await fetch(
+                        `/api/backtest?symbol=${encodeURIComponent(
+                          parsed.symbol
+                        )}&timeframe=${encodeURIComponent(parsed.timeframe)}`
+                      );
+                      if (res.ok) {
+                        const json = await res.json();
+                        id = json.pair?.id;
+                      }
+                    } catch {}
+                    if (!id) {
+                      toast.error(
+                        `No existing backtest for ${parsed.symbol} ${parsed.timeframe}`
+                      );
+                      continue;
+                    }
+                    const res = await fetch('/api/backtest', {
+                      method: 'PATCH',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ ...parsed, id }),
+                    });
+                    if (res.ok) {
+                      toast.success(
+                        `Updated: ${parsed.symbol} ${parsed.timeframe}`,
+                        { style: { background: '#22c55e', color: 'white' } }
+                      );
+                      newFiles = newFiles.filter((f) => f !== file);
+                    } else {
+                      const err = await res.json();
+                      toast.error(
+                        `Failed: ${parsed.symbol} ${parsed.timeframe} - ${err.error}`,
+                        { style: { background: '#ef4444', color: 'white' } }
+                      );
+                    }
+                  } catch (err) {
+                    toast.error(`Parse error: ${file.name}`, {
+                      style: { background: '#ef4444', color: 'white' },
+                    });
+                  }
+                }
+                setUploadedFiles(newFiles);
+                fetchAllBacktests();
+              }}
               onCancel={handleCancel}
             />
 
@@ -417,13 +535,14 @@ const ConsolePage = () => {
             )}
 
             {/* Backtest Table */}
-            <Card className="bg-white/5 backdrop-blur-md border-white/20 shadow-xl mt-8">
+            <Card className="bg-white/5 backdrop-blur-md border-white/20 shadow-xl mt-0">
               <ReusableTable
                 data={backtests}
                 columns={columns}
                 title="Backtest Files"
                 subtitle="List of uploaded backtests and their metrics."
                 itemsPerPage={10}
+                frozenColumnKey="symbol"
               />
               {/* Delete Modal */}
               <Dialog open={deleteModalOpen} onOpenChange={setDeleteModalOpen}>
