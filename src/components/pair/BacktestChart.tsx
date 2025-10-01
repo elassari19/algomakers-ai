@@ -1,10 +1,10 @@
 'use client';
 
 import { useState } from 'react';
+import { useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
-import { DateRangePicker } from '@/components/ui/date-range-picker';
-import { DateRange } from 'react-day-picker';
+import { Switch } from '@/components/ui/switch';
 import {
   LineChart,
   Line,
@@ -13,6 +13,9 @@ import {
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
+  Brush,
+  Legend,
+  ReferenceLine,
 } from 'recharts';
 import { formatCurrency } from '@/lib/utils';
 
@@ -35,42 +38,83 @@ interface BacktestChartProps {
 
 interface ChartDataPoint {
   date: string;
-  roi: number;
-  buyHold: number;
-  drawdownValue: number;
+  cumPL_USDT: number;
+  cumPL_PCT: number;
+  drawdown_USDT: number;
+  drawdown_PCT: number;
 }
 
 export function BacktestChart({ data, symbol, metrics }: BacktestChartProps) {
-  const [showROI, setShowROI] = useState(true);
-  const [showBuyHold, setShowBuyHold] = useState(true);
-  const [showMaxDrawdown, setShowMaxDrawdown] = useState(true);
-  const [customDateRange, setCustomDateRange] = useState<DateRange | undefined>(
-    () => {
-      // Set default date range to full backtest period
-      if (data) {
-        return {
-          from: new Date(data.startDate),
-          to: new Date(data.endDate),
-        };
-      }
-      return undefined;
+  // ...state and first set of logic...
+
+  const [showDrawdown, setShowDrawdown] = useState(true);
+  const [showCumPL, setShowCumPL] = useState(true);
+  const [displayMode, setDisplayMode] = useState<'usdt' | 'percent'>('usdt');
+
+  const chartData: ChartDataPoint[] = useMemo(() => {
+    if (!data) return [];
+    let peak = data.initialBalance;
+    return data.equityCurve.map((point, idx) => {
+      // Cumulative P&L USDT
+      const cumPL_USDT = point.value;
+      // Cumulative P&L %
+      const cumPL_PCT =
+        data.initialBalance !== 0
+          ? ((point.value - data.initialBalance) /
+              Math.abs(data.initialBalance)) *
+            100
+          : 0;
+      // Drawdown USDT
+      if (point.value > peak) peak = point.value;
+      const drawdown_USDT = point.value - peak;
+      // Drawdown %
+      const drawdown_PCT =
+        peak !== 0 ? ((point.value - peak) / Math.abs(peak)) * 100 : 0;
+      return {
+        date: point.date,
+        cumPL_USDT,
+        cumPL_PCT,
+        drawdown_USDT,
+        drawdown_PCT,
+      };
+    });
+  }, [data]);
+
+  const formatDate = (dateStr: string) => {
+    const date = new Date(dateStr);
+    return date.toLocaleDateString('en-US', {
+      month: 'short',
+      year: 'numeric',
+    });
+  };
+
+  const formatTooltipValue = (value: number, name: string) => {
+    if (displayMode === 'usdt') {
+      return [
+        `${value.toLocaleString(undefined, { maximumFractionDigits: 2 })} USDT`,
+        name,
+      ];
     }
-  );
-
-  const handleROIChange = (checked: boolean | 'indeterminate') => {
-    setShowROI(checked === true);
+    return [`${value.toFixed(2)}%`, name];
   };
 
-  const handleBuyHoldChange = (checked: boolean | 'indeterminate') => {
-    setShowBuyHold(checked === true);
+  const formatTooltipLabel = (label: string) => {
+    return new Date(label).toLocaleDateString('en-US', {
+      month: 'long',
+      day: 'numeric',
+      year: 'numeric',
+    });
   };
 
-  const handleMaxDrawdownChange = (checked: boolean | 'indeterminate') => {
-    setShowMaxDrawdown(checked === true);
+  // Handlers
+  const handleDrawdownChange = (checked: boolean | 'indeterminate') => {
+    setShowDrawdown(checked === true);
   };
-
-  const handleCustomDateChange = (dateRange: DateRange | undefined) => {
-    setCustomDateRange(dateRange);
+  const handleCumPLChange = (checked: boolean | 'indeterminate') => {
+    setShowCumPL(checked === true);
+  };
+  const handleDisplayModeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setDisplayMode(e.target.value as 'usdt' | 'percent');
   };
 
   if (!data) {
@@ -88,70 +132,8 @@ export function BacktestChart({ data, symbol, metrics }: BacktestChartProps) {
     );
   }
 
-  // Calculate chart data with multiple lines
-  const chartData: ChartDataPoint[] = data.equityCurve.map((point, index) => {
-    const roiPercent =
-      ((point.value - data.initialBalance) / data.initialBalance) * 100;
-
-    // Simulate buy & hold performance (simplified calculation)
-    const buyHoldPercent = roiPercent * 0.7; // Assume buy & hold performs 70% of strategy
-
-    // Calculate drawdown curve (negative values)
-    const maxDrawdownPercent = metrics?.maxDrawdown || 0;
-    const drawdownValue = -(
-      maxDrawdownPercent *
-      (index / data.equityCurve.length) *
-      Math.random() *
-      0.8
-    );
-
-    return {
-      date: point.date,
-      roi: roiPercent,
-      buyHold: buyHoldPercent,
-      drawdownValue: drawdownValue,
-    };
-  });
-
-  // Filter data based on custom date range
-  const filterDataByPeriod = (data: ChartDataPoint[]) => {
-    if (customDateRange?.from && customDateRange?.to) {
-      return data.filter((point) => {
-        const pointDate = new Date(point.date);
-        return (
-          pointDate >= customDateRange.from! && pointDate <= customDateRange.to!
-        );
-      });
-    }
-
-    // If no custom date range is selected, return all data
-    return data;
-  };
-
-  const filteredChartData = filterDataByPeriod(chartData);
-
-  const formatDate = (dateStr: string) => {
-    const date = new Date(dateStr);
-    return date.toLocaleDateString('en-US', {
-      month: 'short',
-      year: 'numeric',
-    });
-  };
-
-  const formatTooltipValue = (value: number, name: string) => {
-    return [`${value.toFixed(2)}%`, name];
-  };
-
-  const formatTooltipLabel = (label: string) => {
-    return new Date(label).toLocaleDateString('en-US', {
-      month: 'long',
-      day: 'numeric',
-      year: 'numeric',
-    });
-  };
-
   return (
-    <Card className="bg-slate-900 border-slate-800">
+    <Card className="bg-transparent">
       <CardHeader className="px-2 py-0 sm:px-4 sm:py-4">
         <CardTitle className="text-white text-base sm:text-lg">
           Historical Performance
@@ -161,121 +143,179 @@ export function BacktestChart({ data, symbol, metrics }: BacktestChartProps) {
           over time
         </div>
       </CardHeader>
-      <CardContent className="space-y-4 px-2 sm:px-4">
+      <CardContent className="space-y-4 px-0">
         {/* Chart Controls */}
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex flex-row sm:items-center sm:gap-6">
-            <div className="flex items-center space-x-2">
-              <Checkbox
-                id="roi-line"
-                checked={showROI}
-                onCheckedChange={handleROIChange}
-                className="border-green-500 text-green-500"
-              />
-              <label
-                htmlFor="roi-line"
-                className="text-xs sm:text-sm font-medium text-green-400 cursor-pointer"
-              >
-                ROI
-              </label>
+          <div className="w-full flex flex-row justify-between px-2 md:px-6">
+            <div className="flex items-center gap-4">
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  id="cumpl-line"
+                  checked={showCumPL}
+                  onCheckedChange={handleCumPLChange}
+                  className="border-green-500 text-green-500"
+                />
+                <label
+                  htmlFor="cumpl-line"
+                  className="text-xs sm:text-sm font-medium text-green-400 cursor-pointer"
+                >
+                  {displayMode === 'usdt'
+                    ? 'Cumulative P&L USDT'
+                    : 'Cumulative P&L %'}
+                </label>
+              </div>
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  id="drawdown-line"
+                  checked={showDrawdown}
+                  onCheckedChange={handleDrawdownChange}
+                  className="border-purple-500 text-purple-500"
+                />
+                <label
+                  htmlFor="drawdown-line"
+                  className="text-xs sm:text-sm font-medium text-purple-400 cursor-pointer"
+                >
+                  {displayMode === 'usdt' ? 'Drawdown USDT' : 'Drawdown %'}
+                </label>
+              </div>
             </div>
-            <div className="flex items-center space-x-2">
-              <Checkbox
-                id="buyhold-line"
-                checked={showBuyHold}
-                onCheckedChange={handleBuyHoldChange}
-                className="border-blue-500 text-blue-500"
+            <div className="flex items-center space-x-2 ml-4">
+              <span className="text-xs sm:text-sm text-green-400">USDT</span>
+              <Switch
+                checked={displayMode === 'percent'}
+                onCheckedChange={(checked) =>
+                  setDisplayMode(checked ? 'percent' : 'usdt')
+                }
+                className="mx-1 border border-slate-600 bg-slate-800"
+                aria-label="Toggle percent mode"
               />
-              <label
-                htmlFor="buyhold-line"
-                className="text-xs sm:text-sm font-medium text-blue-400 cursor-pointer"
-              >
-                Buy & Hold
-              </label>
-            </div>
-            <div className="flex items-center space-x-2">
-              <Checkbox
-                id="drawdown-line"
-                checked={showMaxDrawdown}
-                onCheckedChange={handleMaxDrawdownChange}
-                className="border-purple-500 text-purple-500"
-              />
-              <label
-                htmlFor="drawdown-line"
-                className="text-xs sm:text-sm font-medium text-purple-400 cursor-pointer"
-              >
-                Max DrawDown
-              </label>
-            </div>
-          </div>
-          {/* Period Controls */}
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
-            <div className="flex items-center gap-2">
-              {/* <span className="text-xs sm:text-sm text-slate-400">
-                Date Range:
-              </span> */}
-              <DateRangePicker
-                date={customDateRange}
-                onDateChange={handleCustomDateChange}
-                placeholder="Select date range"
-                minDate={data ? new Date(data.startDate) : undefined}
-                maxDate={data ? new Date(data.endDate) : undefined}
-                className="w-auto"
-              />
+              <span className="text-xs sm:text-sm text-blue-400">%</span>
             </div>
           </div>
+          {/* Period Controls removed */}
         </div>
 
         {/* Chart */}
-        <div className="h-72 sm:h-96 w-full overflow-x-auto scrollbar-thin scrollbar-thumb-slate-700 scrollbar-track-slate-900">
-          <div className="min-w-[600px] sm:min-w-[900px] w-full h-full border *:border-slate-800 rounded">
+        <div className="h-80 sm:h-[28rem] w-full bg-transparent rounded-lg shadow-lg p-0">
+          <div className="w-full h-full">
             <ResponsiveContainer width="100%" height="100%">
               <LineChart
-                data={filteredChartData}
+                data={chartData}
                 margin={{
-                  top: 5,
-                  right: 30,
-                  left: 20,
-                  bottom: 5,
+                  top: 20,
+                  right: 0,
+                  left: 0,
+                  bottom: 20,
                 }}
               >
                 <CartesianGrid
-                  strokeDasharray="3 3"
+                  strokeDasharray="4 4"
                   stroke="#334155"
-                  opacity={0.3}
+                  opacity={0.4}
+                  vertical={false}
                 />
                 <XAxis
                   dataKey="date"
                   tickFormatter={formatDate}
                   stroke="#64748b"
-                  fontSize={10}
-                  tick={{ fontSize: 10 }}
+                  fontSize={12}
+                  tick={{ fontSize: 12, fill: '#cbd5e1', dy: 16 }}
+                  axisLine={{ stroke: '#334155' }}
+                  tickLine={false}
+                  padding={{ left: 0, right: 0 }}
+                  height={60}
+                  angle={-90}
+                  textAnchor="end"
+                />
+                {/* Dual Y axes */}
+                <YAxis
+                  yAxisId="left"
+                  orientation="left"
+                  tickFormatter={
+                    displayMode === 'usdt'
+                      ? (v) =>
+                          v.toLocaleString(undefined, {
+                            maximumFractionDigits: 2,
+                          })
+                      : (v) => `${v.toFixed(2)}%`
+                  }
+                  stroke="#10b981"
+                  fontSize={12}
+                  tick={{ fontSize: 12, fill: '#a7f3d0' }}
+                  axisLine={{ stroke: '#10b981' }}
+                  tickLine={false}
+                  domain={['auto', 'auto']}
+                  allowDataOverflow
+                  allowDecimals
+                  minTickGap={2}
                 />
                 <YAxis
-                  tickFormatter={(value) => `${value.toFixed(0)}%`}
-                  stroke="#64748b"
-                  fontSize={10}
-                  tick={{ fontSize: 10 }}
+                  yAxisId="right"
+                  orientation="right"
+                  tickFormatter={
+                    displayMode === 'usdt'
+                      ? (v) =>
+                          v.toLocaleString(undefined, {
+                            maximumFractionDigits: 2,
+                          })
+                      : (v) => `${v.toFixed(2)}%`
+                  }
+                  stroke="#a855f7"
+                  fontSize={12}
+                  tick={{ fontSize: 12, fill: '#e9d5ff' }}
+                  axisLine={{ stroke: '#a855f7' }}
+                  tickLine={false}
+                  domain={([dataMin, dataMax]) => {
+                    // Center zero in the middle
+                    const maxAbs = Math.max(
+                      Math.abs(dataMin),
+                      Math.abs(dataMax)
+                    );
+                    return [-maxAbs, maxAbs];
+                  }}
+                  allowDataOverflow
+                  allowDecimals
+                  minTickGap={2}
+                />
+                {/* Reference line for drawdown axis zero */}
+                <ReferenceLine
+                  y={0}
+                  yAxisId="right"
+                  stroke="#a855f7"
+                  strokeDasharray="4 4"
+                  strokeWidth={2}
+                  opacity={0.7}
                 />
                 <Tooltip
                   contentStyle={{
-                    backgroundColor: '#1e293b',
-                    border: '1px solid #334155',
-                    borderRadius: '8px',
+                    backgroundColor: '#0f172a',
+                    border: '1px solid #a855f7',
+                    borderRadius: '10px',
                     color: '#f1f5f9',
+                    fontSize: 14,
                   }}
+                  labelStyle={{ color: '#f472b6', fontWeight: 600 }}
+                  itemStyle={{ fontSize: 13 }}
                   labelFormatter={formatTooltipLabel}
                   formatter={formatTooltipValue}
                 />
 
-                {showROI && (
+                {/* Cumulative P&L Line */}
+                {showCumPL && (
                   <Line
                     type="monotone"
-                    dataKey="roi"
+                    yAxisId="left"
+                    dataKey={
+                      displayMode === 'usdt' ? 'cumPL_USDT' : 'cumPL_PCT'
+                    }
                     stroke="#10b981"
                     strokeWidth={2}
                     dot={false}
-                    name="ROI"
+                    name={
+                      displayMode === 'usdt'
+                        ? 'Cumulative P&L USDT'
+                        : 'Cumulative P&L %'
+                    }
                     activeDot={{
                       r: 4,
                       fill: '#10b981',
@@ -284,33 +324,20 @@ export function BacktestChart({ data, symbol, metrics }: BacktestChartProps) {
                     }}
                   />
                 )}
-
-                {showBuyHold && (
+                {/* Drawdown Line */}
+                {showDrawdown && (
                   <Line
                     type="monotone"
-                    dataKey="buyHold"
-                    stroke="#3b82f6"
-                    strokeWidth={2}
-                    dot={false}
-                    name="Buy & Hold"
-                    strokeDasharray="5 5"
-                    activeDot={{
-                      r: 4,
-                      fill: '#3b82f6',
-                      stroke: '#1e40af',
-                      strokeWidth: 2,
-                    }}
-                  />
-                )}
-
-                {showMaxDrawdown && (
-                  <Line
-                    type="monotone"
-                    dataKey="drawdownValue"
+                    yAxisId="right"
+                    dataKey={
+                      displayMode === 'usdt' ? 'drawdown_USDT' : 'drawdown_PCT'
+                    }
                     stroke="#a855f7"
                     strokeWidth={2}
                     dot={false}
-                    name="Max DrawDown"
+                    name={
+                      displayMode === 'usdt' ? 'Drawdown USDT' : 'Drawdown %'
+                    }
                     strokeDasharray="2 2"
                     activeDot={{
                       r: 4,
@@ -326,15 +353,15 @@ export function BacktestChart({ data, symbol, metrics }: BacktestChartProps) {
         </div>
 
         {/* Chart Footer */}
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center text-xs text-slate-500 gap-2 mt-2">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center text-xs text-slate-100 gap-2 mt-4">
           <span>
             Period:{' '}
-            {filteredChartData.length > 0
-              ? formatDate(filteredChartData[0].date)
+            {chartData.length > 0
+              ? formatDate(chartData[0].date)
               : formatDate(data.startDate)}{' '}
             -{' '}
-            {filteredChartData.length > 0
-              ? formatDate(filteredChartData[filteredChartData.length - 1].date)
+            {chartData.length > 0
+              ? formatDate(chartData[chartData.length - 1].date)
               : formatDate(data.endDate)}
           </span>
           <span>Data updated 7 days ago</span>
