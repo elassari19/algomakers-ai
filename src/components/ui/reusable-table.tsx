@@ -404,7 +404,7 @@ export function ReusableTable<T = any>({
 
   return (
     <Card
-      className={`bg-white/5 backdrop-blur-md border-white/20 shadow-xl ${className}`}
+      className={`bg-white/10 backdrop-blur-md border-white/20 shadow-xl min-h-[370px] ${className}`}
     >
       <CardHeader>
         <CardTitle className="text-white flex items-center justify-between h-0">
@@ -482,8 +482,8 @@ export function ReusableTable<T = any>({
         </CardTitle>
         {subtitle && <p className="text-white/70 text-sm">{subtitle}</p>}
       </CardHeader>
-      <CardContent className="px-1 sm:px-3 overflow-auto">
-        <div className="rounded-lg border border-white/20 bg-white/5 backdrop-blur-sm">
+      <CardContent className="h-full flex flex-col justify-between px-1 sm:px-3 overflow-auto">
+        <div className="min-h-[16rem] flex-1 rounded-lg border border-white/20 bg-white/5 backdrop-blur-sm">
           <div className="w-full overflow-x-auto scrollbar-thin scrollbar-thumb-slate-700 scrollbar-track-slate-900">
             <Table className="min-w-[600px] w-full">
               <TableHeader className="sticky top-0 z-10 bg-white/5 backdrop-blur-sm">
