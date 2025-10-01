@@ -3,7 +3,7 @@ import { GradientBackground } from '@/components/ui/gradient-background';
 import { Badge } from '@/components/ui/badge';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { BarChart3, Activity, TrendingUp } from 'lucide-react';
+import { BarChart3, Activity, TrendingUp, Clock } from 'lucide-react';
 import Link from 'next/link';
 import { cookies } from 'next/headers';
 import { BacktestChart } from '@/components/pair/BacktestChart';
@@ -27,6 +27,7 @@ async function getBacktest(id: string) {
   if (!res.ok) return null;
   const data = await res.json();
   if (!data.found) return null;
+  console.log('data', data);
   return data.pair;
 }
 
@@ -35,10 +36,17 @@ export default async function BacktestDetailPage({
 }: BacktestDetailPageProps) {
   const { id, backtestId } = await params;
 
-  const pair = await getBacktest(backtestId);
-
+  let pair = await getBacktest(backtestId);
   if (!pair) {
     notFound();
+  }
+  // Parse metrics if stringified
+  if (typeof pair.metrics === 'string') {
+    try {
+      pair.metrics = JSON.parse(pair.metrics);
+    } catch (e) {
+      pair.metrics = {};
+    }
   }
 
   return (
@@ -101,19 +109,31 @@ export default async function BacktestDetailPage({
           <div className="grid grid-cols-1 xl:grid-cols-4 gap-8 h-full">
             <div className="xl:col-span-3 space-y-8 overflow-y-auto pr-4 scrollbar-thin scrollbar-thumb-white/20 scrollbar-track-transparent">
               {/* Pricing & Info Card moved above Backtest Metrics */}
-              <Card className="bg-white/10 backdrop-blur-md border border-white/20 rounded-xl p-6 py-4">
+              <Card className="bg-white/10 backdrop-blur-md border border-white/20 rounded-xl p-6 py-4 gap-0">
                 <h3 className="text-lg font-semibold text-white flex items-center gap-2">
                   <BarChart3 className="w-5 h-5 text-blue-400" />
                   Pricing & Info
                 </h3>
                 <div className="space-y-1">
+                  {/* Updated At - attractive style */}
+                  <div className="mb-2 flex items-center justify-end">
+                    <span className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-gradient-to-r from-blue-700/80 to-purple-700/80 text-xs font-semibold text-white shadow-lg border border-white/20">
+                      <Clock className="w-4 h-4 text-white/70" />
+                      Updated:{' '}
+                      {new Date(pair.updatedAt).toLocaleString(undefined, {
+                        dateStyle: 'medium',
+                        timeStyle: 'short',
+                      })}
+                    </span>
+                  </div>
+
                   <div className="flex justify-between items-center">
                     <span className="text-white/70">Symbol</span>
                     <span className="text-white font-mono">{pair.symbol}</span>
                   </div>
                   <div className="flex justify-between items-center">
                     <span className="text-white/70">Timeframe</span>
-                    <Badge className="bg-blue-500/20 text-blue-400 border-blue-500/30">
+                    <Badge className="bg-blue-500/20 text-white/70 border-blue-500/30">
                       {pair.timeframe}
                     </Badge>
                   </div>
@@ -124,7 +144,10 @@ export default async function BacktestDetailPage({
                   <div className="flex justify-between items-center">
                     <span className="text-white/70">Created</span>
                     <span className="text-white/80">
-                      {new Date(pair.createdAt).toLocaleDateString()}
+                      {new Date(pair.createdAt).toLocaleString(undefined, {
+                        dateStyle: 'medium',
+                        timeStyle: 'short',
+                      })}
                     </span>
                   </div>
                 </div>
@@ -207,9 +230,6 @@ export default async function BacktestDetailPage({
                     <table className="min-w-full text-xs text-white/80 bg-black/20 rounded">
                       <thead>
                         <tr>
-                          <th className="px-2 py-1 text-left font-semibold">
-                            Metric
-                          </th>
                           <th className="px-2 py-1 text-right font-semibold">
                             All %
                           </th>
@@ -234,9 +254,6 @@ export default async function BacktestDetailPage({
                         {pair.metrics['Trades analysis'].map(
                           (row: any, idx: number) => (
                             <tr key={idx} className="border-t border-white/10">
-                              <td className="px-2 py-1 font-semibold text-white/90 whitespace-nowrap">
-                                {row['']}
-                              </td>
                               <td className="px-2 py-1 text-right">
                                 {row['All %'] !== ''
                                   ? Number(row['All %']).toLocaleString(
@@ -310,9 +327,6 @@ export default async function BacktestDetailPage({
                     <table className="min-w-full text-xs text-white/80 bg-black/20 rounded">
                       <thead>
                         <tr>
-                          <th className="px-2 py-1 text-left font-semibold">
-                            Metric
-                          </th>
                           <th className="px-2 py-1 text-right font-semibold">
                             All %
                           </th>
@@ -337,9 +351,6 @@ export default async function BacktestDetailPage({
                         {pair.metrics['Performance'].map(
                           (row: any, idx: number) => (
                             <tr key={idx} className="border-t border-white/10">
-                              <td className="px-2 py-1 font-semibold text-white/90 whitespace-nowrap">
-                                {row['']}
-                              </td>
                               <td className="px-2 py-1 text-right">
                                 {row['All %'] !== ''
                                   ? Number(row['All %']).toLocaleString(
@@ -411,9 +422,6 @@ export default async function BacktestDetailPage({
                       <table className="min-w-full text-xs text-white/80 bg-black/20 rounded">
                         <thead>
                           <tr>
-                            <th className="px-2 py-1 text-left font-semibold">
-                              Metric
-                            </th>
                             <th className="px-2 py-1 text-right font-semibold">
                               All %
                             </th>
@@ -441,9 +449,6 @@ export default async function BacktestDetailPage({
                                 key={idx}
                                 className="border-t border-white/10"
                               >
-                                <td className="px-2 py-1 font-semibold text-white/90 whitespace-nowrap">
-                                  {row['']}
-                                </td>
                                 <td className="px-2 py-1 text-right">
                                   {row['All %'] !== ''
                                     ? Number(row['All %']).toLocaleString(
