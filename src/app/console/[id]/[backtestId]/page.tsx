@@ -27,7 +27,6 @@ async function getBacktest(id: string) {
   if (!res.ok) return null;
   const data = await res.json();
   if (!data.found) return null;
-  console.log('data', data);
   return data.pair;
 }
 

@@ -6,7 +6,6 @@ import { Button } from '@/components/ui/button';
 import { BarChart3, Activity, TrendingUp, Clock } from 'lucide-react';
 import Link from 'next/link';
 import { BacktestChart } from '@/components/pair/BacktestChart';
-import { DisclaimerBox } from '@/components/pair/DisclaimerBox';
 import { getBacktest } from '../../../api/services';
 
 interface PairDetailPageProps {
@@ -28,7 +27,6 @@ export default async function PairDetailPage({ params }: PairDetailPageProps) {
       pair.metrics = {};
     }
   }
-  console.log('data', pair.metrics['Properties']);
 
   return (
     <GradientBackground>
