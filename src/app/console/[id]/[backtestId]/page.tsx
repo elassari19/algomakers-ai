@@ -12,19 +12,10 @@ interface BacktestDetailPageProps {
   params: Promise<{ id: string; backtestId: string }>;
 }
 
-function getBaseUrl() {
-  if (typeof window !== 'undefined') return '';
-  // Vercel/production
-  if (process.env.VERCEL_URL) return `https://${process.env.VERCEL_URL}`;
-  // Local dev
-  return process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000';
-}
-
 async function getBacktest(id: string) {
   const cookieStore = cookies();
-  const baseUrl = getBaseUrl();
   const res = await fetch(
-    `${baseUrl}/api/backtest?id=${encodeURIComponent(id)}`,
+    `${process.env.NEXTAUTH_URL}/api/backtest?id=${encodeURIComponent(id)}`,
     {
       headers: {
         Cookie: cookieStore.toString(),
