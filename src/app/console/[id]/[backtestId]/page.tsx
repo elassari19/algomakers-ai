@@ -53,7 +53,7 @@ export default async function BacktestDetailPage({
     <GradientBackground>
       <div className="min-h-screen">
         <div className="bg-white/10 backdrop-blur-md border-b border-white/20">
-          <div className="container mx-auto py-3">
+          <div className="container mx-auto p-2 md:px-6 md:py-3">
             <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
               <div className="flex items-center gap-3">
                 <div className="p-2 bg-gradient-to-br from-blue-500/20 to-purple-600/20 rounded-lg border border-white/20">
@@ -96,7 +96,7 @@ export default async function BacktestDetailPage({
                 <Button
                   asChild
                   size="sm"
-                  className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-blue-700 hover:to-purple-700 text-white border-0"
+                  className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white border-0"
                 >
                   <Link href={`/console/${id}`}>Back to Console</Link>
                 </Button>
@@ -105,18 +105,18 @@ export default async function BacktestDetailPage({
           </div>
         </div>
 
-        <div className="container mx-auto px-6 py-4">
-          <div className="grid grid-cols-1 xl:grid-cols-4 gap-8 h-full">
-            <div className="xl:col-span-3 space-y-8 overflow-y-auto pr-4 scrollbar-thin scrollbar-thumb-white/20 scrollbar-track-transparent">
+        <div className="container mx-auto px-0 py-2 md:px-6 md:py-4">
+          <div className="grid grid-cols-1 xl:grid-cols-6 gap-2 h-full">
+            <div className="xl:col-span-4 space-y-4 md:space-y-8 overflow-y-auto pr-0 md:pr-4 scrollbar-thin scrollbar-thumb-white/20 scrollbar-track-transparent">
               {/* Pricing & Info Card moved above Backtest Metrics */}
-              <Card className="bg-white/10 backdrop-blur-md border border-white/20 rounded-xl p-6 py-4 gap-0">
+              <Card className="bg-white/10 backdrop-blur-md border border-white/20 rounded-xl p-3 md:p-6 md:py-4 gap-0">
                 <h3 className="text-lg font-semibold text-white flex items-center gap-2">
                   <BarChart3 className="w-5 h-5 text-blue-400" />
                   Pricing & Info
                 </h3>
                 <div className="space-y-1">
                   {/* Updated At - attractive style */}
-                  <div className="mb-2 flex items-center justify-end">
+                  <div className="my-2 flex items-center justify-end">
                     <span className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-gradient-to-r from-blue-700/80 to-purple-700/80 text-xs font-semibold text-white shadow-lg border border-white/20">
                       <Clock className="w-4 h-4 text-white/70" />
                       Updated:{' '}
@@ -139,7 +139,9 @@ export default async function BacktestDetailPage({
                   </div>
                   <div className="flex justify-between items-center">
                     <span className="text-white/70">ID</span>
-                    <span className="text-white font-mono">{pair.id}</span>
+                    <span className="text-white font-mono max-w-[150px] truncate md:max-w-none">
+                      {pair.id}
+                    </span>
                   </div>
                   <div className="flex justify-between items-center">
                     <span className="text-white/70">Created</span>
@@ -152,7 +154,7 @@ export default async function BacktestDetailPage({
                   </div>
                 </div>
               </Card>
-              <Card className="bg-white/10 backdrop-blur-md rounded-xl border border-white/20 p-6">
+              <Card className="bg-white/10 backdrop-blur-md rounded-xl border border-white/20 p-3 md:p-6">
                 <h2 className="text-xl font-bold text-white mb-4">
                   Backtest Metrics
                 </h2>
@@ -219,297 +221,129 @@ export default async function BacktestDetailPage({
                 })()}
               </Card>
               {/* Trades analysis section */}
-              <Card className="bg-white/10 backdrop-blur-md border border-white/20 rounded-xl px-6 mt-8">
-                <h3 className="text-lg font-semibold text-white flex items-center gap-2 mb-2">
-                  <Activity className="w-5 h-5 text-purple-400" />
-                  Trades analysis
-                </h3>
-                {Array.isArray(pair.metrics['Trades analysis']) &&
-                pair.metrics['Trades analysis'].length > 0 ? (
-                  <div className="overflow-x-auto">
-                    <table className="min-w-full text-xs text-white/80 bg-black/20 rounded">
-                      <thead>
-                        <tr>
-                          <th className="px-2 py-1 text-right font-semibold">
-                            All %
-                          </th>
-                          <th className="px-2 py-1 text-right font-semibold">
-                            Long %
-                          </th>
-                          <th className="px-2 py-1 text-right font-semibold">
-                            Short %
-                          </th>
-                          <th className="px-2 py-1 text-right font-semibold">
-                            All USDT
-                          </th>
-                          <th className="px-2 py-1 text-right font-semibold">
-                            Long USDT
-                          </th>
-                          <th className="px-2 py-1 text-right font-semibold">
-                            Short USDT
-                          </th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {pair.metrics['Trades analysis'].map(
-                          (row: any, idx: number) => (
-                            <tr key={idx} className="border-t border-white/10">
-                              <td className="px-2 py-1 text-right">
-                                {row['All %'] !== ''
-                                  ? Number(row['All %']).toLocaleString(
-                                      undefined,
-                                      { maximumFractionDigits: 4 }
-                                    )
-                                  : '-'}
-                              </td>
-                              <td className="px-2 py-1 text-right">
-                                {row['Long %'] !== ''
-                                  ? Number(row['Long %']).toLocaleString(
-                                      undefined,
-                                      { maximumFractionDigits: 4 }
-                                    )
-                                  : '-'}
-                              </td>
-                              <td className="px-2 py-1 text-right">
-                                {row['Short %'] !== ''
-                                  ? Number(row['Short %']).toLocaleString(
-                                      undefined,
-                                      { maximumFractionDigits: 4 }
-                                    )
-                                  : '-'}
-                              </td>
-                              <td className="px-2 py-1 text-right">
-                                {row['All USDT'] !== ''
-                                  ? Number(row['All USDT']).toLocaleString(
-                                      undefined,
-                                      { maximumFractionDigits: 2 }
-                                    )
-                                  : '-'}
-                              </td>
-                              <td className="px-2 py-1 text-right">
-                                {row['Long USDT'] !== ''
-                                  ? Number(row['Long USDT']).toLocaleString(
-                                      undefined,
-                                      { maximumFractionDigits: 2 }
-                                    )
-                                  : '-'}
-                              </td>
-                              <td className="px-2 py-1 text-right">
-                                {row['Short USDT'] !== ''
-                                  ? Number(row['Short USDT']).toLocaleString(
-                                      undefined,
-                                      { maximumFractionDigits: 2 }
-                                    )
-                                  : '-'}
-                              </td>
+              <Card className="bg-white/10 backdrop-blur-md border border-white/20 rounded-xl px-3 md:px-6 mt-4 md:mt-8">
+                {[
+                  {
+                    title: 'Trades analysis',
+                    metrics: pair.metrics['Trades analysis'],
+                  },
+                  {
+                    title: 'Performance Metrics',
+                    metrics: pair.metrics['Performance'],
+                  },
+                  {
+                    title: 'Risk performance ratios',
+                    metrics: pair.metrics['Risk performance ratios'],
+                  },
+                ].map(({ title, metrics }) => (
+                  <div key={title} className="mt-8">
+                    <h3 className="text-lg font-semibold text-white flex items-center gap-2 mb-2">
+                      <Activity className="w-5 h-5 text-purple-400" />
+                      {title}
+                    </h3>
+                    {metrics.length > 0 ? (
+                      <div className="overflow-x-auto">
+                        <table className="min-w-full text-xs text-white/80 bg-black/20 rounded">
+                          <thead>
+                            <tr>
+                              <th className="px-2 py-1 text-left font-semibold"></th>
+                              <th className="px-2 py-1 text-right font-semibold">
+                                All %
+                              </th>
+                              <th className="px-2 py-1 text-right font-semibold">
+                                All USDT
+                              </th>
+                              <th className="px-2 py-1 text-right font-semibold">
+                                Long %
+                              </th>
+                              <th className="px-2 py-1 text-right font-semibold">
+                                Short %
+                              </th>
+                              <th className="px-2 py-1 text-right font-semibold">
+                                Long USDT
+                              </th>
+                              <th className="px-2 py-1 text-right font-semibold">
+                                Short USDT
+                              </th>
                             </tr>
-                          )
-                        )}
-                      </tbody>
-                    </table>
+                          </thead>
+                          <tbody>
+                            {pair.metrics['Risk performance ratios'].map(
+                              (row: any, idx: number) => (
+                                <tr
+                                  key={idx}
+                                  className="border-t border-white/10"
+                                >
+                                  <td className="px-2 py-1 text-left text-nowrap">
+                                    {row['__EMPTY']}
+                                  </td>
+                                  <td className="px-2 py-1 text-right">
+                                    {row['All %'] !== ''
+                                      ? Number(row['All %']).toLocaleString(
+                                          undefined,
+                                          { maximumFractionDigits: 4 }
+                                        )
+                                      : '-'}
+                                  </td>
+                                  <td className="px-2 py-1 text-right">
+                                    {row['All USDT'] !== ''
+                                      ? Number(row['All USDT']).toLocaleString(
+                                          undefined,
+                                          { maximumFractionDigits: 2 }
+                                        )
+                                      : '-'}
+                                  </td>
+                                  <td className="px-2 py-1 text-right">
+                                    {row['Long %'] !== ''
+                                      ? Number(row['Long %']).toLocaleString(
+                                          undefined,
+                                          { maximumFractionDigits: 4 }
+                                        )
+                                      : '-'}
+                                  </td>
+                                  <td className="px-2 py-1 text-right">
+                                    {row['Short %'] !== ''
+                                      ? Number(row['Short %']).toLocaleString(
+                                          undefined,
+                                          { maximumFractionDigits: 4 }
+                                        )
+                                      : '-'}
+                                  </td>
+                                  <td className="px-2 py-1 text-right">
+                                    {row['Long USDT'] !== ''
+                                      ? Number(row['Long USDT']).toLocaleString(
+                                          undefined,
+                                          { maximumFractionDigits: 2 }
+                                        )
+                                      : '-'}
+                                  </td>
+                                  <td className="px-2 py-1 pb-3 mb-2 text-right">
+                                    {row['Short USDT'] !== ''
+                                      ? Number(
+                                          row['Short USDT']
+                                        ).toLocaleString(undefined, {
+                                          maximumFractionDigits: 2,
+                                        })
+                                      : '-'}
+                                  </td>
+                                </tr>
+                              )
+                            )}
+                          </tbody>
+                        </table>
+                      </div>
+                    ) : (
+                      <div className="text-white/60">
+                        No risk performance ratio data available.
+                      </div>
+                    )}
                   </div>
-                ) : (
-                  <div className="text-white/60">
-                    No trades analysis data available.
-                  </div>
-                )}
+                ))}
               </Card>
             </div>
-            <div className="xl:col-span-1 space-y-2 pr-4 scrollbar-thin scrollbar-thumb-white/20 scrollbar-track-transparent">
-              <Card className="bg-white/10 backdrop-blur-md border border-white/20 rounded-xl px-6">
-                <h3 className="text-lg font-semibold text-white flex items-center gap-2">
-                  <Activity className="w-5 h-5 text-purple-400" />
-                  Performance Metrics
-                </h3>
-                {Array.isArray(pair.metrics['Performance']) &&
-                pair.metrics['Performance'].length > 0 ? (
-                  <div className="overflow-x-auto">
-                    <table className="min-w-full text-xs text-white/80 bg-black/20 rounded">
-                      <thead>
-                        <tr>
-                          <th className="px-2 py-1 text-right font-semibold">
-                            All %
-                          </th>
-                          <th className="px-2 py-1 text-right font-semibold">
-                            Long %
-                          </th>
-                          <th className="px-2 py-1 text-right font-semibold">
-                            Short %
-                          </th>
-                          <th className="px-2 py-1 text-right font-semibold">
-                            All USDT
-                          </th>
-                          <th className="px-2 py-1 text-right font-semibold">
-                            Long USDT
-                          </th>
-                          <th className="px-2 py-1 text-right font-semibold">
-                            Short USDT
-                          </th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {pair.metrics['Performance'].map(
-                          (row: any, idx: number) => (
-                            <tr key={idx} className="border-t border-white/10">
-                              <td className="px-2 py-1 text-right">
-                                {row['All %'] !== ''
-                                  ? Number(row['All %']).toLocaleString(
-                                      undefined,
-                                      { maximumFractionDigits: 4 }
-                                    )
-                                  : '-'}
-                              </td>
-                              <td className="px-2 py-1 text-right">
-                                {row['Long %'] !== ''
-                                  ? Number(row['Long %']).toLocaleString(
-                                      undefined,
-                                      { maximumFractionDigits: 4 }
-                                    )
-                                  : '-'}
-                              </td>
-                              <td className="px-2 py-1 text-right">
-                                {row['Short %'] !== ''
-                                  ? Number(row['Short %']).toLocaleString(
-                                      undefined,
-                                      { maximumFractionDigits: 4 }
-                                    )
-                                  : '-'}
-                              </td>
-                              <td className="px-2 py-1 text-right">
-                                {row['All USDT'] !== ''
-                                  ? Number(row['All USDT']).toLocaleString(
-                                      undefined,
-                                      { maximumFractionDigits: 2 }
-                                    )
-                                  : '-'}
-                              </td>
-                              <td className="px-2 py-1 text-right">
-                                {row['Long USDT'] !== ''
-                                  ? Number(row['Long USDT']).toLocaleString(
-                                      undefined,
-                                      { maximumFractionDigits: 2 }
-                                    )
-                                  : '-'}
-                              </td>
-                              <td className="px-2 py-1 text-right">
-                                {row['Short USDT'] !== ''
-                                  ? Number(row['Short USDT']).toLocaleString(
-                                      undefined,
-                                      { maximumFractionDigits: 2 }
-                                    )
-                                  : '-'}
-                              </td>
-                            </tr>
-                          )
-                        )}
-                      </tbody>
-                    </table>
-                  </div>
-                ) : (
-                  <div className="text-white/60">
-                    No performance data available.
-                  </div>
-                )}
-                {/* Risk performance ratios section */}
-                <div className="mt-1">
-                  <h3 className="text-lg font-semibold text-white flex items-center gap-2 mb-2">
-                    <Activity className="w-5 h-5 text-purple-400" />
-                    Risk performance ratios
-                  </h3>
-                  {Array.isArray(pair.metrics['Risk performance ratios']) &&
-                  pair.metrics['Risk performance ratios'].length > 0 ? (
-                    <div className="overflow-x-auto">
-                      <table className="min-w-full text-xs text-white/80 bg-black/20 rounded">
-                        <thead>
-                          <tr>
-                            <th className="px-2 py-1 text-right font-semibold">
-                              All %
-                            </th>
-                            <th className="px-2 py-1 text-right font-semibold">
-                              Long %
-                            </th>
-                            <th className="px-2 py-1 text-right font-semibold">
-                              Short %
-                            </th>
-                            <th className="px-2 py-1 text-right font-semibold">
-                              All USDT
-                            </th>
-                            <th className="px-2 py-1 text-right font-semibold">
-                              Long USDT
-                            </th>
-                            <th className="px-2 py-1 text-right font-semibold">
-                              Short USDT
-                            </th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {pair.metrics['Risk performance ratios'].map(
-                            (row: any, idx: number) => (
-                              <tr
-                                key={idx}
-                                className="border-t border-white/10"
-                              >
-                                <td className="px-2 py-1 text-right">
-                                  {row['All %'] !== ''
-                                    ? Number(row['All %']).toLocaleString(
-                                        undefined,
-                                        { maximumFractionDigits: 4 }
-                                      )
-                                    : '-'}
-                                </td>
-                                <td className="px-2 py-1 text-right">
-                                  {row['Long %'] !== ''
-                                    ? Number(row['Long %']).toLocaleString(
-                                        undefined,
-                                        { maximumFractionDigits: 4 }
-                                      )
-                                    : '-'}
-                                </td>
-                                <td className="px-2 py-1 text-right">
-                                  {row['Short %'] !== ''
-                                    ? Number(row['Short %']).toLocaleString(
-                                        undefined,
-                                        { maximumFractionDigits: 4 }
-                                      )
-                                    : '-'}
-                                </td>
-                                <td className="px-2 py-1 text-right">
-                                  {row['All USDT'] !== ''
-                                    ? Number(row['All USDT']).toLocaleString(
-                                        undefined,
-                                        { maximumFractionDigits: 2 }
-                                      )
-                                    : '-'}
-                                </td>
-                                <td className="px-2 py-1 text-right">
-                                  {row['Long USDT'] !== ''
-                                    ? Number(row['Long USDT']).toLocaleString(
-                                        undefined,
-                                        { maximumFractionDigits: 2 }
-                                      )
-                                    : '-'}
-                                </td>
-                                <td className="px-2 py-1 text-right">
-                                  {row['Short USDT'] !== ''
-                                    ? Number(row['Short USDT']).toLocaleString(
-                                        undefined,
-                                        { maximumFractionDigits: 2 }
-                                      )
-                                    : '-'}
-                                </td>
-                              </tr>
-                            )
-                          )}
-                        </tbody>
-                      </table>
-                    </div>
-                  ) : (
-                    <div className="text-white/60">
-                      No risk performance ratio data available.
-                    </div>
-                  )}
-                </div>
 
+            <div className="xl:col-span-2 space-y-2 pr-0 md:pr-4 scrollbar-thin scrollbar-thumb-white/20 scrollbar-track-transparent">
+              <Card className="bg-white/10 backdrop-blur-md border border-white/20 rounded-xl px-3 md:px-6">
                 {/* Properties section */}
                 <div className="mt-8">
                   <h3 className="text-lg font-semibold text-white flex items-center gap-2 mb-2">

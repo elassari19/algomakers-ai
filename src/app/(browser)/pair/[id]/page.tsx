@@ -1,93 +1,41 @@
 import { notFound } from 'next/navigation';
-import { BacktestChart } from '@/components/pair/BacktestChart';
-import { StatsGrid } from '@/components/pair/StatsGridNew';
-import { PairSubscribeWrapper } from '@/components/pair/PairSubscribeWrapper';
-import { DisclaimerBox } from '@/components/pair/DisclaimerBox';
 import { GradientBackground } from '@/components/ui/gradient-background';
 import { Badge } from '@/components/ui/badge';
+import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { ArrowUpRight, TrendingUp, BarChart3, Activity } from 'lucide-react';
-import { mockPairs } from '@/lib/dummy-data';
+import { BarChart3, Activity, TrendingUp, Clock } from 'lucide-react';
 import Link from 'next/link';
+import { BacktestChart } from '@/components/pair/BacktestChart';
+import { DisclaimerBox } from '@/components/pair/DisclaimerBox';
+import { getBacktest } from '../../../api/services';
 
 interface PairDetailPageProps {
   params: Promise<{ id: string }>;
 }
 
-interface PairData {
-  id: string;
-  symbol: string;
-  name: string;
-  metrics: {
-    roi: number;
-    riskReward: number;
-    totalTrades: number;
-    winRate: number;
-    maxDrawdown: number;
-    profit: number;
-  };
-  timeframe?: string;
-  isPopular?: boolean;
-  description?: string;
-  subscription?: {
-    status: 'active' | 'expiring' | 'expired' | 'pending';
-    expiryDate?: string;
-  };
-  backtestData?: {
-    startDate: string;
-    endDate: string;
-    initialBalance: number;
-    finalBalance: number;
-    equityCurve: Array<{ date: string; value: number }>;
-  };
-}
-
-// Extended mock data with backtest information
-const mockPairsWithBacktest = mockPairs.map((pair) => ({
-  ...pair,
-  description:
-    pair.symbol === 'EURUSD'
-      ? 'Professional trading strategy for EURUSD with consistent profitability and low drawdown.'
-      : pair.symbol === 'GBPJPY'
-      ? 'Aggressive trading strategy with high profit potential and moderate risk.'
-      : pair.symbol === 'BTCUSD'
-      ? 'Cryptocurrency trading strategy optimized for Bitcoin volatility patterns.'
-      : `Advanced trading strategy for ${pair.symbol} with proven performance metrics.`,
-  backtestData: {
-    startDate: '2024-01-01',
-    endDate: '2024-09-01',
-    initialBalance: 10000,
-    finalBalance: 10000 + (pair.metrics.profit || 0),
-    equityCurve: Array.from({ length: 9 }, (_, i) => ({
-      date: new Date(2024, i, 1).toISOString().split('T')[0],
-      value: 10000 + ((pair.metrics.profit || 0) * (i + 1)) / 9,
-    })),
-  },
-}));
-
-async function getPairData(id: string): Promise<PairData | null> {
-  // In a real app, this would fetch from the database
-  // Example: const pair = await prisma.pair.findUnique({ where: { id } });
-  const pair = mockPairsWithBacktest.find((p) => p.id === id);
-  return pair || null;
-}
-
 export default async function PairDetailPage({ params }: PairDetailPageProps) {
   const { id } = await params;
-  const pair = await getPairData(id);
-
+  // Fetch pair data from API or DB
+  let pair = await getBacktest(id);
   if (!pair) {
     notFound();
   }
+  // Parse metrics if stringified
+  if (typeof pair.metrics === 'string') {
+    try {
+      pair.metrics = JSON.parse(pair.metrics);
+    } catch (e) {
+      pair.metrics = {};
+    }
+  }
+  console.log('data', pair.metrics['Properties']);
 
   return (
     <GradientBackground>
       <div className="min-h-screen">
-        {/* Header with strategy title and key metrics */}
         <div className="bg-white/10 backdrop-blur-md border-b border-white/20">
-          <div className="container mx-auto px-6 py-3">
+          <div className="container mx-auto p-2 md:px-6 md:py-3">
             <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-              {/* Strategy Title */}
               <div className="flex items-center gap-3">
                 <div className="p-2 bg-gradient-to-br from-blue-500/20 to-purple-600/20 rounded-lg border border-white/20">
                   <TrendingUp className="w-5 h-5 text-blue-400" />
@@ -97,42 +45,33 @@ export default async function PairDetailPage({ params }: PairDetailPageProps) {
                     <h1 className="text-2xl font-bold text-white">
                       {pair.symbol}
                     </h1>
-                    {pair.isPopular && (
-                      <Badge
-                        variant="secondary"
-                        className="text-xs bg-orange-500/10 text-orange-400"
-                      >
-                        🔥 Popular
-                      </Badge>
-                    )}
                   </div>
-                  <p className="text-white/70 text-sm">{pair.name}</p>
+                  <p className="text-white/70 text-sm">{pair.timeframe}</p>
                 </div>
               </div>
-
-              {/* Compact Metrics */}
               <div className="flex items-center gap-4 text-sm">
                 <div className="text-center">
-                  <div className="text-white/60 text-xs">ROI</div>
-                  <div
-                    className={`font-bold ${
-                      pair.metrics.roi > 0 ? 'text-green-400' : 'text-red-400'
-                    }`}
-                  >
-                    {pair.metrics.roi > 0 ? '+' : ''}
-                    {pair.metrics.roi.toFixed(1)}%
+                  <div className="text-white/60 text-xs">Price (1M)</div>
+                  <div className="font-bold text-green-400">
+                    ${pair.priceOneMonth}
                   </div>
                 </div>
                 <div className="text-center">
-                  <div className="text-white/60 text-xs">R/R</div>
-                  <div className="text-orange-400 font-bold">
-                    {pair.metrics.riskReward.toFixed(1)}
+                  <div className="text-white/60 text-xs">Price (3M)</div>
+                  <div className="font-bold text-blue-400">
+                    ${pair.priceThreeMonths}
                   </div>
                 </div>
                 <div className="text-center">
-                  <div className="text-white/60 text-xs">Win Rate</div>
-                  <div className="text-blue-400 font-bold">
-                    {pair.metrics.winRate.toFixed(1)}%
+                  <div className="text-white/60 text-xs">Price (6M)</div>
+                  <div className="font-bold text-amber-400">
+                    ${pair.priceSixMonths}
+                  </div>
+                </div>
+                <div className="text-center">
+                  <div className="text-white/60 text-xs">Price (12M)</div>
+                  <div className="font-bold text-purple-400">
+                    ${pair.priceTwelveMonths}
                   </div>
                 </div>
                 <Button
@@ -140,141 +79,360 @@ export default async function PairDetailPage({ params }: PairDetailPageProps) {
                   size="sm"
                   className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white border-0"
                 >
-                  <Link
-                    href={`https://www.tradingview.com/chart/?symbol=${pair.symbol}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                  >
-                    <ArrowUpRight className="w-3 h-3 mr-1" />
-                    View
-                  </Link>
+                  <Link href={`/pair`}>Back to Pairs</Link>
                 </Button>
               </div>
             </div>
           </div>
         </div>
 
-        <div className="container mx-auto px-6 py-4 h-[calc(100vh-120px)] overflow-hidden">
-          {/* Main Content Grid */}
-          <div className="grid grid-cols-1 xl:grid-cols-4 gap-8 h-full">
-            {/* Left Column - Chart and Performance */}
-            <div className="xl:col-span-3 space-y-8 overflow-y-auto pr-4 scrollbar-thin scrollbar-thumb-white/20 scrollbar-track-transparent">
-              {/* Chart */}
-              <div className="bg-white/10 backdrop-blur-md rounded-xl border border-white/20 p-6">
-                <BacktestChart
-                  data={pair.backtestData}
-                  symbol={pair.symbol}
-                  metrics={pair.metrics}
-                />
-              </div>
-
-              {/* Performance Metrics */}
-              <div className="bg-white/10 backdrop-blur-md rounded-xl border border-white/20 p-6">
-                <StatsGrid
-                  metrics={pair.metrics}
-                  backtestData={pair.backtestData}
-                />
-              </div>
-            </div>
-
-            {/* Right Column - Strategy Info and Actions */}
-            <div className="xl:col-span-1 space-y-6 overflow-y-auto pr-4 scrollbar-thin scrollbar-thumb-white/20 scrollbar-track-transparent">
-              {/* Subscribe Section */}
-              <div className="bg-white/10 backdrop-blur-md border border-white/20 rounded-xl p-6">
-                <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
-                  <div className="w-2 h-2 bg-gradient-to-r from-green-400 to-blue-500 rounded-full"></div>
-                  Subscribe to Strategy
-                </h3>
-                <PairSubscribeWrapper
-                  pairId={pair.id}
-                  pairSymbol={pair.symbol}
-                />
-              </div>
-
-              {/* Performance Summary */}
-              <div className="bg-white/10 backdrop-blur-md border border-white/20 rounded-xl p-6">
-                <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+        <div className="container mx-auto px-0 py-2 md:px-6 md:py-4">
+          <div className="grid grid-cols-1 xl:grid-cols-6 gap-2 h-full">
+            <div className="xl:col-span-4 space-y-4 md:space-y-8 overflow-y-auto pr-0 md:pr-4 scrollbar-thin scrollbar-thumb-white/20 scrollbar-track-transparent">
+              {/* Pricing & Info Card moved above Backtest Metrics */}
+              <Card className="bg-white/10 backdrop-blur-md border border-white/20 rounded-xl p-3 md:p-6 md:py-4 gap-0">
+                <h3 className="text-lg font-semibold text-white flex items-center gap-2">
                   <BarChart3 className="w-5 h-5 text-blue-400" />
-                  Performance Summary
+                  Pricing & Info
                 </h3>
-                <div className="space-y-4">
+                <div className="space-y-1">
+                  {/* Updated At - attractive style */}
+                  <div className="my-2 flex items-center justify-end">
+                    <span className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-gradient-to-r from-blue-700/80 to-purple-700/80 text-xs font-semibold text-white shadow-lg border border-white/20">
+                      <Clock className="w-4 h-4 text-white/70" />
+                      Updated:{' '}
+                      {new Date(pair.updatedAt).toLocaleString(undefined, {
+                        dateStyle: 'medium',
+                        timeStyle: 'short',
+                      })}
+                    </span>
+                  </div>
+
                   <div className="flex justify-between items-center">
-                    <span className="text-white/70">Total Profit</span>
-                    <span
-                      className={`font-semibold ${
-                        pair.metrics.profit > 0
-                          ? 'text-green-400'
-                          : 'text-red-400'
-                      }`}
-                    >
-                      ${pair.metrics.profit.toLocaleString()}
+                    <span className="text-white/70">Symbol</span>
+                    <span className="text-white font-mono">{pair.symbol}</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-white/70">Timeframe</span>
+                    <Badge className="bg-blue-500/20 text-white/70 border-blue-500/30">
+                      {pair.timeframe}
+                    </Badge>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-white/70">ID</span>
+                    <span className="text-white font-mono max-w-[150px] truncate md:max-w-none">
+                      {pair.id}
                     </span>
                   </div>
                   <div className="flex justify-between items-center">
-                    <span className="text-white/70">Win Rate</span>
-                    <span className="text-blue-400 font-semibold">
-                      {pair.metrics.winRate.toFixed(1)}%
-                    </span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-white/70">Risk/Reward</span>
-                    <span className="text-orange-400 font-semibold">
-                      {pair.metrics.riskReward.toFixed(1)}
+                    <span className="text-white/70">Created</span>
+                    <span className="text-white/80">
+                      {new Date(pair.createdAt).toLocaleString(undefined, {
+                        dateStyle: 'medium',
+                        timeStyle: 'short',
+                      })}
                     </span>
                   </div>
                 </div>
-              </div>
-
-              {/* Strategy Details */}
-              <div className="bg-white/10 backdrop-blur-md border border-white/20 rounded-xl p-6">
-                <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+              </Card>
+              {/* Backtest Metrics */}
+              <Card className="bg-white/10 backdrop-blur-md rounded-xl border border-white/20 p-3 md:p-6">
+                <h2 className="text-xl font-bold text-white mb-4">
+                  Backtest Metrics
+                </h2>
+                {/* BacktestChart for List of trades (Exit long) */}
+                {(() => {
+                  const trades = Array.isArray(pair.metrics?.['List of trades'])
+                    ? pair.metrics['List of trades'].filter(
+                        (t: any) => t['Type'] === 'Exit long'
+                      )
+                    : [];
+                  if (!trades.length) {
+                    return (
+                      <div className="text-white/60 text-sm mb-4">
+                        No 'Exit long' trades found for chart.
+                      </div>
+                    );
+                  }
+                  // Map trades to BacktestChart expected format
+                  const chartData = {
+                    startDate: trades[0]['Date/Time']
+                      ? excelDateToISO(trades[0]['Date/Time'])
+                      : '',
+                    endDate: trades[trades.length - 1]['Date/Time']
+                      ? excelDateToISO(trades[trades.length - 1]['Date/Time'])
+                      : '',
+                    initialBalance: trades[0]['Cumulative P&L USDT'] ?? 0,
+                    finalBalance:
+                      trades[trades.length - 1]['Cumulative P&L USDT'] ?? 0,
+                    equityCurve: trades.map((t: any) => ({
+                      date: t['Date/Time']
+                        ? excelDateToISO(t['Date/Time'])
+                        : '',
+                      value:
+                        typeof t['Cumulative P&L USDT'] === 'number'
+                          ? t['Cumulative P&L USDT']
+                          : 0,
+                    })),
+                  };
+                  // Optionally, pass metrics (roi, maxDrawdown) if available
+                  let roi = 0;
+                  if (chartData.initialBalance !== 0) {
+                    roi =
+                      ((chartData.finalBalance - chartData.initialBalance) /
+                        Math.abs(chartData.initialBalance)) *
+                      100;
+                  }
+                  // Calculate max drawdown (simple version)
+                  let maxDrawdown = 0;
+                  let peak = chartData.initialBalance;
+                  chartData.equityCurve.forEach((pt) => {
+                    if (pt.value > peak) peak = pt.value;
+                    const dd = (peak - pt.value) / peak;
+                    if (dd > maxDrawdown) maxDrawdown = dd;
+                  });
+                  return (
+                    <div className="mb-6">
+                      <BacktestChart
+                        data={chartData}
+                        symbol={pair.symbol}
+                        metrics={{ roi, maxDrawdown }}
+                      />
+                    </div>
+                  );
+                })()}
+              </Card>
+              {/* Trades analysis section */}
+              <Card className="bg-white/10 backdrop-blur-md border border-white/20 rounded-xl px-3 md:px-6 mt-4 md:mt-8">
+                <h3 className="text-lg font-semibold text-white flex items-center gap-2">
                   <Activity className="w-5 h-5 text-purple-400" />
-                  Strategy Details
+                  Performance Metrics
                 </h3>
-                <div className="space-y-4">
-                  <div>
-                    <h4 className="text-sm font-medium text-white mb-2">
-                      Description
-                    </h4>
-                    <p className="text-sm text-white/70 leading-relaxed">
-                      {pair.description ||
-                        `Advanced trading strategy for ${pair.symbol} with proven performance metrics and risk management.`}
-                    </p>
+                {Array.isArray(pair.metrics['Performance']) &&
+                pair.metrics['Performance'].length > 0 ? (
+                  <div className="overflow-x-auto">
+                    <table className="min-w-full text-xs text-white/80 bg-black/20 rounded">
+                      <thead>
+                        <tr>
+                          <th className="px-2 py-1 text-left font-semibold"></th>
+                          <th className="px-2 py-1 text-right font-semibold">
+                            All %
+                          </th>
+                          <th className="px-2 py-1 text-right font-semibold">
+                            All USDT
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {pair.metrics['Performance'].map(
+                          (row: any, idx: number) => (
+                            <tr key={idx} className="border-t border-white/10">
+                              <td className="px-2 py-1 text-left">
+                                {row['__EMPTY']}
+                              </td>
+                              <td className="px-2 py-1 text-right">
+                                {row['All %'] !== ''
+                                  ? Number(row['All %']).toLocaleString(
+                                      undefined,
+                                      { maximumFractionDigits: 4 }
+                                    )
+                                  : '-'}
+                              </td>
+                              <td className="px-2 py-1 text-right">
+                                {row['All USDT'] !== ''
+                                  ? Number(row['All USDT']).toLocaleString(
+                                      undefined,
+                                      { maximumFractionDigits: 2 }
+                                    )
+                                  : '-'}
+                              </td>
+                            </tr>
+                          )
+                        )}
+                      </tbody>
+                    </table>
                   </div>
-
-                  <div className="space-y-3 text-sm border-t border-white/10 pt-4">
-                    <div className="flex justify-between">
-                      <span className="text-white/60">Strategy ID</span>
-                      <span className="text-white font-mono">
-                        #{pair.id.padStart(6, '0')}
-                      </span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-white/60">Timeframe</span>
-                      <Badge className="bg-blue-500/20 text-blue-400 border-blue-500/30">
-                        {pair.timeframe}
-                      </Badge>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-white/60">Status</span>
-                      <Badge className="bg-green-500/20 text-green-400 border-green-500/30">
-                        Active
-                      </Badge>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-white/60">Last Updated</span>
-                      <span className="text-white/80">7 days ago</span>
-                    </div>
+                ) : (
+                  <div className="text-white/60">
+                    No performance data available.
                   </div>
+                )}
+                {/* Risk performance ratios section */}
+                <div className="mt-1">
+                  <h3 className="text-lg font-semibold text-white flex items-center gap-2 mb-2">
+                    <Activity className="w-5 h-5 text-purple-400" />
+                    Risk performance ratios
+                  </h3>
+                  {Array.isArray(pair.metrics['Risk performance ratios']) &&
+                  pair.metrics['Risk performance ratios'].length > 0 ? (
+                    <div className="overflow-x-auto">
+                      <table className="min-w-full text-xs text-white/80 bg-black/20 rounded">
+                        <thead>
+                          <tr>
+                            <th className="px-2 py-1 text-left font-semibold"></th>
+                            <th className="px-2 py-1 text-right font-semibold">
+                              All %
+                            </th>
+                            <th className="px-2 py-1 text-right font-semibold">
+                              All USDT
+                            </th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {pair.metrics['Risk performance ratios'].map(
+                            (row: any, idx: number) => (
+                              <tr
+                                key={idx}
+                                className="border-t border-white/10"
+                              >
+                                <td className="px-2 py-1 text-left">
+                                  {row['__EMPTY']}
+                                </td>
+                                <td className="px-2 py-1 text-right">
+                                  {row['All %'] !== ''
+                                    ? Number(row['All %']).toLocaleString(
+                                        undefined,
+                                        { maximumFractionDigits: 4 }
+                                      )
+                                    : '-'}
+                                </td>
+                                <td className="px-2 py-1 text-right">
+                                  {row['All USDT'] !== ''
+                                    ? Number(row['All USDT']).toLocaleString(
+                                        undefined,
+                                        { maximumFractionDigits: 2 }
+                                      )
+                                    : '-'}
+                                </td>
+                              </tr>
+                            )
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+                  ) : (
+                    <div className="text-white/60">
+                      No risk performance ratio data available.
+                    </div>
+                  )}
                 </div>
-              </div>
+              </Card>
             </div>
-          </div>
 
-          {/* Disclaimer at bottom */}
-          <div className="mt-12">
-            <div className="bg-white/5 backdrop-blur-sm rounded-xl border border-white/10 p-6">
-              <DisclaimerBox />
+            <div className="xl:col-span-2 space-y-4 pr-0 md:pr-4 scrollbar-thin scrollbar-thumb-white/20 scrollbar-track-transparent">
+              <Card className="bg-white/10 backdrop-blur-md border border-white/20 rounded-xl px-3 md:px-6">
+                {/* Properties section */}
+                <div className="">
+                  <h3 className="text-lg font-semibold text-white flex items-center gap-2 mb-2">
+                    <Activity className="w-5 h-5 text-purple-400" />
+                    Properties
+                  </h3>
+                  {Array.isArray(pair.metrics['Properties']) &&
+                  pair.metrics['Properties'].length > 0 ? (
+                    <div className="overflow-x-auto">
+                      <table className="min-w-full text-xs text-white/80 bg-black/20 rounded">
+                        <thead>
+                          <tr>
+                            <th className="px-2 py-1 text-left font-semibold">
+                              Name
+                            </th>
+                            <th className="px-2 py-1 text-left font-semibold">
+                              Value
+                            </th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {[
+                            pair.metrics['Properties'][0],
+                            pair.metrics['Properties'][2],
+                            pair.metrics['Properties'][3],
+                            pair.metrics['Properties'][5],
+                            pair.metrics['Properties'][6],
+                            pair.metrics['Properties'][73],
+                            pair.metrics['Properties'][74],
+                            pair.metrics['Properties'][75],
+                            pair.metrics['Properties'][76],
+                          ].map((row: any, idx: number) => (
+                            <tr key={idx} className="border-t border-white/10">
+                              <td className="px-2 py-1 font-semibold text-white/90 whitespace-nowrap">
+                                {row.name}
+                              </td>
+                              <td className="px-2 py-1 text-left">
+                                {row.value}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  ) : (
+                    <div className="text-white/60">
+                      No properties data available.
+                    </div>
+                  )}
+                </div>
+              </Card>
+              {/* Trades analysis */}
+              <Card className="bg-white/10 backdrop-blur-md border border-white/20 rounded-xl px-3 md:px-6">
+                <div>
+                  <h3 className="text-lg font-semibold text-white flex items-center gap-2 mb-2">
+                    <Activity className="w-5 h-5 text-purple-400" />
+                    Trades analysis
+                  </h3>
+                  {Array.isArray(pair.metrics['Trades analysis']) &&
+                  pair.metrics['Trades analysis'].length > 0 ? (
+                    <div className="overflow-x-auto">
+                      <table className="min-w-full text-xs text-white/80 bg-black/20 rounded">
+                        <thead>
+                          <tr>
+                            <th className="px-2 py-1 text-left font-semibold"></th>
+                            <th className="px-2 py-1 text-right font-semibold">
+                              All %
+                            </th>
+                            <th className="px-2 py-1 text-right font-semibold">
+                              All USDT
+                            </th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {pair.metrics['Trades analysis'].map(
+                            (row: any, idx: number) => (
+                              <tr
+                                key={idx}
+                                className="border-t border-white/10"
+                              >
+                                <td className="px-2 py-1 text-left">
+                                  {row['__EMPTY']}
+                                </td>
+                                <td className="px-2 py-1 text-right">
+                                  {row['All %'] !== ''
+                                    ? Number(row['All %']).toLocaleString(
+                                        undefined,
+                                        { maximumFractionDigits: 4 }
+                                      )
+                                    : '-'}
+                                </td>
+                                <td className="px-2 py-1 text-right">
+                                  {row['All USDT'] !== ''
+                                    ? Number(row['All USDT']).toLocaleString(
+                                        undefined,
+                                        { maximumFractionDigits: 2 }
+                                      )
+                                    : '-'}
+                                </td>
+                              </tr>
+                            )
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+                  ) : (
+                    <div className="text-white/60">
+                      No trades analysis data available.
+                    </div>
+                  )}
+                </div>
+              </Card>
             </div>
           </div>
         </div>
@@ -283,20 +441,17 @@ export default async function PairDetailPage({ params }: PairDetailPageProps) {
   );
 }
 
-export async function generateMetadata({ params }: PairDetailPageProps) {
-  const { id } = await params;
-  const pair = await getPairData(id);
-
-  if (!pair) {
-    return {
-      title: 'Pair Not Found',
-    };
-  }
-
-  return {
-    title: `${pair.symbol} - ${pair.name} | AlgoMakers.Ai`,
-    description:
-      pair.description ||
-      `View detailed backtest results and subscribe to ${pair.symbol} trading signals.`,
-  };
+// Helper: Convert Excel serial date to ISO string (YYYY-MM-DD)
+function excelDateToISO(serial: number | string): string {
+  // Excel date serials: days since 1899-12-31
+  const s = typeof serial === 'string' ? parseFloat(serial) : serial;
+  if (isNaN(s)) return '';
+  const utc_days = Math.floor(s - 25569);
+  const utc_value = utc_days * 86400;
+  const date_info = new Date(utc_value * 1000);
+  // Add fractional day as time
+  const fractionalDay = s - Math.floor(s);
+  const totalSeconds = Math.round(86400 * fractionalDay);
+  date_info.setSeconds(date_info.getSeconds() + totalSeconds);
+  return date_info.toISOString();
 }
