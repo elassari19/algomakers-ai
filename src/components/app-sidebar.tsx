@@ -2,7 +2,7 @@
 
 import * as React from 'react';
 import Link from 'next/link';
-import { LayoutDashboard, PieChart, Receipt, Briefcase } from 'lucide-react';
+import { LayoutDashboard, PieChart, Receipt, Briefcase, Users, BarChart2 } from 'lucide-react';
 
 import { NavMain } from '@/components/nav-main';
 import {
@@ -171,9 +171,41 @@ const data = {
     //   highlightGradient: true,
     // },
   ],
+  consoleNav: [
+    {
+      title: 'Audit Logs',
+      url: '/console',
+      icon: LayoutDashboard,
+    },
+    {
+      title: 'Backtests',
+      url: '/console/backtests',
+      icon: PieChart,
+    },
+    {
+      title: 'Users',
+      url: '/console/users',
+      icon: Users,
+    },
+    {
+      title: 'Subscriptions',
+      url: '/console/subscriptions',
+      icon: Briefcase,
+    },
+    {
+      title: 'Billing',
+      url: '/console/billing',
+      icon: Receipt,
+    },
+    { title: 'Analytics', url: '/console/analytics', icon: BarChart2 },
+  ]
 };
 
-export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
+type AppSidebarProps = React.ComponentProps<typeof Sidebar> & {
+  isAdmin?: boolean;
+};
+
+export function AppSidebar({ isAdmin, ...props }: AppSidebarProps) {
   return (
     <Sidebar
       collapsible="icon"
@@ -191,7 +223,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         </Link>
       </SidebarHeader>
       <SidebarContent>
-        <NavMain items={data.navMain} />
+        <NavMain items={isAdmin ? data.consoleNav : data.navMain} />
       </SidebarContent>
       <SidebarFooter>
         <UserAvatarMenu showName={true} size="default" className="ml-2" />
