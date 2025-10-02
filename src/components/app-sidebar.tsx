@@ -174,30 +174,30 @@ const data = {
   consoleNav: [
     {
       title: 'Audit Logs',
-      url: '/console',
+      url: '/console/1',
       icon: LayoutDashboard,
     },
     {
       title: 'Backtests',
-      url: '/console/backtests',
+      url: '/console/1/backtests',
       icon: PieChart,
     },
     {
       title: 'Users',
-      url: '/console/users',
+      url: '/console/1/users',
       icon: Users,
     },
     {
       title: 'Subscriptions',
-      url: '/console/subscriptions',
+      url: '/console/1/subscriptions',
       icon: Briefcase,
     },
     {
       title: 'Billing',
-      url: '/console/billing',
+      url: '/console/1/billing',
       icon: Receipt,
     },
-    { title: 'Analytics', url: '/console/analytics', icon: BarChart2 },
+    { title: 'Analytics', url: '/console/1/analytics', icon: BarChart2 },
   ]
 };
 
