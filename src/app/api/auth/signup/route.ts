@@ -3,6 +3,7 @@ import bcrypt from 'bcryptjs';
 import { prisma } from '@/lib/prisma';
 import { z } from 'zod';
 import { EmailService } from '@/lib/email-service';
+import { createAuditLog, AuditAction, AuditTargetType } from '@/lib/audit';
 
 const signupSchema = z.object({
   name: z.string().min(2, 'Name must be at least 2 characters'),
@@ -70,7 +71,7 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    // Log user creation event
+    // Log user creation event (existing Event model)
     await prisma.event.create({
       data: {
         userId: user.id,
@@ -81,6 +82,23 @@ export async function POST(request: NextRequest) {
         },
       },
     });
+
+    // Create audit log only for non-USER roles (signup defaults to USER role, so no audit log)
+    if (user.role !== 'USER') {
+      await createAuditLog({
+        adminId: user.id,
+        action: AuditAction.CREATE_USER,
+        targetType: AuditTargetType.USER,
+        targetId: user.id,
+        details: {
+          email: user.email,
+          name: user.name,
+          hasTradingViewUsername: !!tradingViewUsername,
+          role: user.role,
+          action: 'self_registration',
+        },
+      });
+    }
 
     // Send welcome email
     try {

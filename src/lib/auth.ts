@@ -6,6 +6,7 @@ import DiscordProvider from 'next-auth/providers/discord';
 import CredentialsProvider from 'next-auth/providers/credentials';
 import bcrypt from 'bcryptjs';
 import { prisma } from '@/lib/prisma';
+import { createAuditLog, AuditAction, AuditTargetType } from '@/lib/audit';
 
 export const authOptions: AuthOptions = {
   adapter: PrismaAdapter(prisma),
@@ -40,6 +41,20 @@ export const authOptions: AuthOptions = {
         });
 
         if (!user || !user.passwordHash) {
+          // Create audit log for failed login attempt (user not found) if it's not a USER
+          if (user?.role && user.role !== 'USER') {
+            await createAuditLog({
+              adminId: user.id,
+              action: AuditAction.FAILED_LOGIN,
+              targetType: AuditTargetType.USER,
+              targetId: user.id,
+              details: {
+                email: credentials.email,
+                reason: 'user_not_found_or_no_password',
+                role: user.role,
+              },
+            });
+          }
           return null;
         }
 
@@ -49,6 +64,20 @@ export const authOptions: AuthOptions = {
         );
 
         if (!isPasswordValid) {
+          // Create audit log for failed login attempt (invalid password) if it's not a USER
+          if (user.role !== 'USER') {
+            await createAuditLog({
+              adminId: user.id,
+              action: AuditAction.FAILED_LOGIN,
+              targetType: AuditTargetType.USER,
+              targetId: user.id,
+              details: {
+                email: user.email,
+                reason: 'invalid_password',
+                role: user.role,
+              },
+            });
+          }
           return null;
         }
 
@@ -98,7 +127,7 @@ export const authOptions: AuthOptions = {
   },
   events: {
     async signIn({ user, account, isNewUser }) {
-      // Log the sign-in event
+      // Log the sign-in event (existing Event model)
       if (user.id) {
         await prisma.event.create({
           data: {
@@ -110,10 +139,32 @@ export const authOptions: AuthOptions = {
             },
           },
         });
+
+        // Get user role to determine if audit log should be created
+        const userWithRole = await prisma.user.findUnique({
+          where: { id: user.id },
+          select: { role: true },
+        });
+
+        // Create audit log only for non-USER roles
+        if (userWithRole?.role && userWithRole.role !== 'USER') {
+          await createAuditLog({
+            adminId: user.id,
+            action: AuditAction.LOGIN,
+            targetType: AuditTargetType.USER,
+            targetId: user.id,
+            details: {
+              provider: account?.provider || 'credentials',
+              isNewUser: isNewUser || false,
+              email: user.email,
+              role: userWithRole.role,
+            },
+          });
+        }
       }
     },
     async createUser({ user }) {
-      // Log the user creation event
+      // Log the user creation event (existing Event model)
       if (user.id) {
         await prisma.event.create({
           data: {
@@ -125,6 +176,28 @@ export const authOptions: AuthOptions = {
             },
           },
         });
+
+        // Get user role to determine if audit log should be created
+        const userWithRole = await prisma.user.findUnique({
+          where: { id: user.id },
+          select: { role: true },
+        });
+
+        // Create audit log only for non-USER roles (OAuth users default to USER role)
+        if (userWithRole?.role && userWithRole.role !== 'USER') {
+          await createAuditLog({
+            adminId: user.id,
+            action: AuditAction.CREATE_USER,
+            targetType: AuditTargetType.USER,
+            targetId: user.id,
+            details: {
+              email: user.email,
+              name: user.name,
+              method: 'oauth',
+              role: userWithRole.role,
+            },
+          });
+        }
       }
     },
   },

@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma';
 import { z } from 'zod';
 import { EmailService } from '@/lib/email-service';
 import { randomBytes } from 'crypto';
+import { createAuditLog, AuditAction, AuditTargetType } from '@/lib/audit';
 
 const forgotPasswordSchema = z.object({
   email: z.string().email('Invalid email address'),
@@ -104,7 +105,7 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    // Log the password reset request
+    // Log the password reset request (existing Event model)
     await prisma.event.create({
       data: {
         userId: user.id,
@@ -116,6 +117,28 @@ export async function POST(request: NextRequest) {
         },
       },
     });
+
+    // Get user role to determine if audit log should be created
+    const userWithRole = await prisma.user.findUnique({
+      where: { id: user.id },
+      select: { role: true },
+    });
+
+    // Create audit log only for non-USER roles
+    if (userWithRole?.role && userWithRole.role !== 'USER') {
+      await createAuditLog({
+        adminId: user.id,
+        action: AuditAction.PASSWORD_RESET,
+        targetType: AuditTargetType.USER,
+        targetId: user.id,
+        details: {
+          email: user.email,
+          resetTokenExpiry: resetTokenExpiry.toISOString(),
+          action: 'password_reset_requested',
+          role: userWithRole.role,
+        },
+      });
+    }
 
     return NextResponse.json({
       message:

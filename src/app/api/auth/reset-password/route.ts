@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { z } from 'zod';
 import bcrypt from 'bcryptjs';
+import { createAuditLog, AuditAction, AuditTargetType } from '@/lib/audit';
 
 const resetPasswordSchema = z.object({
   token: z.string().min(1, 'Reset token is required'),
@@ -55,7 +56,7 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    // Log successful password reset
+    // Log successful password reset (existing Event model)
     await prisma.event.create({
       data: {
         userId: user.id,
@@ -66,6 +67,27 @@ export async function POST(request: NextRequest) {
         },
       },
     });
+
+    // Get user role to determine if audit log should be created
+    const userWithRole = await prisma.user.findUnique({
+      where: { id: user.id },
+      select: { role: true },
+    });
+
+    // Create audit log only for non-USER roles
+    if (userWithRole?.role && userWithRole.role !== 'USER') {
+      await createAuditLog({
+        adminId: user.id,
+        action: AuditAction.PASSWORD_RESET,
+        targetType: AuditTargetType.USER,
+        targetId: user.id,
+        details: {
+          email: user.email,
+          action: 'password_reset_completed',
+          role: userWithRole.role,
+        },
+      });
+    }
 
     return NextResponse.json({
       message: 'Password has been reset successfully',
