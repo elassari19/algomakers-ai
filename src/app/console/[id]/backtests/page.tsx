@@ -12,7 +12,7 @@ import BacktestForm from '@/components/console/BacktestForm';
 import UpdateBacktestForm from '@/components/console/UpdateBacktestForm';
 import { Card } from '@/components/ui/card';
 // Modal implementation (replace with your Modal component)
-import UploadDialog from './UploadDialog';
+import UploadDialog from '../UploadDialog';
 import { GradientBackground } from '@/components/ui/gradient-background';
 
 // Table columns definition
@@ -38,7 +38,7 @@ function ActionButtons({
   return (
     <div className="flex gap-2 items-center">
       <Link
-        href={`/console/1/${row.id}`}
+        href={`/console/1/backtests/${row.id}`}
         className="hover:text-white text-white/70"
         title="View"
       >
@@ -304,7 +304,7 @@ const ConsolePage = () => {
   };
 
   // Handle next step after upload
-  const handleNextStep = async (nextSymbol: string, nextTimeframe: string) => {
+  /*const handleNextStep = async (nextSymbol: string, nextTimeframe: string) => {
     // Only proceed if both symbol and timeframe are present
     if (!nextSymbol || !nextTimeframe) {
       alert('Symbol and Timeframe must be present in the Properties sheet.');
@@ -321,7 +321,7 @@ const ConsolePage = () => {
       setStep('form');
     }
     setIsModalOpen(false);
-  };
+  };*/
 
   // Handle cancel button
   const handleCancel = () => {
@@ -535,55 +535,58 @@ const ConsolePage = () => {
             )}
 
             {/* Backtest Table */}
-            <Card className="bg-white/5 backdrop-blur-md border-white/20 shadow-xl mt-0">
-              <ReusableTable
-                data={backtests}
-                columns={columns}
-                title="Backtest Files"
-                subtitle="List of uploaded backtests and their metrics."
-                itemsPerPage={10}
-                frozenColumnKey="symbol"
-              />
-              {/* Delete Modal */}
-              <Dialog open={deleteModalOpen} onOpenChange={setDeleteModalOpen}>
-                <DialogContent className="max-w-md">
-                  <DialogHeader>
-                    <DialogTitle>Delete Backtest</DialogTitle>
-                  </DialogHeader>
-                  {deleteRow && (
-                    <div className="space-y-4">
-                      <div className="text-lg font-semibold text-red-600">
-                        Are you sure you want to delete this backtest?
+            <Card className="flex bg-white/5 backdrop-blur-md border-white/20 shadow-xl mt-0">
+              <div className="flex-1 min-h-0 space-y-4">
+                <ReusableTable
+                  data={backtests}
+                  columns={columns}
+                  title="Backtest Files"
+                  subtitle="List of uploaded backtests and their metrics."
+                  itemsPerPage={10}
+                  frozenColumnKey="symbol"
+                  className=''
+                />
+                {/* Delete Modal */}
+                <Dialog open={deleteModalOpen} onOpenChange={setDeleteModalOpen}>
+                  <DialogContent className="max-w-md">
+                    <DialogHeader>
+                      <DialogTitle>Delete Backtest</DialogTitle>
+                    </DialogHeader>
+                    {deleteRow && (
+                      <div className="space-y-4">
+                        <div className="text-lg font-semibold text-red-600">
+                          Are you sure you want to delete this backtest?
+                        </div>
+                        <div className="text-white/90">
+                          Symbol:{' '}
+                          <span className="font-mono">{deleteRow.symbol}</span>
+                        </div>
+                        <div className="text-white/90">
+                          Timeframe:{' '}
+                          <span className="font-mono">{deleteRow.timeframe}</span>
+                        </div>
+                        <div className="text-yellow-400 text-sm">
+                          This action cannot be undone.
+                        </div>
+                        <div className="flex gap-4 justify-end mt-6">
+                          <Button
+                            variant="outline"
+                            onClick={() => setDeleteModalOpen(false)}
+                          >
+                            Cancel
+                          </Button>
+                          <Button
+                            variant="destructive"
+                            onClick={handleDeleteConfirm}
+                          >
+                            Delete
+                          </Button>
+                        </div>
                       </div>
-                      <div className="text-white/90">
-                        Symbol:{' '}
-                        <span className="font-mono">{deleteRow.symbol}</span>
-                      </div>
-                      <div className="text-white/90">
-                        Timeframe:{' '}
-                        <span className="font-mono">{deleteRow.timeframe}</span>
-                      </div>
-                      <div className="text-yellow-400 text-sm">
-                        This action cannot be undone.
-                      </div>
-                      <div className="flex gap-4 justify-end mt-6">
-                        <Button
-                          variant="outline"
-                          onClick={() => setDeleteModalOpen(false)}
-                        >
-                          Cancel
-                        </Button>
-                        <Button
-                          variant="destructive"
-                          onClick={handleDeleteConfirm}
-                        >
-                          Delete
-                        </Button>
-                      </div>
-                    </div>
-                  )}
-                </DialogContent>
-              </Dialog>
+                    )}
+                  </DialogContent>
+                </Dialog>
+              </div>
             </Card>
           </div>
         </div>
