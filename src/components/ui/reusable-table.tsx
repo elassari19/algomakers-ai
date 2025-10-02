@@ -497,7 +497,7 @@ export function ReusableTable<T = any>({
                         column.width || ''
                       } ${getAlignmentClass(column.align)} ${
                         frozenColumnKey && column.key === frozenColumnKey
-                          ? 'sticky left-0 z-20 bg-slate-700/80 backdrop-blur-lg'
+                          ? 'sticky left-0 z-20 bg-muted/50 backdrop-blur-lg'
                           : ''
                       }`}
                       style={
@@ -548,7 +548,7 @@ export function ReusableTable<T = any>({
                             column.width || ''
                           } ${getAlignmentClass(column.align)} ${
                             frozenColumnKey && column.key === frozenColumnKey
-                              ? 'sticky left-0 z-10 bg-slate-600/80 backdrop-blur-md'
+                              ? 'sticky left-0 z-10 bg-muted/30 backdrop-blur-md'
                               : ''
                           }`}
                           style={
