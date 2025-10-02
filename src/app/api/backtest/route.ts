@@ -1,5 +1,8 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
+import { getServerSession } from 'next-auth/next';
+import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
+import { createAuditLog, AuditAction, AuditTargetType } from '@/lib/audit';
 
 // GET /api/backtest?symbol=BTCUSD&timeframe=1H
 export async function GET(request: Request) {
@@ -63,34 +66,40 @@ export async function GET(request: Request) {
 }
 
 // POST /api/backtest
-export async function POST(request: Request) {
-  const body = await request.json();
-  const {
-    symbol,
-    metrics,
-    priceOneMonth,
-    priceThreeMonths,
-    priceSixMonths,
-    priceTwelveMonths,
-    discountOneMonth,
-    discountThreeMonths,
-    discountSixMonths,
-    discountTwelveMonths,
-    timeframe,
-  } = body;
-
-  // Parse all price/discount fields as float
-  const parseNum = (v: any) =>
-    v === '' || v === null || typeof v === 'undefined' ? 0 : parseFloat(v);
-
-  if (!symbol || !timeframe) {
-    return NextResponse.json(
-      { error: 'Missing symbol or timeframe' },
-      { status: 400 }
-    );
-  }
-
+export async function POST(request: NextRequest) {
   try {
+    const session = await getServerSession(authOptions);
+
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const body = await request.json();
+    const {
+      symbol,
+      metrics,
+      priceOneMonth,
+      priceThreeMonths,
+      priceSixMonths,
+      priceTwelveMonths,
+      discountOneMonth,
+      discountThreeMonths,
+      discountSixMonths,
+      discountTwelveMonths,
+      timeframe,
+    } = body;
+
+    // Parse all price/discount fields as float
+    const parseNum = (v: any) =>
+      v === '' || v === null || typeof v === 'undefined' ? 0 : parseFloat(v);
+
+    if (!symbol || !timeframe) {
+      return NextResponse.json(
+        { error: 'Missing symbol or timeframe' },
+        { status: 400 }
+      );
+    }
+
     const pair = await prisma.pair.create({
       data: {
         symbol,
@@ -106,6 +115,37 @@ export async function POST(request: Request) {
         timeframe,
       },
     });
+
+    // Log based on user role: USER -> audit, non-USER -> event
+    if (session.user.role !== 'USER') {
+      // Create audit log for USER role
+      await createAuditLog({
+        adminId: session.user.id,
+        action: AuditAction.CREATE_PAIR,
+        targetType: AuditTargetType.PAIR,
+        targetId: pair.id,
+        details: {
+          symbol: pair.symbol,
+          timeframe: pair.timeframe,
+          userEmail: session.user.email,
+        },
+      });
+    } else {
+      // Create event for non-USER roles
+      await prisma.event.create({
+        data: {
+          userId: session.user.id,
+          eventType: 'BACKTEST_CREATED',
+          metadata: {
+            pairId: pair.id,
+            symbol: pair.symbol,
+            timeframe: pair.timeframe,
+            userRole: session.user.role,
+          },
+        },
+      });
+    }
+
     return NextResponse.json({ success: true, pair });
   } catch (error) {
     const message =
@@ -117,32 +157,38 @@ export async function POST(request: Request) {
 }
 
 // PATCH /api/backtest
-export async function PATCH(request: Request) {
-  const body = await request.json();
-  const {
-    id,
-    symbol,
-    metrics,
-    priceOneMonth,
-    priceThreeMonths,
-    priceSixMonths,
-    priceTwelveMonths,
-    discountOneMonth,
-    discountThreeMonths,
-    discountSixMonths,
-    discountTwelveMonths,
-    timeframe,
-  } = body;
-
-  // Parse all price/discount fields as float
-  const parseNum = (v: any) =>
-    v === '' || v === null || typeof v === 'undefined' ? 0 : parseFloat(v);
-
-  if (!id) {
-    return NextResponse.json({ error: 'Missing pair id' }, { status: 400 });
-  }
-
+export async function PATCH(request: NextRequest) {
   try {
+    const session = await getServerSession(authOptions);
+
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const body = await request.json();
+    const {
+      id,
+      symbol,
+      metrics,
+      priceOneMonth,
+      priceThreeMonths,
+      priceSixMonths,
+      priceTwelveMonths,
+      discountOneMonth,
+      discountThreeMonths,
+      discountSixMonths,
+      discountTwelveMonths,
+      timeframe,
+    } = body;
+
+    // Parse all price/discount fields as float
+    const parseNum = (v: any) =>
+      v === '' || v === null || typeof v === 'undefined' ? 0 : parseFloat(v);
+
+    if (!id) {
+      return NextResponse.json({ error: 'Missing pair id' }, { status: 400 });
+    }
+
     const pair = await prisma.pair.update({
       where: { id },
       data: {
@@ -159,6 +205,37 @@ export async function PATCH(request: Request) {
         timeframe,
       },
     });
+
+    // Log based on user role: USER -> audit, non-USER -> event
+    if (session.user.role !== 'USER') {
+      // Create audit log for USER role
+      await createAuditLog({
+        adminId: session.user.id,
+        action: AuditAction.UPDATE_PAIR,
+        targetType: AuditTargetType.PAIR,
+        targetId: pair.id,
+        details: {
+          symbol: pair.symbol,
+          timeframe: pair.timeframe,
+          userEmail: session.user.email,
+        },
+      });
+    } else {
+      // Create event for non-USER roles
+      await prisma.event.create({
+        data: {
+          userId: session.user.id,
+          eventType: 'BACKTEST_UPDATED',
+          metadata: {
+            pairId: pair.id,
+            symbol: pair.symbol,
+            timeframe: pair.timeframe,
+            userRole: session.user.role,
+          },
+        },
+      });
+    }
+
     return NextResponse.json({ success: true, pair });
   } catch (error) {
     const message =
@@ -170,14 +247,62 @@ export async function PATCH(request: Request) {
 }
 
 // DELETE /api/backtest?id=...
-export async function DELETE(request: Request) {
-  const { searchParams } = new URL(request.url);
-  const id = searchParams.get('id');
-  if (!id) {
-    return NextResponse.json({ error: 'Missing pair id' }, { status: 400 });
-  }
+export async function DELETE(request: NextRequest) {
   try {
+    const session = await getServerSession(authOptions);
+
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const { searchParams } = new URL(request.url);
+    const id = searchParams.get('id');
+    if (!id) {
+      return NextResponse.json({ error: 'Missing pair id' }, { status: 400 });
+    }
+
+    // Get pair info before deletion for logging
+    const pairToDelete = await prisma.pair.findUnique({
+      where: { id },
+      select: { id: true, symbol: true, timeframe: true },
+    });
+
+    if (!pairToDelete) {
+      return NextResponse.json({ error: 'Pair not found' }, { status: 404 });
+    }
+
     await prisma.pair.delete({ where: { id } });
+
+    // Log based on user role: USER -> audit, non-USER -> event
+    if (session.user.role !== 'USER') {
+      // Create audit log for USER role
+      await createAuditLog({
+        adminId: session.user.id,
+        action: AuditAction.DELETE_PAIR,
+        targetType: AuditTargetType.PAIR,
+        targetId: pairToDelete.id,
+        details: {
+          symbol: pairToDelete.symbol,
+          timeframe: pairToDelete.timeframe,
+          userEmail: session.user.email,
+        },
+      });
+    } else {
+      // Create event for non-USER roles
+      await prisma.event.create({
+        data: {
+          userId: session.user.id,
+          eventType: 'BACKTEST_DELETED',
+          metadata: {
+            pairId: pairToDelete.id,
+            symbol: pairToDelete.symbol,
+            timeframe: pairToDelete.timeframe,
+            userRole: session.user.role,
+          },
+        },
+      });
+    }
+
     return NextResponse.json({ success: true });
   } catch (error) {
     const message =

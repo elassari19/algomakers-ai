@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth/next';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
+import { createAuditLog, AuditAction, AuditTargetType } from '@/lib/audit';
 
 export async function GET(request: NextRequest) {
   try {
@@ -151,6 +152,132 @@ export async function GET(request: NextRequest) {
     });
   } catch (error) {
     console.error('Error fetching billing data:', error);
+    return NextResponse.json(
+      { error: 'Internal server error' },
+      { status: 500 }
+    );
+  }
+}
+
+// POST /api/billing - Create payment record
+export async function POST(request: NextRequest) {
+  try {
+    const session = await getServerSession(authOptions);
+
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const body = await request.json();
+    const { paymentData, subscriptionData } = body;
+
+    // Create payment (simplified - in real implementation you'd validate payment with payment processor)
+    const payment = await prisma.payment.create({
+      data: {
+        userId: session.user.id,
+        ...paymentData,
+      },
+    });
+
+    // Log based on user role: USER -> audit, non-USER -> event
+    if (session.user.role !== 'USER') {
+      // Create audit log for USER role
+      await createAuditLog({
+        adminId: session.user.id,
+        action: AuditAction.PROCESS_PAYMENT,
+        targetType: AuditTargetType.SUBSCRIPTION,
+        targetId: payment.id,
+        details: {
+          paymentId: payment.id,
+          amount: payment.totalAmount,
+          userEmail: session.user.email,
+        },
+      });
+    } else {
+      // Create event for non-USER roles
+      await prisma.event.create({
+        data: {
+          userId: session.user.id,
+          eventType: 'PAYMENT_CREATED',
+          metadata: {
+            paymentId: payment.id,
+            amount: payment.totalAmount,
+            userRole: session.user.role,
+          },
+        },
+      });
+    }
+
+    return NextResponse.json({ success: true, payment });
+  } catch (error) {
+    console.error('Error creating payment:', error);
+    return NextResponse.json(
+      { error: 'Internal server error' },
+      { status: 500 }
+    );
+  }
+}
+
+// PATCH /api/billing - Update payment status
+export async function PATCH(request: NextRequest) {
+  try {
+    const session = await getServerSession(authOptions);
+
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const body = await request.json();
+    const { paymentId, status, txHash } = body;
+
+    if (!paymentId) {
+      return NextResponse.json({ error: 'Missing payment ID' }, { status: 400 });
+    }
+
+    // Update payment
+    const payment = await prisma.payment.update({
+      where: { id: paymentId, userId: session.user.id },
+      data: {
+        status,
+        txHash,
+        updatedAt: new Date(),
+      },
+    });
+
+    // Log based on user role: USER -> audit, non-USER -> event
+    if (session.user.role !== 'USER') {
+      // Create audit log for USER role
+      await createAuditLog({
+        adminId: session.user.id,
+        action: AuditAction.PROCESS_PAYMENT,
+        targetType: AuditTargetType.SUBSCRIPTION,
+        targetId: payment.id,
+        details: {
+          paymentId: payment.id,
+          newStatus: status,
+          txHash: txHash,
+          userEmail: session.user.email,
+        },
+      });
+    } else {
+      // Create event for non-USER roles
+      await prisma.event.create({
+        data: {
+          userId: session.user.id,
+          eventType: 'PAYMENT_UPDATED',
+          metadata: {
+            paymentId: payment.id,
+            newStatus: status,
+            txHash: txHash,
+            userRole: session.user.role,
+          },
+        },
+      });
+    }
+
+    return NextResponse.json({ success: true, payment });
+  } catch (error) {
+    console.error('Error updating payment:', error);
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }
