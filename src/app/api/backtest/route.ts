@@ -10,6 +10,7 @@ export async function GET(request: Request) {
   const id = searchParams.get('id');
   const symbol = searchParams.get('symbol');
   const timeframe = searchParams.get('timeframe');
+  const strategy = searchParams.get('strategy');
 
   // If id is provided, fetch by id
   if (id) {
@@ -30,10 +31,10 @@ export async function GET(request: Request) {
   }
 
   // If symbol and timeframe are provided, fetch one
-  if (symbol && timeframe) {
+  if (symbol && timeframe && strategy) {
     try {
       const pair = await prisma.pair.findFirst({
-        where: { symbol, timeframe },
+        where: { symbol, timeframe, strategy },
       });
       if (!pair) {
         return NextResponse.json({ found: false });
@@ -77,7 +78,12 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const {
       symbol,
-      metrics,
+      performance,
+      strategy,
+      tradesAnalysis,
+      riskPerformanceRatios,
+      listOfTrades,
+      properties,
       priceOneMonth,
       priceThreeMonths,
       priceSixMonths,
@@ -103,7 +109,12 @@ export async function POST(request: NextRequest) {
     const pair = await prisma.pair.create({
       data: {
         symbol,
-        metrics,
+        performance,
+        strategy,
+        tradesAnalysis,
+        riskPerformanceRatios,
+        listOfTrades,
+        properties,
         priceOneMonth: parseNum(priceOneMonth),
         priceThreeMonths: parseNum(priceThreeMonths),
         priceSixMonths: parseNum(priceSixMonths),
@@ -127,7 +138,9 @@ export async function POST(request: NextRequest) {
         details: {
           symbol: pair.symbol,
           timeframe: pair.timeframe,
+          strategy: pair.strategy,
           userEmail: session.user.email,
+          user: session.user.name
         },
       });
     } else {
@@ -140,7 +153,10 @@ export async function POST(request: NextRequest) {
             pairId: pair.id,
             symbol: pair.symbol,
             timeframe: pair.timeframe,
+            strategy: pair.strategy,
             userRole: session.user.role,
+            user: session.user.name,
+            userEmail: session.user.email
           },
         },
       });
@@ -169,7 +185,13 @@ export async function PATCH(request: NextRequest) {
     const {
       id,
       symbol,
-      metrics,
+      timeframe,
+      strategy,
+      performance,
+      tradesAnalysis,
+      riskPerformanceRatios,
+      listOfTrades,
+      properties,
       priceOneMonth,
       priceThreeMonths,
       priceSixMonths,
@@ -178,7 +200,6 @@ export async function PATCH(request: NextRequest) {
       discountThreeMonths,
       discountSixMonths,
       discountTwelveMonths,
-      timeframe,
     } = body;
 
     // Parse all price/discount fields as float
@@ -193,7 +214,12 @@ export async function PATCH(request: NextRequest) {
       where: { id },
       data: {
         symbol,
-        metrics,
+        performance,
+        strategy,
+        tradesAnalysis,
+        riskPerformanceRatios,
+        listOfTrades,
+        properties,
         priceOneMonth: parseNum(priceOneMonth),
         priceThreeMonths: parseNum(priceThreeMonths),
         priceSixMonths: parseNum(priceSixMonths),
@@ -218,6 +244,7 @@ export async function PATCH(request: NextRequest) {
           symbol: pair.symbol,
           timeframe: pair.timeframe,
           userEmail: session.user.email,
+          user: session.user.name,
         },
       });
     } else {
@@ -231,6 +258,8 @@ export async function PATCH(request: NextRequest) {
             symbol: pair.symbol,
             timeframe: pair.timeframe,
             userRole: session.user.role,
+            user: session.user.name,
+            userEmail: session.user.email
           },
         },
       });
@@ -285,6 +314,7 @@ export async function DELETE(request: NextRequest) {
           symbol: pairToDelete.symbol,
           timeframe: pairToDelete.timeframe,
           userEmail: session.user.email,
+          user: session.user.name
         },
       });
     } else {
@@ -298,6 +328,8 @@ export async function DELETE(request: NextRequest) {
             symbol: pairToDelete.symbol,
             timeframe: pairToDelete.timeframe,
             userRole: session.user.role,
+            user: session.user.name,
+            userEmail: session.user.email
           },
         },
       });

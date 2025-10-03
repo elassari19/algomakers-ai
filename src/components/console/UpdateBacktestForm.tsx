@@ -27,7 +27,12 @@ import { Controller } from 'react-hook-form';
 export type UpdateBacktestFormValues = {
   symbol: string;
   timeframe: string;
-  metrics: Record<string, any[]>;
+  strategy?: string;
+  performance?: string | null;
+  tradesAnalysis?: string | null;
+  riskPerformanceRatios?: string | null;
+  listOfTrades?: string | null;
+  properties?: string | null;
   priceOneMonth: string | number;
   priceThreeMonths: string | number;
   priceSixMonths: string | number;
@@ -58,7 +63,12 @@ const UpdateBacktestForm: React.FC<UpdateBacktestFormProps> = ({
   const form = useForm<UpdateBacktestFormValues>({
     defaultValues: {
       symbol: symbol || defaultValues?.symbol || '',
-      metrics: defaultValues?.metrics || {},
+      strategy: defaultValues?.strategy || '',
+      performance: defaultValues?.performance || null,
+      tradesAnalysis: defaultValues?.tradesAnalysis || null,
+      riskPerformanceRatios: defaultValues?.riskPerformanceRatios || null,
+      listOfTrades: defaultValues?.listOfTrades || null,
+      properties: defaultValues?.properties || null,
       priceOneMonth: defaultValues?.priceOneMonth ?? 0,
       priceThreeMonths: defaultValues?.priceThreeMonths ?? 0,
       priceSixMonths: defaultValues?.priceSixMonths ?? 0,
@@ -77,7 +87,12 @@ const UpdateBacktestForm: React.FC<UpdateBacktestFormProps> = ({
     form.reset({
       symbol: symbol || defaultValues?.symbol || '',
       timeframe: timeframe || defaultValues?.timeframe || '',
-      metrics: defaultValues?.metrics || {},
+      strategy: defaultValues?.strategy || '',
+      performance: defaultValues?.performance || null,
+      tradesAnalysis: defaultValues?.tradesAnalysis || null,
+      riskPerformanceRatios: defaultValues?.riskPerformanceRatios || null,
+      listOfTrades: defaultValues?.listOfTrades || null,
+      properties: defaultValues?.properties || null,
       priceOneMonth: defaultValues?.priceOneMonth ?? 0,
       priceThreeMonths: defaultValues?.priceThreeMonths ?? 0,
       priceSixMonths: defaultValues?.priceSixMonths ?? 0,

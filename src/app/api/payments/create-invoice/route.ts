@@ -230,22 +230,10 @@ export async function POST(request: NextRequest) {
         });
 
         if (!pair) {
-          // Create pair if it doesn't exist
-          pair = await prisma.pair.create({
-            data: {
-              symbol: pairSymbol,
-              metrics: {}, // Empty metrics for now
-              priceOneMonth: body.amount / pairIds.length,
-              priceThreeMonths: body.amount / pairIds.length,
-              priceSixMonths: body.amount / pairIds.length,
-              priceTwelveMonths: body.amount / pairIds.length,
-              discountOneMonth: 0,
-              discountThreeMonths: 0,
-              discountSixMonths: 0,
-              discountTwelveMonths: 0,
-              timeframe: body.orderData?.plan?.period || '1M',
-            },
-          });
+          return NextResponse.json(
+            { error: `Pair not found: ${pairSymbol}` },
+            { status: 400 }
+          );
         }
 
         const paymentItem = await prisma.paymentItem.create({

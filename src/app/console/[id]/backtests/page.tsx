@@ -4,7 +4,7 @@ import React, { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { Toaster } from '@/components/ui/sonner';
 import * as XLSX from 'xlsx';
-import { DashboardStats } from '@/components/dashboard/DashboardStats';
+import { OverviewSection, OverviewDataItem } from '@/components/dashboard/DashboardStats';
 import { SortFilterBar } from '@/components/subscription/SortFilterBar';
 import { ReusableTable, Column } from '@/components/ui/reusable-table';
 import { Button } from '@/components/ui/button';
@@ -17,7 +17,7 @@ import { GradientBackground } from '@/components/ui/gradient-background';
 
 // Table columns definition
 import Link from 'next/link';
-import { Eye, Pencil, Trash2 } from 'lucide-react';
+import { Eye, Pencil, Trash2, BarChart3, Target, DollarSign, Award, TrendingUp } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -68,7 +68,7 @@ function ActionButtons({
   );
 }
 
-// Helper to parse file and extract fields (symbol/timeframe from Properties, metrics as stringified data)
+// Helper to parse file and extract fields (symbol/timeframe from Properties, separate columns for different data types)
 const parseFile = async (file: File) => {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -76,6 +76,7 @@ const parseFile = async (file: File) => {
       try {
         let symbol = '';
         let timeframe = '';
+        let strategy = '';
         let data: Record<string, any> = {};
         if (file.name.endsWith('.csv')) {
           const text = evt.target?.result;
@@ -98,11 +99,25 @@ const parseFile = async (file: File) => {
         if (data['Properties'] && Array.isArray(data['Properties'])) {
           symbol = data['Properties'][2]?.value || '';
           timeframe = data['Properties'][3]?.value || '';
+          strategy = data['Properties'][4]?.value || '';
         }
+        
+        // Split data into separate columns based on sheet names and stringify them
+        const performance = data['Performance'] ? JSON.stringify(data['Performance']) : null;
+        const tradesAnalysis = data['Trades analysis'] ? JSON.stringify(data['Trades analysis']) : null;
+        const riskPerformanceRatios = data['Risk performance ratios'] ? JSON.stringify(data['Risk performance ratios']) : null;
+        const listOfTrades = data['List of trades'] ? JSON.stringify(data['List of trades']) : null;
+        const properties = data['Properties'] ? JSON.stringify(data['Properties']) : null;
+        
         resolve({
           symbol,
           timeframe,
-          metrics: JSON.stringify(data),
+          strategy,
+          performance,
+          tradesAnalysis,
+          riskPerformanceRatios,
+          listOfTrades,
+          properties,
         });
       } catch (err) {
         reject(err);
@@ -116,6 +131,24 @@ const parseFile = async (file: File) => {
 const ConsolePage = () => {
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [deleteRow, setDeleteRow] = useState<any>(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [uploadedFiles, setUploadedFiles] = useState<File[]>([]);
+  const [step, setStep] = useState<'upload' | 'form' | 'update'>('upload');
+  const [formData, setFormData] = useState<any>(null);
+  // Remove formMode, always add
+  const [symbol, setSymbol] = useState<string>('');
+  const [timeframe, setTimeframe] = useState<string>('');
+  const [backtests, setBacktests] = useState<any[]>([]);
+  
+  // Stats state for overview
+  const [stats, setStats] = useState({
+    totalBacktests: 0,
+    profitableBacktests: 0,
+    totalProfit: 0,
+    bestPerformer: { symbol: 'N/A', roi: 0 },
+    averageROI: 0,
+  });
+
   // Delete handler
   const handleDeleteConfirm = async () => {
     if (!deleteRow) return;
@@ -141,15 +174,6 @@ const ConsolePage = () => {
     setDeleteModalOpen(false);
     setDeleteRow(null);
   };
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [uploadedFiles, setUploadedFiles] = useState<File[]>([]);
-  const [step, setStep] = useState<'upload' | 'form' | 'update'>('upload');
-  const [formData, setFormData] = useState<any>(null);
-  // Remove formMode, always add
-  const [symbol, setSymbol] = useState<string>('');
-  const [timeframe, setTimeframe] = useState<string>('');
-  const [backtests, setBacktests] = useState<any[]>([]);
-
   // Separate update logic for clarity
   const handleUpdateClick = (row: any) => {
     setFormData(row);
@@ -268,12 +292,92 @@ const ConsolePage = () => {
     },
   ];
 
+  // Calculate stats from backtest data
+  const calculateStats = (pairs: any[]) => {
+    if (!pairs || pairs.length === 0) {
+      return {
+        totalBacktests: 0,
+        profitableBacktests: 0,
+        totalProfit: 0,
+        bestPerformer: { symbol: 'N/A', roi: 0 },
+        averageROI: 0,
+      };
+    }
+
+    // Calculate profitable pairs using separate columns (parse stringified JSON)
+    const profitablePairs = pairs.filter(pair => {
+      let roi = 0;
+      try {
+        // Try to get ROI from tradesAnalysis or performance columns
+        if (pair.tradesAnalysis && typeof pair.tradesAnalysis === 'string') {
+          const tradesAnalysisData = JSON.parse(pair.tradesAnalysis);
+          roi = tradesAnalysisData[9]?.value || 0;
+        } else if (pair.performance && typeof pair.performance === 'string') {
+          const performanceData = JSON.parse(pair.performance);
+          roi = performanceData[4]?.value || 0;
+        }
+      } catch (e) {
+        // Handle JSON parse errors gracefully
+        roi = 0;
+      }
+      return roi > 0;
+    });
+
+    // Calculate total profit and best performer
+    let totalProfit = 0;
+    let bestPerformer = { symbol: 'N/A', roi: 0 };
+    let totalROI = 0;
+
+    pairs.forEach(pair => {
+      let roi = 0;
+      let profit = 0;
+      
+      try {
+        // Try to get values from separate columns (parse stringified JSON)
+        if (pair.tradesAnalysis && typeof pair.tradesAnalysis === 'string') {
+          const tradesAnalysisData = JSON.parse(pair.tradesAnalysis);
+          roi = tradesAnalysisData[9]?.value || 0;
+          profit = tradesAnalysisData[8]?.value || 0;
+        } else if (pair.performance && typeof pair.performance === 'string') {
+          const performanceData = JSON.parse(pair.performance);
+          roi = performanceData[4]?.value || 0;
+          profit = performanceData[2]?.value || 0;
+        }
+      } catch (e) {
+        // Handle JSON parse errors gracefully
+        roi = 0;
+        profit = 0;
+      }
+      
+      totalProfit += profit;
+      totalROI += roi;
+      
+      if (roi > bestPerformer.roi) {
+        bestPerformer = { symbol: pair.symbol, roi };
+      }
+    });
+
+    const averageROI = pairs.length > 0 ? totalROI / pairs.length : 0;
+
+    return {
+      totalBacktests: pairs.length,
+      profitableBacktests: profitablePairs.length,
+      totalProfit,
+      bestPerformer,
+      averageROI,
+    };
+  };
+
   const fetchAllBacktests = async () => {
     try {
       const res = await fetch('/api/backtest');
       const data = await res.json();
       if (res.ok && data.pairs) {
         setBacktests(data.pairs);
+        
+        // Calculate and set stats
+        const calculatedStats = calculateStats(data.pairs);
+        setStats(calculatedStats);
       }
     } catch (err) {
       // Optionally show a toast
@@ -284,45 +388,6 @@ const ConsolePage = () => {
     fetchAllBacktests();
   }, []);
 
-  // Fetch pair/backtest data from API
-  const checkBacktestExists = async (symbol: string, timeframe: string) => {
-    try {
-      const res = await fetch(
-        `/api/backtest?symbol=${encodeURIComponent(
-          symbol
-        )}&timeframe=${encodeURIComponent(timeframe)}`
-      );
-      if (!res.ok) return null;
-      const data = await res.json();
-      if (data.found && data.pair) {
-        return data.pair;
-      }
-      return null;
-    } catch (err) {
-      return null;
-    }
-  };
-
-  // Handle next step after upload
-  /*const handleNextStep = async (nextSymbol: string, nextTimeframe: string) => {
-    // Only proceed if both symbol and timeframe are present
-    if (!nextSymbol || !nextTimeframe) {
-      alert('Symbol and Timeframe must be present in the Properties sheet.');
-      return;
-    }
-    setSymbol(nextSymbol);
-    setTimeframe(nextTimeframe);
-    const existing = await checkBacktestExists(nextSymbol, nextTimeframe);
-    if (existing) {
-      setFormData(existing);
-      setStep('update');
-    } else {
-      setFormData({ symbol: nextSymbol, timeframe: nextTimeframe });
-      setStep('form');
-    }
-    setIsModalOpen(false);
-  };*/
-
   // Handle cancel button
   const handleCancel = () => {
     setUploadedFiles([]);
@@ -332,20 +397,13 @@ const ConsolePage = () => {
     setFormData(null);
   };
 
-  // Remove sheetData/activeSheet effect (not needed for multi-file, no preview)
-
   // Separate add and update handlers
   const handleAddSubmit = async (values: any) => {
     try {
-      // Attach metrics as empty object for now (multi-file mode)
-      const payload = {
-        ...values,
-        metrics: {},
-      };
       const response = await fetch('/api/backtest', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
+        body: JSON.stringify(values),
       });
       const result = await response.json();
       if (!response.ok) {
@@ -371,29 +429,57 @@ const ConsolePage = () => {
     fetchAllBacktests();
   };
 
-  // Removed handleUpdateSubmit
-
   return (
     <GradientBackground>
       <Toaster position="top-center" />
       <div className="min-h-screen flex flex-col justify-between p-0 md:p-4">
         {/* Page Title & Stats */}
-        <div className="mb-0">
-          <h1 className="text-3xl font-bold mb-6 text-white drop-shadow-lg">
+        <div className="mb-4">
+          <h1 className="text-3xl font-bold mb-2 text-white drop-shadow-lg">
             Backtest Data Management
           </h1>
-          {/* TODO: Replace with real stats data */}
-          <DashboardStats
-            totalPairs={0}
-            profitablePairs={0}
-            totalProfit={0}
-            bestPerformer={{ symbol: '', roi: 0 }}
-            className="mb-0 opacity-95"
-          />
+          <OverviewSection overviewData={[
+            {
+              title: 'Total Backtests',
+              currentValue: stats.totalBacktests,
+              icon: BarChart3,
+              description: 'Total backtest files',
+              pastValue: 'All trading pairs',
+              color: 'text-blue-300',
+              bgColor: 'bg-blue-400/20',
+            },
+            {
+              title: 'Profitable Backtests',
+              currentValue: stats.profitableBacktests,
+              icon: Target,
+              description: `${stats.totalBacktests > 0 ? ((stats.profitableBacktests / stats.totalBacktests) * 100).toFixed(1) : '0'}% win rate`,
+              pastValue: `${stats.profitableBacktests} of ${stats.totalBacktests} pairs`,
+              color: 'text-green-300',
+              bgColor: 'bg-green-400/20',
+            },
+            {
+              title: 'Total Profit',
+              currentValue: `$${stats.totalProfit.toLocaleString()}`,
+              icon: DollarSign,
+              description: 'Combined performance',
+              pastValue: `Avg ROI: ${stats.averageROI.toFixed(1)}%`,
+              color: 'text-emerald-300',
+              bgColor: 'bg-emerald-400/20',
+            },
+            {
+              title: 'Best Performer',
+              currentValue: stats.bestPerformer.symbol,
+              icon: Award,
+              description: `${stats.bestPerformer.roi.toFixed(1)}% ROI`,
+              pastValue: 'Top performing pair',
+              color: 'text-amber-300',
+              bgColor: 'bg-amber-400/20',
+            },
+          ]} className="mb-0 opacity-95" />
         </div>
 
         {/* Actions Bar & Table Section */}
-        <div className="flex flex-col justify-end mt-12">
+        <div className="flex flex-col mt-0">
           <div className="flex-1 min-h-0 space-y-4">
             {/* Actions Bar */}
             <div className="flex flex-col sm:flex-row justify-between items-center gap-4 mb-4">

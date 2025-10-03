@@ -55,13 +55,14 @@ const UploadDialog: React.FC<UploadDialogProps> = ({
 
   // Parse file and extract symbol/timeframe from Properties sheet (XLSX or CSV)
   const parseFile = async (file: File) => {
-    return new Promise<{ symbol: string; timeframe: string; data: any }>(
+    return new Promise<{ symbol: string; timeframe: string; strategy: string; data: any }>(
       (resolve, reject) => {
         const reader = new FileReader();
         reader.onload = (evt) => {
           try {
             let symbol = '';
             let timeframe = '';
+            let strategy = '';
             let data: any = {};
             if (file.name.endsWith('.csv')) {
               // Parse CSV as array of objects
@@ -75,6 +76,7 @@ const UploadDialog: React.FC<UploadDialogProps> = ({
               if (rows[0]) {
                 symbol = rows[0]['symbol'] || '';
                 timeframe = rows[0]['timeframe'] || '';
+                strategy = rows[0]['strategy'] || '';
               }
             } else {
               // XLSX
@@ -90,9 +92,10 @@ const UploadDialog: React.FC<UploadDialogProps> = ({
               if (data['Properties']) {
                 symbol = data['Properties'][2]?.value || '';
                 timeframe = data['Properties'][3]?.value || '';
+                strategy = data['Properties'][9]?.value || '';
               }
             }
-            resolve({ symbol, timeframe, data });
+            resolve({ symbol, timeframe, strategy, data });
           } catch (err) {
             reject(err);
           }
@@ -114,15 +117,15 @@ const UploadDialog: React.FC<UploadDialogProps> = ({
     const infos: any[] = [];
     for (const file of uploadedFiles) {
       try {
-        const { symbol, timeframe, data } = await parseFile(file);
+        const { symbol, timeframe, strategy, data } = await parseFile(file);
         let exists = false;
         let existingData = null;
-        if (symbol && timeframe) {
+        if (symbol && timeframe && strategy) {
           // Check existence via API
           const res = await fetch(
             `/api/backtest?symbol=${encodeURIComponent(
               symbol
-            )}&timeframe=${encodeURIComponent(timeframe)}`
+            )}&timeframe=${encodeURIComponent(timeframe)}&strategy=${encodeURIComponent(strategy)}`
           );
           if (res.ok) {
             const json = await res.json();
@@ -139,6 +142,7 @@ const UploadDialog: React.FC<UploadDialogProps> = ({
           file,
           symbol: '',
           timeframe: '',
+          strategy: '',
           exists: false,
           data: null,
           error: true,
@@ -147,6 +151,7 @@ const UploadDialog: React.FC<UploadDialogProps> = ({
           file,
           symbol: '',
           timeframe: '',
+          strategy: '',
           exists: false,
           data: null,
           error: true,
