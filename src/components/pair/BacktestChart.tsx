@@ -24,15 +24,24 @@ interface BacktestData {
   endDate: string;
   initialBalance: number;
   finalBalance: number;
-  equityCurve: Array<{ date: string; value: number }>;
+  equityCurve: Array<{ 
+    date: string; 
+    value: number;
+    cumPL_USDT?: number;
+    cumPL_PCT?: number;
+    drawdown_USDT?: number;
+    drawdown_PCT?: number;
+  }>;
 }
 
 interface BacktestChartProps {
   data?: BacktestData;
   symbol: string;
   metrics?: {
-    roi: number;
-    maxDrawdown: number;
+    drawdownUSDT: number;
+    drawdownPCT: number;
+    cumPL_USDT: number;
+    cumPL_PCT: number;
   };
 }
 
@@ -54,22 +63,28 @@ export function BacktestChart({ data, symbol, metrics }: BacktestChartProps) {
   const chartData: ChartDataPoint[] = useMemo(() => {
     if (!data) return [];
     let peak = data.initialBalance;
+    
     return data.equityCurve.map((point, idx) => {
-      // Cumulative P&L USDT
-      const cumPL_USDT = point.value;
-      // Cumulative P&L %
-      const cumPL_PCT =
-        data.initialBalance !== 0
-          ? ((point.value - data.initialBalance) /
-              Math.abs(data.initialBalance)) *
-            100
-          : 0;
-      // Drawdown USDT
-      if (point.value > peak) peak = point.value;
-      const drawdown_USDT = point.value - peak;
-      // Drawdown %
-      const drawdown_PCT =
-        peak !== 0 ? ((point.value - peak) / Math.abs(peak)) * 100 : 0;
+      // Use existing values if available, otherwise calculate
+      const cumPL_USDT = point.cumPL_USDT !== undefined ? point.cumPL_USDT : point.value;
+      
+      // For Cumulative P&L %, always calculate properly based on initial balance for aggregation
+      const cumPL_PCT = data.initialBalance !== 0
+        ? ((cumPL_USDT - data.initialBalance) / Math.abs(data.initialBalance)) * 100
+        : 0;
+      
+      // For drawdown, use existing values if available, otherwise calculate
+      const drawdown_USDT = point.drawdown_USDT !== undefined 
+        ? point.drawdown_USDT 
+        : (() => {
+            if (cumPL_USDT > peak) peak = cumPL_USDT;
+            return cumPL_USDT - peak;
+          })();
+      
+      const drawdown_PCT = point.drawdown_PCT !== undefined 
+        ? point.drawdown_PCT 
+        : peak !== 0 ? ((cumPL_USDT - peak) / Math.abs(peak)) * 100 : 0;
+      
       return {
         date: point.date,
         cumPL_USDT,
@@ -134,7 +149,7 @@ export function BacktestChart({ data, symbol, metrics }: BacktestChartProps) {
 
   return (
     <Card className="bg-transparent">
-      <CardHeader className="px-2 py-0 sm:px-4 sm:py-4">
+      <CardHeader className="px-2 py-0 sm:px-2 sm:py-4">
         <CardTitle className="text-white text-base sm:text-lg">
           Historical Performance
         </CardTitle>
@@ -203,8 +218,8 @@ export function BacktestChart({ data, symbol, metrics }: BacktestChartProps) {
                 data={chartData}
                 margin={{
                   top: 20,
-                  right: 0,
-                  left: 0,
+                  right: -10,
+                  left: 13,
                   bottom: 20,
                 }}
               >
@@ -244,7 +259,45 @@ export function BacktestChart({ data, symbol, metrics }: BacktestChartProps) {
                   tick={{ fontSize: 12, fill: '#a7f3d0' }}
                   axisLine={{ stroke: '#10b981' }}
                   tickLine={false}
-                  domain={['auto', 'auto']}
+                  domain={displayMode === 'percent' ? ['dataMin', 'dataMax'] : ['auto', 'auto']}
+                  ticks={displayMode === 'percent' ? (() => {
+                    // Generate ticks that always include 0 for percentage mode
+                    const chartDataValues = chartData.map(d => d.cumPL_PCT);
+                    if (chartDataValues.length === 0) return [0];
+                    
+                    const dataMin = Math.min(...chartDataValues, 0); // Always include 0
+                    const dataMax = Math.max(...chartDataValues, 0); // Always include 0
+                    
+                    if (dataMin === 0 && dataMax === 0) return [0];
+                    
+                    // Create ticks that include 0
+                    const range = dataMax - dataMin;
+                    const step = range / 5; // Create about 6 ticks
+                    const ticks = [];
+                    
+                    // Add ticks below 0 if needed
+                    if (dataMin < 0) {
+                      for (let i = Math.ceil(dataMin / step); i < 0; i++) {
+                        ticks.push(i * step);
+                      }
+                    }
+                    
+                    // Always add 0
+                    ticks.push(0);
+                    
+                    // Add ticks above 0 if needed
+                    if (dataMax > 0) {
+                      for (let i = 1; i <= Math.floor(dataMax / step); i++) {
+                        ticks.push(i * step);
+                      }
+                    }
+                    
+                    // Add min/max if not already included
+                    if (!ticks.includes(dataMin)) ticks.unshift(dataMin);
+                    if (!ticks.includes(dataMax)) ticks.push(dataMax);
+                    
+                    return ticks.sort((a, b) => a - b);
+                  })() : undefined}
                   allowDataOverflow
                   allowDecimals
                   minTickGap={2}
@@ -273,10 +326,40 @@ export function BacktestChart({ data, symbol, metrics }: BacktestChartProps) {
                     );
                     return [-maxAbs, maxAbs];
                   }}
+                  ticks={(() => {
+                    // Generate ticks that always include 0
+                    const chartDataValues = chartData.map(d => 
+                      displayMode === 'usdt' ? d.drawdown_USDT : d.drawdown_PCT
+                    );
+                    if (chartDataValues.length === 0) return [0];
+                    
+                    const dataMin = Math.min(...chartDataValues);
+                    const dataMax = Math.max(...chartDataValues);
+                    const maxAbs = Math.max(Math.abs(dataMin), Math.abs(dataMax));
+                    
+                    if (maxAbs === 0) return [0];
+                    
+                    // Create symmetric ticks around 0
+                    const step = maxAbs / 3;
+                    return [-maxAbs, -step * 2, -step, 0, step, step * 2, maxAbs]
+                      .filter((tick, index, arr) => arr.indexOf(tick) === index)
+                      .sort((a, b) => a - b);
+                  })()}
                   allowDataOverflow
                   allowDecimals
                   minTickGap={2}
                 />
+                {/* Reference line for cumulative P&L axis zero (percentage mode) */}
+                {displayMode === 'percent' && showCumPL && (
+                  <ReferenceLine
+                    y={0}
+                    yAxisId="left"
+                    stroke="#10b981"
+                    strokeDasharray="4 4"
+                    strokeWidth={2}
+                    opacity={0.7}
+                  />
+                )}
                 {/* Reference line for drawdown axis zero */}
                 <ReferenceLine
                   y={0}
