@@ -21,7 +21,8 @@ import {
   CheckCircle,
   XCircle,
   AlertCircle,
-  Calendar
+  Calendar,
+  ExternalLink
 } from 'lucide-react';
 import {
   Dialog,
@@ -63,7 +64,7 @@ interface PairOption {
   timeframe: string;
   strategy: string;
 }
-import { useSearchParams } from 'next/navigation';
+import { useSearchParams, useParams } from 'next/navigation';
 
 // Status badge component
 function StatusBadge({ status }: { status: string }) {
@@ -125,9 +126,11 @@ function PaymentStatusBadge({ status }: { status: string }) {
 function ActionButtons({
   row,
   onViewDetails,
+  consoleId,
 }: {
   row: any;
   onViewDetails: (row: any) => void;
+  consoleId: string;
 }) {
   return (
     <div className="flex gap-2 items-center">
@@ -136,10 +139,20 @@ function ActionButtons({
         variant={'ghost'}
         size="icon"
         onClick={() => onViewDetails(row)}
-        title="View Details"
+        title="View Details (Modal)"
       >
         <Eye size={20} />
       </Button>
+      <Link href={`/console/${consoleId}/subscriptions/${row.id}`}>
+        <Button
+          className="hover:text-blue-400 text-blue-300"
+          variant={'ghost'}
+          size="icon"
+          title="View Full Details"
+        >
+          <ExternalLink size={20} />
+        </Button>
+      </Link>
       {row.status === 'EXPIRED' && (
         <Button
           className="hover:text-green-600 text-green-500"
@@ -169,6 +182,10 @@ const SubscriptionsPage = () => {
   // Get search params from URL
   const searchParams = useSearchParams();
   const searchQuery = searchParams.get('q') || '';
+  
+  // Get console ID from URL params
+  const params = useParams();
+  const consoleId = params.id as string;
   
   // Stats state
   const [stats, setStats] = useState({
@@ -308,6 +325,7 @@ const SubscriptionsPage = () => {
         <ActionButtons
           row={row}
           onViewDetails={handleViewDetails}
+          consoleId={consoleId}
         />
       ),
     },

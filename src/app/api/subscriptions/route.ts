@@ -7,11 +7,73 @@ import { createAuditLog, AuditAction, AuditTargetType } from '@/lib/audit';
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
+    const id = searchParams.get('id'); // Single subscription by ID
     const userId = searchParams.get('userId');
     const status = searchParams.get('status');
     const search = searchParams.get('search');
     const page = parseInt(searchParams.get('page') || '1');
     const limit = parseInt(searchParams.get('limit') || '50');
+
+    // If fetching single subscription by ID
+    if (id) {
+      const subscription = await prisma.subscription.findUnique({
+        where: { id },
+        include: {
+          user: {
+            select: {
+              id: true,
+              email: true,
+              name: true,
+              tradingviewUsername: true,
+            }
+          },
+          pair: {
+            select: {
+              id: true,
+              symbol: true,
+              timeframe: true,
+              strategy: true,
+            }
+          },
+          payment: {
+            include: {
+              paymentItems: {
+                include: {
+                  pair: {
+                    select: {
+                      symbol: true,
+                      timeframe: true,
+                    }
+                  }
+                }
+              }
+            }
+          },
+          commissions: {
+            include: {
+              affiliate: {
+                select: {
+                  referralCode: true,
+                  commissionRate: true,
+                }
+              }
+            }
+          }
+        }
+      });
+
+      if (!subscription) {
+        return NextResponse.json(
+          { error: 'Subscription not found' },
+          { status: 404 }
+        );
+      }
+
+      return NextResponse.json({
+        subscriptions: [subscription],
+        totalCount: 1,
+      });
+    }
 
     // Build where clause
     const where: any = {};
