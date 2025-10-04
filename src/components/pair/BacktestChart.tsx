@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -59,6 +59,14 @@ export function BacktestChart({ data, symbol, metrics }: BacktestChartProps) {
   const [showDrawdown, setShowDrawdown] = useState(true);
   const [showCumPL, setShowCumPL] = useState(true);
   const [displayMode, setDisplayMode] = useState<'usdt' | 'percent'>('usdt');
+  
+  // Zoom state
+  const [zoomDomain, setZoomDomain] = useState<{
+    startIndex: number;
+    endIndex: number;
+  } | null>(null);
+  const [isHoveringChart, setIsHoveringChart] = useState(false);
+  const chartContainerRef = useRef<HTMLDivElement>(null);
 
   const chartData: ChartDataPoint[] = useMemo(() => {
     if (!data) return [];
@@ -131,6 +139,60 @@ export function BacktestChart({ data, symbol, metrics }: BacktestChartProps) {
   const handleDisplayModeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setDisplayMode(e.target.value as 'usdt' | 'percent');
   };
+
+  // Zoom handlers
+  const resetZoom = () => {
+    setZoomDomain(null);
+  };
+
+  // Get visible chart data based on zoom
+  const visibleChartData = useMemo(() => {
+    if (!zoomDomain) return chartData;
+    return chartData.slice(zoomDomain.startIndex, zoomDomain.endIndex + 1);
+  }, [chartData, zoomDomain]);
+
+  // Add wheel event listener with passive: false to prevent default
+  useEffect(() => {
+    const chartElement = chartContainerRef.current;
+    if (!chartElement) return;
+
+    const handleWheelEvent = (e: WheelEvent) => {
+      if (!isHoveringChart || chartData.length === 0) return;
+      
+      const currentStart = zoomDomain?.startIndex ?? 0;
+      const currentEnd = zoomDomain?.endIndex ?? chartData.length - 1;
+      const currentRange = currentEnd - currentStart;
+      
+      const zoomFactor = e.deltaY > 0 ? 1.2 : 0.8;
+      const newRange = Math.max(10, Math.min(chartData.length, currentRange * zoomFactor));
+      
+      const canZoomIn = newRange < currentRange && currentRange > 10;
+      const canZoomOut = newRange > currentRange && currentRange < chartData.length;
+      
+      if (canZoomIn || canZoomOut) {
+        e.preventDefault();
+        e.stopPropagation();
+        
+        const centerRatio = 0.5;
+        const centerIndex = currentStart + currentRange * centerRatio;
+        
+        const newStart = Math.max(0, Math.floor(centerIndex - newRange / 2));
+        const newEnd = Math.min(chartData.length - 1, newStart + newRange);
+        const adjustedStart = Math.max(0, newEnd - newRange);
+        
+        setZoomDomain({
+          startIndex: Math.floor(adjustedStart),
+          endIndex: Math.floor(newEnd)
+        });
+      }
+    };
+
+    chartElement.addEventListener('wheel', handleWheelEvent, { passive: false });
+    
+    return () => {
+      chartElement.removeEventListener('wheel', handleWheelEvent);
+    };
+  }, [isHoveringChart, chartData.length, zoomDomain]);
 
   if (!data) {
     return (
@@ -205,17 +267,38 @@ export function BacktestChart({ data, symbol, metrics }: BacktestChartProps) {
                 aria-label="Toggle percent mode"
               />
               <span className="text-xs sm:text-sm text-blue-400">%</span>
+              
+              {/* Reset Zoom Button */}
+              {zoomDomain && (
+                <button
+                  onClick={resetZoom}
+                  className="ml-2 px-2 py-1 text-xs bg-slate-700 hover:bg-slate-600 text-white rounded border border-slate-600 transition-colors"
+                  title="Reset Zoom"
+                >
+                  Reset Zoom
+                </button>
+              )}
             </div>
           </div>
           {/* Period Controls removed */}
         </div>
 
         {/* Chart */}
-        <div className="h-80 sm:h-[28rem] w-full bg-transparent rounded-lg shadow-lg p-0">
+        <div 
+          ref={chartContainerRef}
+          className="h-80 sm:h-[28rem] w-full bg-transparent rounded-lg shadow-lg p-0"
+          onMouseEnter={() => setIsHoveringChart(true)}
+          onMouseLeave={() => setIsHoveringChart(false)}
+          style={{ 
+            cursor: isHoveringChart 
+              ? (zoomDomain ? 'zoom-out' : 'zoom-in') 
+              : 'default'
+          }}
+        >
           <div className="w-full h-full">
             <ResponsiveContainer width="100%" height="100%">
               <LineChart
-                data={chartData}
+                data={visibleChartData}
                 margin={{
                   top: 20,
                   right: -10,
@@ -238,8 +321,7 @@ export function BacktestChart({ data, symbol, metrics }: BacktestChartProps) {
                   axisLine={{ stroke: '#334155' }}
                   tickLine={false}
                   padding={{ left: 0, right: 0 }}
-                  height={60}
-                  angle={-90}
+                  height={20}
                   textAnchor="end"
                 />
                 {/* Dual Y axes */}
@@ -430,6 +512,26 @@ export function BacktestChart({ data, symbol, metrics }: BacktestChartProps) {
                     }}
                   />
                 )}
+
+                {/* Zoom/Pan Brush */}
+                {/* <Brush
+                  dataKey="date"
+                  height={30}
+                  stroke="#64748b"
+                  fill="rgba(100, 116, 139, 0.1)"
+                  tickFormatter={formatDate}
+                  travellerWidth={10}
+                  startIndex={zoomDomain?.startIndex ?? 0}
+                  endIndex={zoomDomain?.endIndex ?? chartData.length - 1}
+                  onChange={(brushData) => {
+                    if (brushData?.startIndex !== undefined && brushData?.endIndex !== undefined) {
+                      setZoomDomain({
+                        startIndex: brushData.startIndex,
+                        endIndex: brushData.endIndex
+                      });
+                    }
+                  }}
+                /> */}
               </LineChart>
             </ResponsiveContainer>
           </div>
@@ -447,7 +549,6 @@ export function BacktestChart({ data, symbol, metrics }: BacktestChartProps) {
               ? formatDate(chartData[chartData.length - 1].date)
               : formatDate(data.endDate)}
           </span>
-          <span>Data updated 7 days ago</span>
         </div>
       </CardContent>
     </Card>

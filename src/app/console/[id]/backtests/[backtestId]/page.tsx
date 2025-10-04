@@ -39,18 +39,9 @@ export default async function BacktestDetailPage({
   if (!pair) {
     notFound();
   }
-  // Parse metrics if stringified
-  if (typeof pair.metrics === 'string') {
-    try {
-      pair.metrics = JSON.parse(pair.metrics);
-    } catch (e) {
-      pair.metrics = {};
-    }
-  }
 
   return (
     <GradientBackground>
-      <div className="min-h-screen">
         <div className="bg-white/10 backdrop-blur-md border-b border-white/20">
           <div className="container mx-auto p-2 md:px-6 md:py-3">
             <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
@@ -159,11 +150,19 @@ export default async function BacktestDetailPage({
                 </h2>
                 {/* BacktestChart for List of trades (Exit long) */}
                 {(() => {
-                  const trades = Array.isArray(pair.metrics?.['List of trades'])
-                    ? pair.metrics['List of trades'].filter(
-                        (t: any) => t['Type'] === 'Exit long'
-                      )
-                    : [];
+                  let trades: any[] = [];
+                  try {
+                    // Parse listOfTrades from JSON string
+                    const listOfTrades = pair.listOfTrades && typeof pair.listOfTrades === 'string' 
+                      ? JSON.parse(pair.listOfTrades) 
+                      : pair.listOfTrades || [];
+                    trades = Array.isArray(listOfTrades)
+                      ? listOfTrades.filter((t: any) => t['Type'] === 'Exit long')
+                      : [];
+                  } catch (e) {
+                    console.error('Error parsing listOfTrades:', e);
+                    trades = [];
+                  }
                   if (!trades.length) {
                     return (
                       <div className="text-white/60 text-sm mb-4">
@@ -171,7 +170,7 @@ export default async function BacktestDetailPage({
                       </div>
                     );
                   }
-                  // Map trades to BacktestChart expected format
+                  // Map trades to BacktestChart expected format with existing values
                   const chartData = {
                     startDate: trades[0]['Date/Time']
                       ? excelDateToISO(trades[0]['Date/Time'])
@@ -186,34 +185,42 @@ export default async function BacktestDetailPage({
                       date: t['Date/Time']
                         ? excelDateToISO(t['Date/Time'])
                         : '',
-                      value:
-                        typeof t['Cumulative P&L USDT'] === 'number'
-                          ? t['Cumulative P&L USDT']
-                          : 0,
+                      value: typeof t['Cumulative P&L USDT'] === 'number'
+                        ? t['Cumulative P&L USDT']
+                        : 0,
+                      // Pass existing values if available
+                      cumPL_USDT: typeof t['Cumulative P&L USDT'] === 'number'
+                        ? t['Cumulative P&L USDT']
+                        : 0,
+                      cumPL_PCT: typeof t['Cumulative P&L %'] === 'number'
+                        ? t['Cumulative P&L %']
+                        : 0,
+                      drawdown_USDT: typeof t['Drawdown USDT'] === 'number'
+                        ? t['Drawdown USDT']
+                        : 0,
+                      drawdown_PCT: typeof t['Drawdown %'] === 'number'
+                        ? t['Drawdown %']
+                        : 0,
                     })),
                   };
-                  // Optionally, pass metrics (roi, maxDrawdown) if available
-                  let roi = 0;
-                  if (chartData.initialBalance !== 0) {
-                    roi =
-                      ((chartData.finalBalance - chartData.initialBalance) /
-                        Math.abs(chartData.initialBalance)) *
-                      100;
-                  }
-                  // Calculate max drawdown (simple version)
-                  let maxDrawdown = 0;
-                  let peak = chartData.initialBalance;
-                  chartData.equityCurve.forEach((pt) => {
-                    if (pt.value > peak) peak = pt.value;
-                    const dd = (peak - pt.value) / peak;
-                    if (dd > maxDrawdown) maxDrawdown = dd;
-                  });
+                  
+                  // Extract drawdown and cumulative P&L metrics from the data
+                  const drawdownUSDT = Math.min(...trades.map(t => t['Drawdown USDT'] || 0));
+                  const drawdownPCT = Math.min(...trades.map(t => t['Drawdown %'] || 0));
+                  const finalCumPL_USDT = trades[trades.length - 1]['Cumulative P&L USDT'] || 0;
+                  const finalCumPL_PCT = trades[trades.length - 1]['Cumulative P&L %'] || 0;
+                  
                   return (
                     <div className="mb-6">
                       <BacktestChart
                         data={chartData}
                         symbol={pair.symbol}
-                        metrics={{ roi, maxDrawdown }}
+                        metrics={{ 
+                          drawdownUSDT, 
+                          drawdownPCT, 
+                          cumPL_USDT: finalCumPL_USDT,
+                          cumPL_PCT: finalCumPL_PCT
+                        }}
                       />
                     </div>
                   );
@@ -224,120 +231,91 @@ export default async function BacktestDetailPage({
                 {[
                   {
                     title: 'Trades analysis',
-                    metrics: pair.metrics['Trades analysis'],
+                    metrics: pair.tradesAnalysis,
                   },
                   {
                     title: 'Performance Metrics',
-                    metrics: pair.metrics['Performance'],
+                    metrics: pair.performance,
                   },
                   {
                     title: 'Risk performance ratios',
-                    metrics: pair.metrics['Risk performance ratios'],
+                    metrics: pair.riskPerformanceRatios,
                   },
-                ].map(({ title, metrics }) => (
+                ]?.map(({ title, metrics: rawMetrics }) => {
+                  // Parse metrics from JSON string if needed
+                  let metrics: any[] = [];
+                  try {
+                    metrics = rawMetrics && typeof rawMetrics === 'string' 
+                      ? JSON.parse(rawMetrics) 
+                      : rawMetrics || [];
+                  } catch (e) {
+                    console.error(`Error parsing ${title}:`, e);
+                    metrics = [];
+                  }
+                  return (
                   <div key={title} className="mt-8">
                     <h3 className="text-lg font-semibold text-white flex items-center gap-2 mb-2">
                       <Activity className="w-5 h-5 text-purple-400" />
                       {title}
                     </h3>
-                    {metrics.length > 0 ? (
+                    {Array.isArray(metrics) && metrics.length > 0 ? (
                       <div className="overflow-x-auto">
                         <table className="min-w-full text-xs text-white/80 bg-black/20 rounded">
                           <thead>
                             <tr>
-                              <th className="px-2 py-1 text-left font-semibold"></th>
-                              <th className="px-2 py-1 text-right font-semibold">
-                                All %
-                              </th>
-                              <th className="px-2 py-1 text-right font-semibold">
-                                All USDT
-                              </th>
-                              <th className="px-2 py-1 text-right font-semibold">
-                                Long %
-                              </th>
-                              <th className="px-2 py-1 text-right font-semibold">
-                                Short %
-                              </th>
-                              <th className="px-2 py-1 text-right font-semibold">
-                                Long USDT
-                              </th>
-                              <th className="px-2 py-1 text-right font-semibold">
-                                Short USDT
-                              </th>
+                              <th
+                                className="px-2 py-1 text-left font-semibold"
+                              >
+                                </th>
+                                <th className="px-2 py-1 text-right font-semibold">
+                                  Vlaue
+                                </th>
+                                <th className="px-2 py-1 text-right font-semibold">
+                                  All %
+                                </th>
                             </tr>
                           </thead>
                           <tbody>
-                            {pair.metrics['Risk performance ratios'].map(
-                              (row: any, idx: number) => (
+                            {metrics.map(
+                              (row: any, idx: number) => {
+                                return(
                                 <tr
                                   key={idx}
                                   className="border-t border-white/10"
                                 >
                                   <td className="px-2 py-1 text-left text-nowrap">
-                                    {row['__EMPTY']}
+                                    {row['__EMPTY'] || row[''] || row.value || `Row ${idx + 1}`}
                                   </td>
                                   <td className="px-2 py-1 text-right">
-                                    {row['All %'] !== ''
+                                    {row['All USDT'] !== '' && row['All USDT'] !== undefined
+                                      ? Number(row['All USDT']+ '').toLocaleString(
+                                          undefined,
+                                          { maximumFractionDigits: 2 }
+                                        ) + '$'
+                                      : '-'}
+                                  </td>
+                                  <td className="px-2 py-1 text-right">
+                                    {row['All %'] !== '' && row['All %'] !== undefined
                                       ? Number(row['All %']).toLocaleString(
                                           undefined,
                                           { maximumFractionDigits: 4 }
                                         )
                                       : '-'}
                                   </td>
-                                  <td className="px-2 py-1 text-right">
-                                    {row['All USDT'] !== ''
-                                      ? Number(row['All USDT']).toLocaleString(
-                                          undefined,
-                                          { maximumFractionDigits: 2 }
-                                        )
-                                      : '-'}
-                                  </td>
-                                  <td className="px-2 py-1 text-right">
-                                    {row['Long %'] !== ''
-                                      ? Number(row['Long %']).toLocaleString(
-                                          undefined,
-                                          { maximumFractionDigits: 4 }
-                                        )
-                                      : '-'}
-                                  </td>
-                                  <td className="px-2 py-1 text-right">
-                                    {row['Short %'] !== ''
-                                      ? Number(row['Short %']).toLocaleString(
-                                          undefined,
-                                          { maximumFractionDigits: 4 }
-                                        )
-                                      : '-'}
-                                  </td>
-                                  <td className="px-2 py-1 text-right">
-                                    {row['Long USDT'] !== ''
-                                      ? Number(row['Long USDT']).toLocaleString(
-                                          undefined,
-                                          { maximumFractionDigits: 2 }
-                                        )
-                                      : '-'}
-                                  </td>
-                                  <td className="px-2 py-1 pb-3 mb-2 text-right">
-                                    {row['Short USDT'] !== ''
-                                      ? Number(
-                                          row['Short USDT']
-                                        ).toLocaleString(undefined, {
-                                          maximumFractionDigits: 2,
-                                        })
-                                      : '-'}
-                                  </td>
                                 </tr>
-                              )
+                              )}
                             )}
                           </tbody>
                         </table>
                       </div>
                     ) : (
                       <div className="text-white/60">
-                        No risk performance ratio data available.
+                        No {title.toLowerCase()} data available.
                       </div>
                     )}
                   </div>
-                ))}
+                  );
+                })}
               </Card>
             </div>
 
@@ -349,50 +327,61 @@ export default async function BacktestDetailPage({
                     <Activity className="w-5 h-5 text-purple-400" />
                     Properties
                   </h3>
-                  {Array.isArray(pair.metrics['Properties']) &&
-                  pair.metrics['Properties'].length > 0 ? (
-                    <div className="overflow-x-auto">
-                      <table className="min-w-full text-xs text-white/80 bg-black/20 rounded">
-                        <thead>
-                          <tr>
-                            <th className="px-2 py-1 text-left font-semibold">
-                              Name
-                            </th>
-                            <th className="px-2 py-1 text-left font-semibold">
-                              Value
-                            </th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {pair.metrics['Properties'].map(
-                            (row: any, idx: number) => (
-                              <tr
-                                key={idx}
-                                className="border-t border-white/10"
-                              >
-                                <td className="px-2 py-1 font-semibold text-white/90 whitespace-nowrap">
-                                  {row.name}
-                                </td>
-                                <td className="px-2 py-1 text-left">
-                                  {row.value}
-                                </td>
-                              </tr>
-                            )
-                          )}
-                        </tbody>
-                      </table>
-                    </div>
-                  ) : (
-                    <div className="text-white/60">
-                      No properties data available.
-                    </div>
-                  )}
+                  {(() => {
+                    let properties: any[] = [];
+                    try {
+                      // Parse properties from JSON string if needed
+                      properties = pair.properties && typeof pair.properties === 'string' 
+                        ? JSON.parse(pair.properties) 
+                        : pair.properties || [];
+                    } catch (e) {
+                      console.error('Error parsing properties:', e);
+                      properties = [];
+                    }
+                    
+                    return Array.isArray(properties) && properties.length > 0 ? (
+                      <div className="overflow-x-auto">
+                        <table className="min-w-full text-xs text-white/80 bg-black/20 rounded">
+                          <thead>
+                            <tr>
+                              <th className="px-2 py-1 text-left font-semibold">
+                                Name
+                              </th>
+                              <th className="px-2 py-1 text-left font-semibold">
+                                Value
+                              </th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {properties.map(
+                              (row: any, idx: number) => (
+                                <tr
+                                  key={idx}
+                                  className="border-t border-white/10"
+                                >
+                                  <td className="px-2 py-1 font-semibold text-white/90 whitespace-nowrap">
+                                    {row.name}
+                                  </td>
+                                  <td className="px-2 py-1 text-left">
+                                    {row.value}
+                                  </td>
+                                </tr>
+                              )
+                            )}
+                          </tbody>
+                        </table>
+                      </div>
+                    ) : (
+                      <div className="text-white/60">
+                        No properties data available.
+                      </div>
+                    );
+                  })()}
                 </div>
               </Card>
             </div>
           </div>
         </div>
-      </div>
     </GradientBackground>
   );
 }
