@@ -35,6 +35,7 @@ import {
   ChevronDown,
 } from 'lucide-react';
 import { useSearchParams } from 'next/navigation';
+import { AuditAction } from '@/lib/audit';
 
 // Types based on Prisma schema
 interface AuditLog {
@@ -58,6 +59,48 @@ interface AuditStats {
   auditsThisWeek: number;
   auditsToday: number;
 }
+
+// Action filter options derived from AuditAction enum
+const actionOptions = [
+  { value: 'all', label: 'All Actions', group: null },
+  // User management
+  { value: AuditAction.CREATE_USER, label: 'Create User', group: 'User Management' },
+  { value: AuditAction.UPDATE_USER, label: 'Update User', group: 'User Management' },
+  { value: AuditAction.DELETE_USER, label: 'Delete User', group: 'User Management' },
+  
+  // Authentication
+  { value: AuditAction.LOGIN, label: 'Login', group: 'Authentication' },
+  { value: AuditAction.LOGOUT, label: 'Logout', group: 'Authentication' },
+  { value: AuditAction.FAILED_LOGIN, label: 'Failed Login', group: 'Authentication' },
+  { value: AuditAction.PASSWORD_RESET, label: 'Password Reset', group: 'Authentication' },
+  
+  // Pair management
+  { value: AuditAction.CREATE_PAIR, label: 'Create Pair', group: 'Pair Management' },
+  { value: AuditAction.UPDATE_PAIR, label: 'Update Pair', group: 'Pair Management' },
+  { value: AuditAction.DELETE_PAIR, label: 'Delete Pair', group: 'Pair Management' },
+  
+  // Subscription management
+  { value: AuditAction.CREATE_SUBSCRIPTION, label: 'Create Subscription', group: 'Subscription Management' },
+  { value: AuditAction.UPDATE_SUBSCRIPTION, label: 'Update Subscription', group: 'Subscription Management' },
+  { value: AuditAction.CANCEL_SUBSCRIPTION, label: 'Cancel Subscription', group: 'Subscription Management' },
+  
+  // Payment management
+  { value: AuditAction.PROCESS_PAYMENT, label: 'Process Payment', group: 'Payment Management' },
+  { value: AuditAction.REFUND_PAYMENT, label: 'Refund Payment', group: 'Payment Management' },
+  
+  // System administration
+  { value: AuditAction.SYSTEM_BACKUP, label: 'System Backup', group: 'System Administration' },
+  { value: AuditAction.SYSTEM_RESTORE, label: 'System Restore', group: 'System Administration' },
+  { value: AuditAction.CONFIG_UPDATE, label: 'Config Update', group: 'System Administration' },
+  
+  // Data management
+  { value: AuditAction.DATA_EXPORT, label: 'Data Export', group: 'Data Management' },
+  { value: AuditAction.DATA_IMPORT, label: 'Data Import', group: 'Data Management' },
+  
+  // Security
+  { value: AuditAction.ROLE_CHANGE, label: 'Role Change', group: 'Security' },
+  { value: AuditAction.PERMISSION_CHANGE, label: 'Permission Change', group: 'Security' },
+];
 
 const AuditLogsPage = () => {
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
@@ -238,7 +281,7 @@ const AuditLogsPage = () => {
   ];
 
   return (
-    <GradientBackground>
+    <GradientBackground className='pb-16'>
       <Toaster position="top-center" />
       <div className="min-h-screen flex flex-col justify-between p-0 md:p-4">
         {/* Audit Stats */}
@@ -299,28 +342,24 @@ const AuditLogsPage = () => {
 
             {/* Action Filter */}
             <Select value={filterAction} onValueChange={setFilterAction}>
-              <SelectTrigger className="w-full sm:w-40 backdrop-blur-md bg-white/15 border border-white/30 text-white hover:bg-white/20 rounded-xl">
+              <SelectTrigger className="w-full sm:w-48 backdrop-blur-md bg-white/15 border border-white/30 text-white hover:bg-white/20 rounded-xl">
                 <SelectValue placeholder="Action" />
               </SelectTrigger>
-              <SelectContent className="backdrop-blur-xl bg-slate-800/95 border border-white/30 rounded-xl">
-                <SelectItem value="all" className="text-white hover:bg-white/20 focus:bg-white/20">
-                  All Actions
-                </SelectItem>
-                <SelectItem value="CREATE_USER" className="text-white hover:bg-white/20 focus:bg-white/20">
-                  Create User
-                </SelectItem>
-                <SelectItem value="UPDATE_USER" className="text-white hover:bg-white/20 focus:bg-white/20">
-                  Update User
-                </SelectItem>
-                <SelectItem value="DELETE_USER" className="text-white hover:bg-white/20 focus:bg-white/20">
-                  Delete User
-                </SelectItem>
-                <SelectItem value="LOGIN" className="text-white hover:bg-white/20 focus:bg-white/20">
-                  Login
-                </SelectItem>
-                <SelectItem value="LOGOUT" className="text-white hover:bg-white/20 focus:bg-white/20">
-                  Logout
-                </SelectItem>
+              <SelectContent className="backdrop-blur-xl bg-slate-800/95 border border-white/30 rounded-xl max-h-80 overflow-y-auto">
+                {actionOptions.map((option) => (
+                  <SelectItem 
+                    key={option.value} 
+                    value={option.value} 
+                    className="text-white hover:bg-white/20 focus:bg-white/20"
+                  >
+                    <div className="flex flex-col">
+                      <span>{option.label}</span>
+                      {option.group && (
+                        <span className="text-xs text-white/50">{option.group}</span>
+                      )}
+                    </div>
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
 
