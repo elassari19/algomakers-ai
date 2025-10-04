@@ -31,11 +31,25 @@ export async function GET(request: Request) {
   }
 
   // If symbol and timeframe are provided, fetch one
-  if (symbol && timeframe && strategy) {
+  if (symbol && timeframe) {
     try {
+      const whereClause: any = { 
+        symbol, 
+        timeframe
+      };
+      
+      // Only add strategy to where clause if it's provided
+      if (strategy !== null && strategy !== undefined && strategy !== '') {
+        whereClause.strategy = strategy;
+      } else {
+        // If no strategy provided, find pairs where strategy is null or empty
+        whereClause.strategy = null;
+      }
+      
       const pair = await prisma.pair.findFirst({
-        where: { symbol, timeframe, strategy },
+        where: whereClause,
       });
+      
       if (!pair) {
         return NextResponse.json({ found: false });
       }
@@ -128,7 +142,7 @@ export async function POST(request: NextRequest) {
     });
 
     // Log based on user role: USER -> audit, non-USER -> event
-    if (session.user.role !== 'USER') {
+    if (session.user.role) {
       // Create audit log for USER role
       await createAuditLog({
         adminId: session.user.id,
@@ -182,8 +196,8 @@ export async function PATCH(request: NextRequest) {
     }
 
     const body = await request.json();
+    console.log('Body received in PATCH /api/backtest:', body);
     const {
-      id,
       symbol,
       timeframe,
       strategy,
@@ -206,12 +220,31 @@ export async function PATCH(request: NextRequest) {
     const parseNum = (v: any) =>
       v === '' || v === null || typeof v === 'undefined' ? 0 : parseFloat(v);
 
-    if (!id) {
-      return NextResponse.json({ error: 'Missing pair id' }, { status: 400 });
+    // Find the pair first to get its ID, then update by ID
+    const whereClause: any = { 
+      symbol, 
+      timeframe
+    };
+    
+    // Only add strategy to where clause if it's provided and not empty
+    if (strategy !== null && strategy !== undefined && strategy !== '') {
+      whereClause.strategy = strategy;
+    } else {
+      // If no strategy provided, find pairs where strategy is null or empty
+      whereClause.strategy = null;
+    }
+    
+    const existingPair = await prisma.pair.findFirst({
+      where: whereClause,
+    });
+    console.log('Existing pair found:', existingPair);
+
+    if (!existingPair) {
+      return NextResponse.json({ error: 'Pair not found' }, { status: 404 });
     }
 
     const pair = await prisma.pair.update({
-      where: { id },
+      where: { id: existingPair.id },
       data: {
         symbol,
         performance,
@@ -233,7 +266,7 @@ export async function PATCH(request: NextRequest) {
     });
 
     // Log based on user role: USER -> audit, non-USER -> event
-    if (session.user.role !== 'USER') {
+    if (session.user.role) {
       // Create audit log for USER role
       await createAuditLog({
         adminId: session.user.id,
@@ -303,7 +336,7 @@ export async function DELETE(request: NextRequest) {
     await prisma.pair.delete({ where: { id } });
 
     // Log based on user role: USER -> audit, non-USER -> event
-    if (session.user.role !== 'USER') {
+    if (session.user.role) {
       // Create audit log for USER role
       await createAuditLog({
         adminId: session.user.id,

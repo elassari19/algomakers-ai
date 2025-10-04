@@ -589,16 +589,26 @@ const ConsolePage = () => {
                     // Get id for update
                     let id = null;
                     try {
-                      const res = await fetch(
-                        `/api/backtest?symbol=${encodeURIComponent(
-                          parsed.symbol
-                        )}&timeframe=${encodeURIComponent(parsed.timeframe)}`
-                      );
+                      const queryParams = new URLSearchParams({
+                        symbol: parsed.symbol,
+                        timeframe: parsed.timeframe,
+                      });
+                      
+                      // Only add strategy if it exists and is not empty
+                      if (parsed.strategy && parsed.strategy.trim() !== '') {
+                        queryParams.append('strategy', parsed.strategy);
+                      }
+                      
+                      const res = await fetch(`/api/backtest?${queryParams.toString()}`);
                       if (res.ok) {
                         const json = await res.json();
-                        id = json.pair?.id;
+                        if (json.found && json.pair) {
+                          id = json.pair.id;
+                        }
                       }
-                    } catch {}
+                    } catch (error) {
+                      console.error('Error fetching existing pair:', error);
+                    }
                     if (!id) {
                       toast.error(
                         `No existing backtest for ${parsed.symbol} ${parsed.timeframe}`

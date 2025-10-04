@@ -19,14 +19,6 @@ export default async function PairDetailPage({ params }: PairDetailPageProps) {
   if (!pair) {
     notFound();
   }
-  // Parse metrics if stringified
-  if (typeof pair.metrics === 'string') {
-    try {
-      pair.metrics = JSON.parse(pair.metrics);
-    } catch (e) {
-      pair.metrics = {};
-    }
-  }
 
   return (
     <GradientBackground>
@@ -138,8 +130,8 @@ export default async function PairDetailPage({ params }: PairDetailPageProps) {
                 </h2>
                 {/* BacktestChart for List of trades (Exit long) */}
                 {(() => {
-                  const trades = Array.isArray(pair.metrics?.['List of trades'])
-                    ? pair.metrics['List of trades'].filter(
+                  const trades = Array.isArray(pair.listOfTrades)
+                    ? pair.listOfTrades.filter(
                         (t: any) => t['Type'] === 'Exit long'
                       )
                     : [];
@@ -184,8 +176,8 @@ export default async function PairDetailPage({ params }: PairDetailPageProps) {
                     })),
                   };
                   // Extract drawdown and cumulative P&L metrics from the data
-                  const drawdownUSDT = Math.min(...trades.map(t => t['Drawdown USDT'] || 0));
-                  const drawdownPCT = Math.min(...trades.map(t => t['Drawdown %'] || 0));
+                  const drawdownUSDT = Math.min(...trades.map((t: any) => t['Drawdown USDT'] || 0));
+                  const drawdownPCT = Math.min(...trades.map((t: any) => t['Drawdown %'] || 0));
                   const finalCumPL_USDT = trades[trades.length - 1]['Cumulative P&L USDT'] || 0;
                   const finalCumPL_PCT = trades[trades.length - 1]['Cumulative P&L %'] || 0;
                   
@@ -227,7 +219,7 @@ export default async function PairDetailPage({ params }: PairDetailPageProps) {
                         </tr>
                       </thead>
                       <tbody>
-                        {pair.metrics['Performance'].map(
+                        {pair.performance.map(
                           (row: any, idx: number) => (
                             <tr key={idx} className="border-t border-white/10">
                               <td className="px-2 py-1 text-left">
@@ -282,7 +274,7 @@ export default async function PairDetailPage({ params }: PairDetailPageProps) {
                           </tr>
                         </thead>
                         <tbody>
-                          {pair.metrics['Risk performance ratios'].map(
+                          {pair.riskPerformanceRatios.map(
                             (row: any, idx: number) => (
                               <tr
                                 key={idx}
@@ -346,15 +338,15 @@ export default async function PairDetailPage({ params }: PairDetailPageProps) {
                         </thead>
                         <tbody>
                           {[
-                            pair.metrics['Properties'][0],
-                            pair.metrics['Properties'][2],
-                            pair.metrics['Properties'][3],
-                            pair.metrics['Properties'][5],
-                            pair.metrics['Properties'][6],
-                            pair.metrics['Properties'][73],
-                            pair.metrics['Properties'][74],
-                            pair.metrics['Properties'][75],
-                            pair.metrics['Properties'][76],
+                            pair.properties[0],
+                            pair.properties[2],
+                            pair.properties[3],
+                            pair.properties[5],
+                            pair.properties[6],
+                            pair.properties[73],
+                            pair.properties[74],
+                            pair.properties[75],
+                            pair.properties[76],
                           ].map((row: any, idx: number) => (
                             <tr key={idx} className="border-t border-white/10">
                               <td className="px-2 py-1 font-semibold text-white/90 whitespace-nowrap">
