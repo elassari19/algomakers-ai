@@ -111,16 +111,14 @@ export default async function PairDetailPage({ params }: PairDetailPageProps) {
                     <span className="text-white font-mono">{pair.symbol}</span>
                   </div>
                   <div className="flex justify-between items-center">
+                    <span className="text-white/70">Strategy</span>
+                    <span className="text-white font-mono">{pair.strategy}</span>
+                  </div>
+                  <div className="flex justify-between items-center">
                     <span className="text-white/70">Timeframe</span>
                     <Badge className="bg-blue-500/20 text-white/70 border-blue-500/30">
                       {pair.timeframe}
                     </Badge>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-white/70">ID</span>
-                    <span className="text-white font-mono max-w-[150px] truncate md:max-w-none">
-                      {pair.id}
-                    </span>
                   </div>
                   <div className="flex justify-between items-center">
                     <span className="text-white/70">Created</span>
@@ -167,34 +165,41 @@ export default async function PairDetailPage({ params }: PairDetailPageProps) {
                       date: t['Date/Time']
                         ? excelDateToISO(t['Date/Time'])
                         : '',
-                      value:
-                        typeof t['Cumulative P&L USDT'] === 'number'
-                          ? t['Cumulative P&L USDT']
-                          : 0,
+                      value: typeof t['Cumulative P&L USDT'] === 'number'
+                        ? t['Cumulative P&L USDT']
+                        : 0,
+                      // Pass existing values if available
+                      cumPL_USDT: typeof t['Cumulative P&L USDT'] === 'number'
+                        ? t['Cumulative P&L USDT']
+                        : 0,
+                      cumPL_PCT: typeof t['Cumulative P&L %'] === 'number'
+                        ? t['Cumulative P&L %']
+                        : 0,
+                      drawdown_USDT: typeof t['Drawdown USDT'] === 'number'
+                        ? t['Drawdown USDT']
+                        : 0,
+                      drawdown_PCT: typeof t['Drawdown %'] === 'number'
+                        ? t['Drawdown %']
+                        : 0,
                     })),
                   };
-                  // Optionally, pass metrics (roi, maxDrawdown) if available
-                  let roi = 0;
-                  if (chartData.initialBalance !== 0) {
-                    roi =
-                      ((chartData.finalBalance - chartData.initialBalance) /
-                        Math.abs(chartData.initialBalance)) *
-                      100;
-                  }
-                  // Calculate max drawdown (simple version)
-                  let maxDrawdown = 0;
-                  let peak = chartData.initialBalance;
-                  chartData.equityCurve.forEach((pt) => {
-                    if (pt.value > peak) peak = pt.value;
-                    const dd = (peak - pt.value) / peak;
-                    if (dd > maxDrawdown) maxDrawdown = dd;
-                  });
+                  // Extract drawdown and cumulative P&L metrics from the data
+                  const drawdownUSDT = Math.min(...trades.map(t => t['Drawdown USDT'] || 0));
+                  const drawdownPCT = Math.min(...trades.map(t => t['Drawdown %'] || 0));
+                  const finalCumPL_USDT = trades[trades.length - 1]['Cumulative P&L USDT'] || 0;
+                  const finalCumPL_PCT = trades[trades.length - 1]['Cumulative P&L %'] || 0;
+                  
                   return (
                     <div className="mb-6">
                       <BacktestChart
                         data={chartData}
                         symbol={pair.symbol}
-                        metrics={{ roi, maxDrawdown }}
+                        metrics={{ 
+                          drawdownUSDT, 
+                          drawdownPCT, 
+                          cumPL_USDT: finalCumPL_USDT,
+                          cumPL_PCT: finalCumPL_PCT
+                        }}
                       />
                     </div>
                   );
@@ -206,8 +211,8 @@ export default async function PairDetailPage({ params }: PairDetailPageProps) {
                   <Activity className="w-5 h-5 text-purple-400" />
                   Performance Metrics
                 </h3>
-                {Array.isArray(pair.metrics['Performance']) &&
-                pair.metrics['Performance'].length > 0 ? (
+                {Array.isArray(pair.performance) &&
+                pair.performance.length > 0 ? (
                   <div className="overflow-x-auto">
                     <table className="min-w-full text-xs text-white/80 bg-black/20 rounded">
                       <thead>
@@ -261,8 +266,8 @@ export default async function PairDetailPage({ params }: PairDetailPageProps) {
                     <Activity className="w-5 h-5 text-purple-400" />
                     Risk performance ratios
                   </h3>
-                  {Array.isArray(pair.metrics['Risk performance ratios']) &&
-                  pair.metrics['Risk performance ratios'].length > 0 ? (
+                  {Array.isArray(pair.riskPerformanceRatios) &&
+                  pair.riskPerformanceRatios.length > 0 ? (
                     <div className="overflow-x-auto">
                       <table className="min-w-full text-xs text-white/80 bg-black/20 rounded">
                         <thead>
@@ -325,8 +330,8 @@ export default async function PairDetailPage({ params }: PairDetailPageProps) {
                     <Activity className="w-5 h-5 text-purple-400" />
                     Properties
                   </h3>
-                  {Array.isArray(pair.metrics['Properties']) &&
-                  pair.metrics['Properties'].length > 0 ? (
+                  {Array.isArray(pair.properties) &&
+                  pair.properties.length > 0 ? (
                     <div className="overflow-x-auto">
                       <table className="min-w-full text-xs text-white/80 bg-black/20 rounded">
                         <thead>
@@ -377,8 +382,8 @@ export default async function PairDetailPage({ params }: PairDetailPageProps) {
                     <Activity className="w-5 h-5 text-purple-400" />
                     Trades analysis
                   </h3>
-                  {Array.isArray(pair.metrics['Trades analysis']) &&
-                  pair.metrics['Trades analysis'].length > 0 ? (
+                  {Array.isArray(pair.tradesAnalysis) &&
+                  pair.tradesAnalysis.length > 0 ? (
                     <div className="overflow-x-auto">
                       <table className="min-w-full text-xs text-white/80 bg-black/20 rounded">
                         <thead>
@@ -393,7 +398,7 @@ export default async function PairDetailPage({ params }: PairDetailPageProps) {
                           </tr>
                         </thead>
                         <tbody>
-                          {pair.metrics['Trades analysis'].map(
+                          {pair.tradesAnalysis.map(
                             (row: any, idx: number) => (
                               <tr
                                 key={idx}
