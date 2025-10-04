@@ -256,8 +256,10 @@ export function PortfolioDetailClient({
                   data={combinedBacktestData}
                   symbol={portfolio.name}
                   metrics={{
-                    roi: combinedMetrics.avgROI,
-                    maxDrawdown: combinedMetrics.maxDrawdown,
+                    drawdownUSDT: combinedMetrics.totalProfit * (combinedMetrics.maxDrawdown / 100),
+                    drawdownPCT: combinedMetrics.maxDrawdown,
+                    cumPL_USDT: combinedMetrics.totalProfit,
+                    cumPL_PCT: combinedMetrics.avgROI,
                   }}
                 />
               </CardContent>
