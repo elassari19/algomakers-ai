@@ -64,22 +64,6 @@ const UploadDialog: React.FC<UploadDialogProps> = ({
             let timeframe = '';
             let strategy = '';
             let data: any = {};
-            if (file.name.endsWith('.csv')) {
-              // Parse CSV as array of objects
-              const text = evt.target?.result as string;
-              const rows = XLSX.utils.sheet_to_json<{ [key: string]: any }>(
-                XLSX.read(text, { type: 'string' }).Sheets.Sheet1,
-                { defval: '' }
-              );
-              data = { Sheet1: rows };
-              // Try to extract symbol/timeframe from first row
-              if (rows[0]) {
-                symbol = rows[0]['symbol'] || '';
-                timeframe = rows[0]['timeframe'] || '';
-                strategy = rows[0]['strategy'] || '';
-              }
-            } else {
-              // XLSX
               const workbook = XLSX.read(evt.target?.result, { type: 'array' });
               const sheets = workbook.SheetNames;
               data = {};
@@ -90,11 +74,10 @@ const UploadDialog: React.FC<UploadDialogProps> = ({
               });
               // Try to extract symbol/timeframe from Properties sheet
               if (data['Properties']) {
-                symbol = data['Properties'][2]?.value || '';
-                timeframe = data['Properties'][3]?.value || '';
-                strategy = data['Properties'][9]?.value || '';
+                symbol = data['Properties'][2]?.value || data['Properties'][2]?.Value || '';
+                timeframe = data['Properties'][3]?.value || data['Properties'][3]?.Value || '';
+                strategy = data['Properties'][9]?.value || data['Properties'][9]?.Value || '';
               }
-            }
             resolve({ symbol, timeframe, strategy, data });
           } catch (err) {
             reject(err);
@@ -120,20 +103,26 @@ const UploadDialog: React.FC<UploadDialogProps> = ({
         const { symbol, timeframe, strategy, data } = await parseFile(file);
         let exists = false;
         let existingData = null;
+                
         if (symbol && timeframe && strategy) {
-          // Check existence via API
-          const res = await fetch(
-            `/api/backtest?symbol=${encodeURIComponent(
-              symbol
-            )}&timeframe=${encodeURIComponent(timeframe)}&strategy=${encodeURIComponent(strategy)}`
-          );
+          // Check existence via API - all three fields required
+          const apiUrl = `/api/backtest?symbol=${encodeURIComponent(
+            symbol
+          )}&timeframe=${encodeURIComponent(timeframe)}&strategy=${encodeURIComponent(strategy)}`;
+                    
+          const res = await fetch(apiUrl);
           if (res.ok) {
             const json = await res.json();
             exists = !!json.found;
             existingData = json.pair || null;
+            // console.log('API response:', { found: json.found, exists, existingData: existingData ? { id: existingData.id, symbol: existingData.symbol, timeframe: existingData.timeframe, strategy: existingData.strategy } : null });
+          } else {
+            console.log('API request failed:', res.status, res.statusText);
           }
+        } else {
+          console.log('Missing required fields for duplicate check:', { symbol: !!symbol, timeframe: !!timeframe, strategy: !!strategy });
         }
-        const info = { file, symbol, timeframe, exists, data, existingData };
+        const info = { file, symbol, timeframe, strategy, exists, data, existingData };
         infos.push(info);
         if (exists) update.push(info);
         else add.push(info);

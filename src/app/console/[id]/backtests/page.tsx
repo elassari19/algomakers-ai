@@ -99,7 +99,7 @@ const parseFile = async (file: File) => {
         if (data['Properties'] && Array.isArray(data['Properties'])) {
           symbol = data['Properties'][2]?.value || '';
           timeframe = data['Properties'][3]?.value || '';
-          strategy = data['Properties'][4]?.value || '';
+          strategy = data['Properties'][9]?.value || '';
         }
         
         // Split data into separate columns based on sheet names and stringify them
@@ -204,7 +204,7 @@ const ConsolePage = () => {
       setTimeframe('');
       fetchAllBacktests();
     } catch (err) {
-      console.log(err);
+      // console.log(err);
       toast.error('Error updating backtest', {
         style: { background: '#ef4444', color: 'white' },
       });
@@ -416,7 +416,7 @@ const ConsolePage = () => {
         style: { background: '#22c55e', color: 'white' },
       });
     } catch (err) {
-      console.log(err);
+      // console.log(err);
       toast.error('Error adding backtest', {
         style: { background: '#ef4444', color: 'white' },
       });

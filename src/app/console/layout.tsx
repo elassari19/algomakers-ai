@@ -20,7 +20,7 @@ export default function ConsoleLayout({
           size="lg"
           className="absolute inset-y-2 top-1 z-90 flex items-center cursor-pointer transition p-1 rounded-md"
         />
-        <div className="flex-1 p-2 py-8 sm:p-2">{children}</div>
+        <div className="flex-1 p-2 py-8 sm:p-2 min-h-screen overflow-auto">{children}</div>
       </SidebarInset>
     </SidebarProvider>
   );
