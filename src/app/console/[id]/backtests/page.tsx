@@ -219,65 +219,112 @@ const ConsolePage = () => {
   const columns: Column[] = [
     { key: 'symbol', header: 'Symbol', sortable: true },
     { key: 'timeframe', header: 'Timeframe', sortable: true },
+    { key: 'strategy', header: 'Strategy', sortable: true },
     {
-      key: 'priceOneMonth',
-      header: 'Price (1M)',
-      sortable: true,
+      key: 'oneMonth',
+      header: '1 Month',
+      sortable: false,
       align: 'center',
+      render: (_, row) => {
+        const price = row.priceOneMonth;
+        const discount = row.discountOneMonth;
+        return (
+          <div className="text-center">
+            <div className="font-medium">${price || '0'}</div>
+            {discount !== undefined && discount !== null && (
+              <div className="text-xs text-green-400">{discount}% off</div>
+            )}
+          </div>
+        );
+      },
     },
     {
-      key: 'priceThreeMonths',
-      header: 'Price (3M)',
-      sortable: true,
+      key: 'threeMonths',
+      header: '3 Months',
+      sortable: false,
       align: 'center',
+      render: (_, row) => {
+        const price = row.priceThreeMonths;
+        const discount = row.discountThreeMonths;
+        return (
+          <div className="text-center">
+            <div className="font-medium">${price || '0'}</div>
+            {discount !== undefined && discount !== null && (
+              <div className="text-xs text-green-400">{discount}% off</div>
+            )}
+          </div>
+        );
+      },
     },
     {
-      key: 'priceSixMonths',
-      header: 'Price (6M)',
-      sortable: true,
+      key: 'sixMonths',
+      header: '6 Months',
+      sortable: false,
       align: 'center',
+      render: (_, row) => {
+        const price = row.priceSixMonths;
+        const discount = row.discountSixMonths;
+        return (
+          <div className="text-center">
+            <div className="font-medium">${price || '0'}</div>
+            {discount !== undefined && discount !== null && (
+              <div className="text-xs text-green-400">{discount}% off</div>
+            )}
+          </div>
+        );
+      },
     },
     {
-      key: 'priceTwelveMonths',
-      header: 'Price (12M)',
-      sortable: true,
+      key: 'twelveMonths',
+      header: '12 Months',
+      sortable: false,
       align: 'center',
-    },
-    {
-      key: 'discountOneMonth',
-      header: 'Discount (1M)',
-      sortable: true,
-      align: 'center',
-      render: (value) =>
-        value !== undefined && value !== null ? `${value}%` : '',
-    },
-    {
-      key: 'discountThreeMonths',
-      header: 'Discount (3M)',
-      sortable: true,
-      align: 'center',
-      render: (value) =>
-        value !== undefined && value !== null ? `${value}%` : '',
-    },
-    {
-      key: 'discountSixMonths',
-      header: 'Discount (6M)',
-      sortable: true,
-      align: 'center',
-      render: (value) =>
-        value !== undefined && value !== null ? `${value}%` : '',
-    },
-    {
-      key: 'discountTwelveMonths',
-      header: 'Discount (12M)',
-      sortable: true,
-      align: 'center',
-      render: (value) =>
-        value !== undefined && value !== null ? `${value}%` : '',
+      render: (_, row) => {
+        const price = row.priceTwelveMonths;
+        const discount = row.discountTwelveMonths;
+        return (
+          <div className="text-center">
+            <div className="font-medium">${price || '0'}</div>
+            {discount !== undefined && discount !== null && (
+              <div className="text-xs text-green-400">{discount}% off</div>
+            )}
+          </div>
+        );
+      },
     },
     { key: 'id', header: 'ID', sortable: false },
-    { key: 'createdAt', header: 'Created At', sortable: true },
-    { key: 'updatedAt', header: 'Updated At', sortable: true },
+    { 
+      key: 'createdAt', 
+      header: 'Created At', 
+      sortable: true,
+      render: (value) => {
+        if (!value) return '';
+        const date = new Date(value);
+        return date.toLocaleDateString('en-US', {
+          year: 'numeric',
+          month: 'short',
+          day: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit'
+        });
+      }
+    },
+    { 
+      key: 'updatedAt', 
+      header: 'Updated At', 
+      sortable: true,
+      render: (value) => {
+        if (!value) return '';
+        const date = new Date(value);
+        return date.toLocaleDateString('en-US', {
+          year: 'numeric',
+          month: 'short',
+          day: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit'
+        });
+      }
+    },
     {
       key: 'action',
       header: 'Action',

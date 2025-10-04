@@ -497,7 +497,7 @@ export function ReusableTable<T = any>({
                         column.width || ''
                       } ${getAlignmentClass(column.align)} ${
                         frozenColumnKey && column.key === frozenColumnKey
-                          ? 'sticky left-0 z-20 bg-muted/50 backdrop-blur-lg'
+                          ? 'sticky left-0 z-20 bg-gray-700 backdrop-blur-3xl'
                           : ''
                       }`}
                       style={
