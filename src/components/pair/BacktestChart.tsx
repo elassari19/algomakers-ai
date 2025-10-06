@@ -73,25 +73,29 @@ export function BacktestChart({ data, symbol, metrics }: BacktestChartProps) {
     let peak = data.initialBalance;
     
     return data.equityCurve.map((point, idx) => {
-      // Use existing values if available, otherwise calculate
-      const cumPL_USDT = point.cumPL_USDT !== undefined ? point.cumPL_USDT : point.value;
+      // Calculate cumulative P&L properly
+      // If cumPL_USDT exists, use it; otherwise calculate from point.value (equity) minus initial balance
+      const cumPL_USDT = point.cumPL_USDT !== undefined 
+        ? point.cumPL_USDT 
+        : (point.value - data.initialBalance);
       
-      // For Cumulative P&L %, always calculate properly based on initial balance for aggregation
+      // For Cumulative P&L %, always calculate properly based on initial balance
       const cumPL_PCT = data.initialBalance !== 0
-        ? ((cumPL_USDT - data.initialBalance) / Math.abs(data.initialBalance)) * 100
+        ? (cumPL_USDT / Math.abs(data.initialBalance)) * 100
         : 0;
       
       // For drawdown, use existing values if available, otherwise calculate
+      // Always make drawdown positive (absolute value)
       const drawdown_USDT = point.drawdown_USDT !== undefined 
-        ? point.drawdown_USDT 
+        ? Math.abs(point.drawdown_USDT)
         : (() => {
             if (cumPL_USDT > peak) peak = cumPL_USDT;
-            return cumPL_USDT - peak;
+            return Math.abs(cumPL_USDT - peak);
           })();
       
       const drawdown_PCT = point.drawdown_PCT !== undefined 
-        ? point.drawdown_PCT 
-        : peak !== 0 ? ((cumPL_USDT - peak) / Math.abs(peak)) * 100 : 0;
+        ? Math.abs(point.drawdown_PCT)
+        : peak !== 0 ? Math.abs(((cumPL_USDT - peak) / Math.abs(peak)) * 100) : 0;
       
       return {
         date: point.date,
@@ -341,7 +345,18 @@ export function BacktestChart({ data, symbol, metrics }: BacktestChartProps) {
                   tick={{ fontSize: 12, fill: '#a7f3d0' }}
                   axisLine={{ stroke: '#10b981' }}
                   tickLine={false}
-                  domain={displayMode === 'percent' ? ['dataMin', 'dataMax'] : ['auto', 'auto']}
+                  domain={([dataMin, dataMax]) => {
+                    // Always include 0 in the domain
+                    const chartDataValues = chartData.map(d => 
+                      displayMode === 'usdt' ? d.cumPL_USDT : d.cumPL_PCT
+                    );
+                    if (chartDataValues.length === 0) return [0, 0];
+                    
+                    const actualMin = Math.min(...chartDataValues, 0); // Always include 0
+                    const actualMax = Math.max(...chartDataValues, 0); // Always include 0
+                    
+                    return [0, actualMax];
+                  }}
                   ticks={displayMode === 'percent' ? (() => {
                     // Generate ticks that always include 0 for percentage mode
                     const chartDataValues = chartData.map(d => d.cumPL_PCT);
@@ -401,31 +416,45 @@ export function BacktestChart({ data, symbol, metrics }: BacktestChartProps) {
                   axisLine={{ stroke: '#a855f7' }}
                   tickLine={false}
                   domain={([dataMin, dataMax]) => {
-                    // Center zero in the middle
-                    const maxAbs = Math.max(
-                      Math.abs(dataMin),
-                      Math.abs(dataMax)
-                    );
-                    return [-maxAbs, maxAbs];
-                  }}
-                  ticks={(() => {
-                    // Generate ticks that always include 0
+                    // Always start from 0 for drawdown, but consider actual drawdown values
                     const chartDataValues = chartData.map(d => 
                       displayMode === 'usdt' ? d.drawdown_USDT : d.drawdown_PCT
                     );
-                    if (chartDataValues.length === 0) return [0];
+                    if (chartDataValues.length === 0) return [0, 1];
                     
-                    const dataMin = Math.min(...chartDataValues);
-                    const dataMax = Math.max(...chartDataValues);
-                    const maxAbs = Math.max(Math.abs(dataMin), Math.abs(dataMax));
+                    const actualMax = Math.max(...chartDataValues, 0);
                     
-                    if (maxAbs === 0) return [0];
+                    if (displayMode === 'usdt') {
+                      // For USDT mode: multiply by 3-4 to make drawdown appear in lower portion
+                      return [0, Math.max(actualMax * 4, 10)]; // At least 10 USDT scale
+                    } else {
+                      // For percentage mode: keep existing behavior
+                      return [0, Math.max(actualMax, 1)]; // At least 1% to show scale
+                    }
+                  }}
+                  ticks={(() => {
+                    const chartDataValues = chartData.map(d => 
+                      displayMode === 'usdt' ? d.drawdown_USDT : d.drawdown_PCT
+                    );
+                    if (chartDataValues.length === 0) return [0, 1];
                     
-                    // Create symmetric ticks around 0
-                    const step = maxAbs / 3;
-                    return [-maxAbs, -step * 2, -step, 0, step, step * 2, maxAbs]
-                      .filter((tick, index, arr) => arr.indexOf(tick) === index)
-                      .sort((a, b) => a - b);
+                    const actualMax = Math.max(...chartDataValues, 0);
+                    
+                    if (displayMode === 'usdt') {
+                      // For USDT mode: create ticks based on expanded domain
+                      const domainMax = Math.max(actualMax * 4, 10);
+                      const step = domainMax / 5;
+                      return [0, step, step * 2, step * 3, step * 4, domainMax]
+                        .filter((tick, index, arr) => arr.indexOf(tick) === index)
+                        .sort((a, b) => a - b);
+                    } else {
+                      // For percentage mode: keep existing behavior
+                      const dataMax = Math.max(...chartDataValues, 1);
+                      const step = dataMax / 5;
+                      return [0, step, step * 2, step * 3, step * 4, dataMax]
+                        .filter((tick, index, arr) => arr.indexOf(tick) === index)
+                        .sort((a, b) => a - b);
+                    }
                   })()}
                   allowDataOverflow
                   allowDecimals
