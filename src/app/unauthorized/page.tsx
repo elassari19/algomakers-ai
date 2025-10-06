@@ -1,14 +1,16 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
+import { GradientBackground } from '@/components/ui/gradient-background';
 import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { AlertTriangle } from 'lucide-react';
 
 export default function UnauthorizedPage() {
   const router = useRouter();
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-slate-900">
+    <GradientBackground>
       <div className="max-w-md mx-auto text-center p-8">
         <div className="flex justify-center mb-6">
           <AlertTriangle className="h-16 w-16 text-red-500" />
@@ -38,6 +40,6 @@ export default function UnauthorizedPage() {
           </Button>
         </div>
       </div>
-    </div>
+    </GradientBackground>
   );
 }

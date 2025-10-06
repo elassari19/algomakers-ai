@@ -1,3 +1,5 @@
+'use client';
+
 import { GradientBackground } from '@/components/ui/gradient-background';
 import { OverviewSection, OverviewDataItem } from '@/components/dashboard/DashboardStats';
 import { BarChart3, Target, DollarSign, Award } from 'lucide-react';
