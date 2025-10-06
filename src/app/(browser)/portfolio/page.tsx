@@ -1,5 +1,6 @@
 import { GradientBackground } from '@/components/ui/gradient-background';
-import { DashboardStats } from '@/components/dashboard/DashboardStats';
+import { OverviewSection, OverviewDataItem } from '@/components/dashboard/DashboardStats';
+import { BarChart3, Target, DollarSign, Award } from 'lucide-react';
 import { PortfolioGridClient } from '@/components/portfolio/PortfolioGridClient';
 
 interface Portfolio {
@@ -102,19 +103,38 @@ export default function PortfolioPage() {
       <div className="min-h-screen p-0 md:p-4">
         {/* Portfolio Statistics */}
         <div className="mb-6 sm:mb-8">
-          <DashboardStats
-            totalPairs={portfolioStats.totalPairs}
-            profitablePairs={portfolioStats.profitablePairs}
-            totalProfit={portfolioStats.totalProfit}
-            bestPerformer={portfolioStats.bestPerformer}
+          <OverviewSection
+            overviewData={[
+              {
+                title: 'Total Portfolios',
+                currentValue: portfolioStats.totalPairs,
+                icon: BarChart3,
+                description: 'Created portfolios',
+                pastValue: '+1 new portfolio this month',
+              },
+              {
+                title: 'Profitable Portfolios',
+                currentValue: portfolioStats.profitablePairs,
+                icon: Target,
+                description: `${portfolioStats.totalPairs > 0 ? ((portfolioStats.profitablePairs / portfolioStats.totalPairs) * 100).toFixed(1) : '0'}% win rate`,
+                pastValue: `${portfolioStats.profitablePairs} out of ${portfolioStats.totalPairs} portfolios`,
+              },
+              {
+                title: 'Total Portfolio Value',
+                currentValue: `$${portfolioStats.totalProfit.toLocaleString()}`,
+                icon: DollarSign,
+                description: 'Combined portfolio value',
+                pastValue: '+15.2% this quarter',
+              },
+              {
+                title: 'Best Portfolio',
+                currentValue: portfolioStats.bestPerformer.symbol,
+                icon: Award,
+                description: `${portfolioStats.bestPerformer.roi}% ROI`,
+                pastValue: 'Top performing portfolio',
+              },
+            ]}
             className="mb-0 opacity-95"
-            // Override labels for portfolio context
-            labels={{
-              totalPairs: 'Total Portfolios',
-              profitablePairs: 'Profitable Portfolios',
-              totalProfit: 'Total Portfolio Value',
-              bestPerformer: 'Best Portfolio',
-            }}
           />
         </div>
 

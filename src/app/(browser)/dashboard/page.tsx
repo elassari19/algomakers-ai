@@ -2,7 +2,7 @@
 
 import { Suspense } from 'react';
 import Head from 'next/head';
-import { DashboardStats } from '@/components/dashboard/DashboardStats';
+import { OverviewSection, OverviewDataItem } from '@/components/dashboard/DashboardStats';
 import { ClientSortFilterBar } from '@/components/subscription/ClientSortFilterBar';
 import { GradientBackground } from '@/components/ui/gradient-background';
 import { ReusableTable, Column } from '@/components/ui/reusable-table';
@@ -21,6 +21,7 @@ import {
   BarChart3,
   DollarSign,
   Clock,
+  Award,
 } from 'lucide-react';
 import {
   DropdownMenu,
@@ -203,11 +204,37 @@ function DashboardContent() {
           <div className="dashboard-scale">
             {/* Dashboard Statistics */}
             <div className="">
-              <DashboardStats
-                totalPairs={dashboardStats.totalPairs}
-                profitablePairs={dashboardStats.profitablePairs}
-                totalProfit={dashboardStats.totalProfit}
-                bestPerformer={dashboardStats.bestPerformer}
+              <OverviewSection
+                overviewData={[
+                  {
+                    title: 'Total Pairs',
+                    currentValue: dashboardStats.totalPairs,
+                    icon: BarChart3,
+                    description: 'Available trading pairs',
+                    pastValue: '+2 new pairs this month',
+                  },
+                  {
+                    title: 'Profitable Pairs',
+                    currentValue: dashboardStats.profitablePairs,
+                    icon: Target,
+                    description: `${dashboardStats.totalPairs > 0 ? ((dashboardStats.profitablePairs / dashboardStats.totalPairs) * 100).toFixed(1) : '0'}% win rate`,
+                    pastValue: `${dashboardStats.profitablePairs} out of ${dashboardStats.totalPairs} pairs`,
+                  },
+                  {
+                    title: 'Total Profit',
+                    currentValue: `$${dashboardStats.totalProfit.toLocaleString()}`,
+                    icon: DollarSign,
+                    description: 'Combined performance',
+                    pastValue: '+15.2% this quarter',
+                  },
+                  {
+                    title: 'Best Performer',
+                    currentValue: dashboardStats.bestPerformer.symbol,
+                    icon: Award,
+                    description: `${dashboardStats.bestPerformer.roi}% ROI`,
+                    pastValue: 'Top performing pair',
+                  },
+                ]}
                 className="mb-0 grid-cols-2 md:grid-cols-4 w-[200%] md:w-full"
               />
             </div>

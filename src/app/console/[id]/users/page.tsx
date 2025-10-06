@@ -4,7 +4,7 @@ import React, { useEffect, useState, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { toast } from 'sonner';
 import { Toaster } from '@/components/ui/sonner';
-import { DashboardStats } from '@/components/dashboard/DashboardStats';
+import { OverviewSection, OverviewDataItem } from '@/components/dashboard/DashboardStats';
 import { ReusableTable, Column } from '@/components/ui/reusable-table';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -15,6 +15,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { SearchInput } from '@/components/SearchInput';
 import { Textarea } from '@/components/ui/textarea';
 import { z } from 'zod';
+import {
+  BarChart3,
+  Target,
+  DollarSign,
+  Clock,
+} from 'lucide-react';
 import {
   Sheet,
   SheetContent,
@@ -699,11 +705,37 @@ const UsersPage = () => {
       <div className="min-h-screen flex flex-col justify-between p-0 md:p-4">
         {/* User Management Stats */}
         <div className="mb-4">
-          <DashboardStats
-            totalPairs={stats.totalUsers}
-            profitablePairs={stats.adminUsers}
-            totalProfit={stats.verifiedUsers}
-            bestPerformer={{ symbol: 'Recent', roi: stats.recentUsers }}
+          <OverviewSection
+            overviewData={[
+              {
+                title: 'Total Users',
+                currentValue: stats.totalUsers,
+                icon: BarChart3,
+                description: 'Registered users',
+                pastValue: '+1 new user this month',
+              },
+              {
+                title: 'Admin Users',
+                currentValue: stats.adminUsers,
+                icon: Target,
+                description: `${stats.totalUsers > 0 ? ((stats.adminUsers / stats.totalUsers) * 100).toFixed(1) : '0'}% admin rate`,
+                pastValue: `${stats.adminUsers} out of ${stats.totalUsers} users`,
+              },
+              {
+                title: 'Verified Users',
+                currentValue: stats.verifiedUsers,
+                icon: DollarSign,
+                description: 'Email verified',
+                pastValue: '+15.2% this quarter',
+              },
+              {
+                title: 'Recent Users',
+                currentValue: stats.recentUsers,
+                icon: Clock,
+                description: 'New this month',
+                pastValue: 'Recent signups',
+              },
+            ]}
             className="mb-0 opacity-95"
           />
         </div>
