@@ -2,7 +2,7 @@
 
 import * as React from 'react';
 import Link from 'next/link';
-import { LayoutDashboard, PieChart, Receipt, Briefcase, Users, BarChart2 } from 'lucide-react';
+import { LayoutDashboard, PieChart, Receipt, Briefcase, Users, BarChart2, Bell } from 'lucide-react';
 
 import { NavMain } from '@/components/nav-main';
 import {
@@ -196,6 +196,11 @@ const data = {
       title: 'Billing',
       url: '/console/1/billing',
       icon: Receipt,
+    },
+    {
+      title: 'Notifications',
+      url: '/console/1/notifications',
+      icon: Bell,
     },
     { title: 'Analytics', url: '/console/1/analytics', icon: BarChart2 },
   ]
