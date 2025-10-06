@@ -4,6 +4,7 @@ import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { createAuditLog, AuditAction, AuditTargetType } from '@/lib/audit';
 import { z } from 'zod';
+import bcrypt from 'bcryptjs';
 
 // Validation schema for user creation/update
 const userSchema = z.object({
@@ -12,6 +13,7 @@ const userSchema = z.object({
   tradingviewUsername: z.string().optional(),
   role: z.enum(['USER', 'ADMIN', 'SUPPORT', 'MANAGER']),
   image: z.string().url().optional().or(z.literal('')),
+  password: z.string().min(6, 'Password must be at least 6 characters').optional(),
 });
 
 // GET /api/users - Fetch all users with optional filtering and search
@@ -122,6 +124,12 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Hash password if provided
+    let hashedPassword = null;
+    if (validatedData.password) {
+      hashedPassword = await bcrypt.hash(validatedData.password, 12);
+    }
+
     // Create new user
     const newUser = await prisma.user.create({
       data: {
@@ -130,6 +138,7 @@ export async function POST(request: NextRequest) {
         tradingviewUsername: validatedData.tradingviewUsername || null,
         role: validatedData.role,
         image: validatedData.image || null,
+        passwordHash: hashedPassword,
       },
       include: {
         _count: {
@@ -255,9 +264,20 @@ export async function PUT(request: NextRequest) {
       }
     }
 
+    // Prepare update data
+    const updateDataWithHashedPassword = { ...validatedData };
+    
+    // Hash password if provided
+    if (validatedData.password) {
+      updateDataWithHashedPassword.password = await bcrypt.hash(validatedData.password, 12);
+    } else {
+      // Remove password from update data if not provided (don't update it)
+      delete updateDataWithHashedPassword.password;
+    }
+
     const updatedUser = await prisma.user.update({
       where: { id },
-      data: validatedData,
+      data: updateDataWithHashedPassword,
       include: {
         _count: {
           select: {

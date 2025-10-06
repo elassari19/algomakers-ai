@@ -113,9 +113,9 @@ export async function POST(request: NextRequest) {
     const parseNum = (v: any) =>
       v === '' || v === null || typeof v === 'undefined' ? 0 : parseFloat(v);
 
-    if (!symbol || !timeframe) {
+    if (!symbol || !timeframe || !strategy) {
       return NextResponse.json(
-        { error: 'Missing symbol or timeframe' },
+        { error: 'Missing symbol, timeframe or strategy' },
         { status: 400 }
       );
     }

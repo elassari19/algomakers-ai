@@ -583,7 +583,7 @@ export function ReusableTable<T = any>({
       {/* Row Detail Slider */}
       {enableRowDetails && (
         <Sheet open={isDetailOpen} onOpenChange={setIsDetailOpen}>
-          <SheetContent className="w-full md:w-[32rem] max-w-none bg-gradient-to-b from-[#6a1b9a] to-[#2d1b24] p-6">
+          <SheetContent className="w-full md:w-[32rem] max-w-none bg-gradient-to-b from-white/20 to-white/5 backdrop-blur-2xl p-6">
             <SheetHeader className="px-2 h-10">
               <SheetTitle className="text-white text-lg">
                 {selectedRow && rowDetailTitle

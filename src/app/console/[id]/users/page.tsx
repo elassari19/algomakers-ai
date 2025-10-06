@@ -5,7 +5,6 @@ import { useSearchParams } from 'next/navigation';
 import { toast } from 'sonner';
 import { Toaster } from '@/components/ui/sonner';
 import { DashboardStats } from '@/components/dashboard/DashboardStats';
-import { SortFilterBar } from '@/components/subscription/SortFilterBar';
 import { ReusableTable, Column } from '@/components/ui/reusable-table';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -15,6 +14,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { SearchInput } from '@/components/SearchInput';
 import { Textarea } from '@/components/ui/textarea';
+import { z } from 'zod';
 import {
   Sheet,
   SheetContent,
@@ -67,7 +67,20 @@ interface UserFormData {
   tradingviewUsername?: string;
   role: 'USER' | 'ADMIN' | 'SUPPORT' | 'MANAGER';
   image?: string;
+  password?: string;
 }
+
+// Zod validation schema
+const userFormSchema = z.object({
+  email: z.string().email('Please enter a valid email address'),
+  name: z.string().optional(),
+  tradingviewUsername: z.string().optional(),
+  role: z.enum(['USER', 'ADMIN', 'SUPPORT', 'MANAGER']),
+  image: z.string().url('Please enter a valid URL').optional().or(z.literal('')),
+  password: z.string().min(6, 'Password must be at least 6 characters').optional(),
+});
+
+type ValidationErrors = Partial<Record<keyof UserFormData, string>>;
 
 // Action buttons component
 function ActionButtons({
@@ -132,11 +145,66 @@ function UserForm({
     tradingviewUsername: user?.tradingviewUsername || '',
     role: user?.role || 'USER',
     image: user?.image || '',
+    password: '',
   });
+
+  const [errors, setErrors] = useState<ValidationErrors>({});
+  const [isValidating, setIsValidating] = useState(false);
+
+  const validateForm = () => {
+    try {
+      setIsValidating(true);
+      
+      // Create validation data - exclude password if it's empty for updates
+      const validationData = { ...formData };
+      if (user && !validationData.password) {
+        delete validationData.password;
+      }
+      
+      // For new users, password is required
+      if (!user && !validationData.password) {
+        throw new z.ZodError([
+          {
+            code: 'custom',
+            path: ['password'],
+            message: 'Password is required for new users',
+          },
+        ]);
+      }
+      
+      userFormSchema.parse(validationData);
+      setErrors({});
+      return true;
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        const newErrors: ValidationErrors = {};
+        error.issues.forEach((err) => {
+          const field = err.path[0] as keyof UserFormData;
+          newErrors[field] = err.message;
+        });
+        setErrors(newErrors);
+      }
+      return false;
+    } finally {
+      setIsValidating(false);
+    }
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    onSubmit(formData);
+    
+    if (validateForm()) {
+      onSubmit(formData);
+    }
+  };
+
+  const handleFieldChange = (field: keyof UserFormData, value: string) => {
+    setFormData({ ...formData, [field]: value });
+    
+    // Clear error for this field when user starts typing
+    if (errors[field]) {
+      setErrors({ ...errors, [field]: undefined });
+    }
   };
 
   return (
@@ -148,11 +216,16 @@ function UserForm({
             id="email"
             type="email"
             value={formData.email}
-            onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+            onChange={(e) => handleFieldChange('email', e.target.value)}
             required
-            className="bg-white/10 border-white/20 text-white"
+            className={`bg-white/10 border-white/20 text-white ${
+              errors.email ? 'border-red-500 focus:border-red-500' : ''
+            }`}
             placeholder="user@example.com"
           />
+          {errors.email && (
+            <p className="text-red-400 text-sm mt-1">{errors.email}</p>
+          )}
         </div>
 
         <div>
@@ -161,10 +234,15 @@ function UserForm({
             id="name"
             type="text"
             value={formData.name}
-            onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-            className="bg-white/10 border-white/20 text-white"
+            onChange={(e) => handleFieldChange('name', e.target.value)}
+            className={`bg-white/10 border-white/20 text-white ${
+              errors.name ? 'border-red-500 focus:border-red-500' : ''
+            }`}
             placeholder="John Doe"
           />
+          {errors.name && (
+            <p className="text-red-400 text-sm mt-1">{errors.name}</p>
+          )}
         </div>
 
         <div>
@@ -173,16 +251,26 @@ function UserForm({
             id="tradingviewUsername"
             type="text"
             value={formData.tradingviewUsername}
-            onChange={(e) => setFormData({ ...formData, tradingviewUsername: e.target.value })}
-            className="bg-white/10 border-white/20 text-white"
+            onChange={(e) => handleFieldChange('tradingviewUsername', e.target.value)}
+            className={`bg-white/10 border-white/20 text-white ${
+              errors.tradingviewUsername ? 'border-red-500 focus:border-red-500' : ''
+            }`}
             placeholder="tradingview_username"
           />
+          {errors.tradingviewUsername && (
+            <p className="text-red-400 text-sm mt-1">{errors.tradingviewUsername}</p>
+          )}
         </div>
 
         <div>
           <Label htmlFor="role" className="text-white/90">Role *</Label>
-          <Select value={formData.role} onValueChange={(value) => setFormData({ ...formData, role: value as any })}>
-            <SelectTrigger className="bg-white/10 border-white/20 text-white">
+          <Select 
+            value={formData.role} 
+            onValueChange={(value) => handleFieldChange('role', value)}
+          >
+            <SelectTrigger className={`bg-white/10 border-white/20 text-white ${
+              errors.role ? 'border-red-500 focus:border-red-500' : ''
+            }`}>
               <SelectValue />
             </SelectTrigger>
             <SelectContent className="bg-slate-800 border-white/20">
@@ -192,6 +280,9 @@ function UserForm({
               <SelectItem value="MANAGER">Manager</SelectItem>
             </SelectContent>
           </Select>
+          {errors.role && (
+            <p className="text-red-400 text-sm mt-1">{errors.role}</p>
+          )}
         </div>
 
         <div>
@@ -200,10 +291,34 @@ function UserForm({
             id="image"
             type="url"
             value={formData.image}
-            onChange={(e) => setFormData({ ...formData, image: e.target.value })}
-            className="bg-white/10 border-white/20 text-white"
+            onChange={(e) => handleFieldChange('image', e.target.value)}
+            className={`bg-white/10 border-white/20 text-white ${
+              errors.image ? 'border-red-500 focus:border-red-500' : ''
+            }`}
             placeholder="https://example.com/avatar.jpg"
           />
+          {errors.image && (
+            <p className="text-red-400 text-sm mt-1">{errors.image}</p>
+          )}
+        </div>
+
+        <div>
+          <Label htmlFor="password" className="text-white/90">
+            Password {!user && '*'}
+          </Label>
+          <Input
+            id="password"
+            type="password"
+            value={formData.password}
+            onChange={(e) => handleFieldChange('password', e.target.value)}
+            className={`bg-white/10 border-white/20 text-white ${
+              errors.password ? 'border-red-500 focus:border-red-500' : ''
+            }`}
+            placeholder={user ? "Leave blank to keep current password" : "Enter password"}
+          />
+          {errors.password && (
+            <p className="text-red-400 text-sm mt-1">{errors.password}</p>
+          )}
         </div>
       </div>
 
@@ -750,7 +865,7 @@ const UsersPage = () => {
 
       {/* User Form Sheet */}
       <Sheet open={isSheetOpen} onOpenChange={setIsSheetOpen}>
-        <SheetContent className="w-full md:w-[32rem] max-w-none bg-gradient-to-b from-white/30 to-white/5 backdrop-blur-2xl p-6">
+        <SheetContent className="w-full md:w-[32rem] max-w-none bg-gradient-to-b from-white/20 to-white/5 backdrop-blur-2xl p-6">
           <SheetHeader className="px-2 mb-6">
             <SheetTitle className="text-white text-lg">
               {editingUser ? 'Edit User' : 'Create New User'}
