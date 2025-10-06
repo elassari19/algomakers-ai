@@ -128,9 +128,9 @@ export default async function BacktestDetailPage({
                     </Badge>
                   </div>
                   <div className="flex justify-between items-center">
-                    <span className="text-white/70">ID</span>
+                    <span className="text-white/70">Strategy Name</span>
                     <span className="text-white font-mono max-w-[150px] truncate md:max-w-none">
-                      {pair.id}
+                      {pair.strategy || 'N/A'}
                     </span>
                   </div>
                   <div className="flex justify-between items-center">
@@ -144,6 +144,7 @@ export default async function BacktestDetailPage({
                   </div>
                 </div>
               </Card>
+              {/* Backtest Metrics Card */}
               <Card className="bg-white/10 backdrop-blur-md rounded-xl border border-white/20 p-3 md:p-6">
                 <h2 className="text-xl font-bold text-white mb-4">
                   Backtest Metrics
@@ -299,7 +300,7 @@ export default async function BacktestDetailPage({
                                       ? Number(row['All %']).toLocaleString(
                                           undefined,
                                           { maximumFractionDigits: 4 }
-                                        )
+                                        ) + '%'
                                       : '-'}
                                   </td>
                                 </tr>
@@ -344,7 +345,7 @@ export default async function BacktestDetailPage({
                         <table className="min-w-full text-xs text-white/80 bg-black/20 rounded">
                           <thead>
                             <tr>
-                              <th className="px-2 py-1 text-left font-semibold">
+                              <th className="px-2 py-1 text-left font-semibold max-w-40">
                                 Name
                               </th>
                               <th className="px-2 py-1 text-left font-semibold">
@@ -359,7 +360,7 @@ export default async function BacktestDetailPage({
                                   key={idx}
                                   className="border-t border-white/10"
                                 >
-                                  <td className="px-2 py-1 font-semibold text-white/90 whitespace-nowrap">
+                                  <td className="px-2 py-1 font-semibold text-white/90 whitespace-nowrap max-w-48 overflow-hidden text-ellipsis">
                                     {row.name}
                                   </td>
                                   <td className="px-2 py-1 text-left">
