@@ -7,7 +7,7 @@ import { Role } from "@/generated/prisma";
 // GET /api/notifications/[id] - Get specific notification
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await getServerSession(authOptions);
@@ -16,6 +16,7 @@ export async function GET(
     }
 
     const user = session.user;
+    const params = await context.params;
     const notificationId = params.id;
 
     const notification = await prisma.notification.findUnique({
@@ -61,7 +62,7 @@ export async function GET(
 // PATCH /api/notifications/[id] - Update notification (mainly for marking as read)
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await getServerSession(authOptions);
@@ -70,6 +71,7 @@ export async function PATCH(
     }
 
     const user = session.user;
+    const params = await context.params;
     const notificationId = params.id;
     const body = await request.json();
 
@@ -137,7 +139,7 @@ export async function PATCH(
 // DELETE /api/notifications/[id] - Delete notification
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await getServerSession(authOptions);
@@ -146,6 +148,7 @@ export async function DELETE(
     }
 
     const user = session.user;
+    const params = await context.params;
     const notificationId = params.id;
 
     // First, get the notification to check permissions
