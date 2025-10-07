@@ -5,19 +5,14 @@ import { useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Switch } from '@/components/ui/switch';
-import {
-  LineChart,
-  Line,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-  Brush,
-  Legend,
-  ReferenceLine,
-} from 'recharts';
+import dynamic from 'next/dynamic';
 import { formatCurrency } from '@/lib/utils';
+
+// Dynamically import ApexCharts to avoid SSR issues
+const ReactApexChart = dynamic(() => import('react-apexcharts'), { 
+  ssr: false,
+  loading: () => <div className="h-full w-full flex items-center justify-center text-slate-400">Loading chart...</div>
+});
 
 interface BacktestData {
   startDate: string;
@@ -27,10 +22,11 @@ interface BacktestData {
   equityCurve: Array<{ 
     date: string; 
     value: number;
-    cumPL_USDT?: number;
-    cumPL_PCT?: number;
-    drawdown_USDT?: number;
-    drawdown_PCT?: number;
+    tradeNumber?: number;
+    cumPL_USDT: number;
+    cumPL_PCT: number;
+    drawdown_USDT: number;
+    drawdown_PCT: number;
   }>;
 }
 
@@ -47,6 +43,7 @@ interface BacktestChartProps {
 
 interface ChartDataPoint {
   date: string;
+  tradeNumber: number;
   cumPL_USDT: number;
   cumPL_PCT: number;
   drawdown_USDT: number;
@@ -60,17 +57,12 @@ export function BacktestChart({ data, symbol, metrics }: BacktestChartProps) {
   const [showCumPL, setShowCumPL] = useState(true);
   const [displayMode, setDisplayMode] = useState<'usdt' | 'percent'>('usdt');
   
-  // Zoom state
-  const [zoomDomain, setZoomDomain] = useState<{
-    startIndex: number;
-    endIndex: number;
-  } | null>(null);
   const [isHoveringChart, setIsHoveringChart] = useState(false);
   const chartContainerRef = useRef<HTMLDivElement>(null);
 
   const chartData: ChartDataPoint[] = useMemo(() => {
     if (!data) return [];
-    let peak = data.initialBalance;
+    let runningPeak = data.initialBalance;
     
     return data.equityCurve.map((point, idx) => {
       // Calculate cumulative P&L properly
@@ -79,26 +71,30 @@ export function BacktestChart({ data, symbol, metrics }: BacktestChartProps) {
         ? point.cumPL_USDT 
         : (point.value - data.initialBalance);
       
-      // For Cumulative P&L %, always calculate properly based on initial balance
+      // For Cumulative P&L %, always calculate properly based on initial balance (like old code)
       const cumPL_PCT = data.initialBalance !== 0
         ? (cumPL_USDT / Math.abs(data.initialBalance)) * 100
         : 0;
+      
+      // Update running peak for drawdown calculation
+      const currentEquity = data.initialBalance + cumPL_USDT;
+      if (currentEquity > runningPeak) {
+        runningPeak = currentEquity;
+      }
       
       // For drawdown, use existing values if available, otherwise calculate
       // Always make drawdown positive (absolute value)
       const drawdown_USDT = point.drawdown_USDT !== undefined 
         ? Math.abs(point.drawdown_USDT)
-        : (() => {
-            if (cumPL_USDT > peak) peak = cumPL_USDT;
-            return Math.abs(cumPL_USDT - peak);
-          })();
+        : Math.abs(runningPeak - currentEquity);
       
       const drawdown_PCT = point.drawdown_PCT !== undefined 
-        ? Math.abs(point.drawdown_PCT)
-        : peak !== 0 ? Math.abs(((cumPL_USDT - peak) / Math.abs(peak)) * 100) : 0;
+        ? Math.abs(point.drawdown_PCT) * 100  // Multiply by 100 to convert decimal to percentage
+        : runningPeak !== 0 ? Math.abs(((runningPeak - currentEquity) / runningPeak) * 100) : 0;
       
       return {
         date: point.date,
+        tradeNumber: point.tradeNumber ?? idx + 1,
         cumPL_USDT,
         cumPL_PCT,
         drawdown_USDT,
@@ -140,63 +136,275 @@ export function BacktestChart({ data, symbol, metrics }: BacktestChartProps) {
   const handleCumPLChange = (checked: boolean | 'indeterminate') => {
     setShowCumPL(checked === true);
   };
-  const handleDisplayModeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setDisplayMode(e.target.value as 'usdt' | 'percent');
-  };
 
-  // Zoom handlers
-  const resetZoom = () => {
-    setZoomDomain(null);
-  };
-
-  // Get visible chart data based on zoom
-  const visibleChartData = useMemo(() => {
-    if (!zoomDomain) return chartData;
-    return chartData.slice(zoomDomain.startIndex, zoomDomain.endIndex + 1);
-  }, [chartData, zoomDomain]);
-
-  // Add wheel event listener with passive: false to prevent default
-  useEffect(() => {
-    const chartElement = chartContainerRef.current;
-    if (!chartElement) return;
-
-    const handleWheelEvent = (e: WheelEvent) => {
-      if (!isHoveringChart || chartData.length === 0) return;
-      
-      const currentStart = zoomDomain?.startIndex ?? 0;
-      const currentEnd = zoomDomain?.endIndex ?? chartData.length - 1;
-      const currentRange = currentEnd - currentStart;
-      
-      const zoomFactor = e.deltaY > 0 ? 1.2 : 0.8;
-      const newRange = Math.max(10, Math.min(chartData.length, currentRange * zoomFactor));
-      
-      const canZoomIn = newRange < currentRange && currentRange > 10;
-      const canZoomOut = newRange > currentRange && currentRange < chartData.length;
-      
-      if (canZoomIn || canZoomOut) {
-        e.preventDefault();
-        e.stopPropagation();
-        
-        const centerRatio = 0.5;
-        const centerIndex = currentStart + currentRange * centerRatio;
-        
-        const newStart = Math.max(0, Math.floor(centerIndex - newRange / 2));
-        const newEnd = Math.min(chartData.length - 1, newStart + newRange);
-        const adjustedStart = Math.max(0, newEnd - newRange);
-        
-        setZoomDomain({
-          startIndex: Math.floor(adjustedStart),
-          endIndex: Math.floor(newEnd)
-        });
-      }
-    };
-
-    chartElement.addEventListener('wheel', handleWheelEvent, { passive: false });
+  // ApexCharts configuration
+  const chartOptions = useMemo((): any => {
+    const drawdownValues = chartData.map(d => displayMode === 'usdt' ? d.drawdown_USDT : d.drawdown_PCT);
+    const cumPLValues = chartData.map(d => displayMode === 'usdt' ? d.cumPL_USDT : d.cumPL_PCT);
     
-    return () => {
-      chartElement.removeEventListener('wheel', handleWheelEvent);
+    const drawdownMax = Math.max(...drawdownValues, 0);
+    const cumPLMin = Math.min(...cumPLValues, 0);
+    const cumPLMax = Math.max(...cumPLValues, 0);
+
+    return {
+      chart: {
+        id: 'backtest-chart',
+        type: 'line' as const,
+        height: '100%',
+        background: 'transparent',
+        foreColor: '#cbd5e1',
+        fontFamily: 'inherit',
+        toolbar: {
+          show: true,
+          offsetX: 0,
+          offsetY: 0,
+          tools: {
+            download: false,  // Remove the menu/download button
+            selection: true,
+            zoom: true,
+            zoomin: true,
+            zoomout: true,
+            pan: true,
+            reset: true,
+          },
+        },
+        zoom: {
+          enabled: true,
+          type: 'x' as const,
+        },
+        animations: {
+          enabled: true,
+          easing: 'easeinout' as const,
+          speed: 800,
+        },
+      },
+      colors: ['#a855f7', '#10b981'],
+      stroke: {
+        width: [2, 2],
+        dashArray: [4, 0], // Dashed for drawdown, solid for cumulative P&L
+      },
+      grid: {
+        borderColor: '#334155',
+        strokeDashArray: 4,
+        xaxis: {
+          lines: {
+            show: false,
+          },
+        },
+        yaxis: {
+          lines: {
+            show: true,
+          },
+        },
+      },
+      xaxis: {
+        type: 'datetime' as const,
+        categories: chartData.map(d => {
+          try {
+            const date = new Date(d.date);
+            return !isNaN(date.getTime()) ? date.getTime() : Date.now();
+          } catch (error) {
+            console.warn('Invalid date in chartData:', d.date);
+            return Date.now();
+          }
+        }),
+        labels: {
+          style: {
+            colors: '#cbd5e1',
+            fontSize: '12px',
+          },
+          formatter: (value: number, timestamp: number, opts: any) => {
+            try {
+              const date = new Date(value);
+              if (isNaN(date.getTime())) return 'Invalid Date';
+              
+              // Get the visible data range to determine zoom level
+              const dataRange = opts?.w?.globals?.minX && opts?.w?.globals?.maxX 
+                ? opts.w.globals.maxX - opts.w.globals.minX 
+                : null;
+              
+              // If zoomed in (less than 90 days), show day and month
+              if (dataRange && dataRange < (90 * 24 * 60 * 60 * 1000)) {
+                return date.toLocaleDateString('en-US', {
+                  month: 'short',
+                  day: 'numeric',
+                });
+              }
+              // If zoomed in very close (less than 30 days), show day, month, and year
+              else if (dataRange && dataRange < (30 * 24 * 60 * 60 * 1000)) {
+                return date.toLocaleDateString('en-US', {
+                  month: 'short',
+                  day: 'numeric',
+                  year: '2-digit',
+                });
+              }
+              // Default view: show month and year
+              else {
+                return date.toLocaleDateString('en-US', {
+                  month: 'short',
+                  year: 'numeric',
+                });
+              }
+            } catch (error) {
+              return 'Invalid Date';
+            }
+          },
+        },
+        axisBorder: {
+          color: '#334155',
+        },
+        axisTicks: {
+          color: '#334155',
+        },
+      },
+      yaxis: [
+        {
+          // Left Y-axis for Drawdown
+          seriesName: displayMode === 'usdt' ? 'Drawdown USDT' : 'Drawdown %',
+          opposite: false,
+          min: 0,
+          max: displayMode === 'usdt' ? Math.max(drawdownMax * 4, 10) : 100,
+          tickAmount: 5,
+          labels: {
+            style: {
+              colors: '#e9d5ff',
+              fontSize: '12px',
+            },
+            formatter: (value: number) => {
+              if (displayMode === 'usdt') {
+                return value.toLocaleString(undefined, { maximumFractionDigits: 2 });
+              }
+              return `${value.toFixed(2)}%`;
+            },
+          },
+        },
+        {
+          // Right Y-axis for Cumulative P&L
+          seriesName: displayMode === 'usdt' ? 'Cumulative P&L USDT' : 'Cumulative P&L %',
+          opposite: true,
+          min: displayMode === 'percent' ? Math.min(cumPLMin, 0) : 0,
+          max: displayMode === 'percent' ? Math.max(cumPLMax, 0) : Math.max(cumPLMax, 0),
+          labels: {
+            style: {
+              colors: '#a7f3d0',
+              fontSize: '12px',
+            },
+            formatter: (value: number) => {
+              if (displayMode === 'usdt') {
+                return value.toLocaleString(undefined, { maximumFractionDigits: 2 });
+              }
+              return `${value.toFixed(2)}%`;
+            },
+          },
+        },
+      ],
+      tooltip: {
+        theme: 'dark',
+        followCursor: true,
+        style: {
+          fontSize: '14px',
+        },
+        custom: ({ series, seriesIndex, dataPointIndex, w }: any) => {
+          // Handle date safely
+          let formattedDate = 'Invalid Date';
+          try {
+            const timestamp = w.globals.categoryLabels[dataPointIndex];
+            const date = new Date(timestamp);
+            if (!isNaN(date.getTime())) {
+              formattedDate = date.toLocaleDateString('en-US', {
+                month: 'long',
+                day: 'numeric',
+                year: 'numeric',
+              });
+            } else {
+              // Fallback: try to use the original date string from chartData
+              const originalDate = chartData[dataPointIndex]?.date;
+              if (originalDate) {
+                const fallbackDate = new Date(originalDate);
+                if (!isNaN(fallbackDate.getTime())) {
+                  formattedDate = fallbackDate.toLocaleDateString('en-US', {
+                    month: 'long',
+                    day: 'numeric',
+                    year: 'numeric',
+                  });
+                }
+              }
+            }
+          } catch (error) {
+            console.warn('Date parsing error in tooltip:', error);
+          }
+          
+          const tradeNumber = chartData[dataPointIndex]?.tradeNumber ?? dataPointIndex + 1;
+          
+          let content = `<div class="bg-slate-900 border border-purple-500 rounded-lg p-3 text-slate-100">
+            <div class="text-pink-400 font-semibold mb-2">${formattedDate}</div>
+            <div class="text-blue-400 text-sm mb-2">Trade #${tradeNumber}</div>`;
+          
+          series.forEach((seriesData: number[], index: number) => {
+            const value = seriesData[dataPointIndex];
+            const seriesName = w.globals.seriesNames[index];
+            const color = index === 0 ? '#a855f7' : '#10b981';
+            
+            if (displayMode === 'usdt') {
+              content += `<div style="color: ${color};">${seriesName}: ${value.toLocaleString(undefined, { maximumFractionDigits: 2 })} USDT</div>`;
+            } else {
+              content += `<div style="color: ${color};">${seriesName}: ${value.toFixed(2)}%</div>`;
+            }
+          });
+          
+          content += '</div>';
+          return content;
+        },
+      },
+      legend: {
+        show: false, // We're using our own checkboxes
+      },
+      annotations: {
+        yaxis: [
+          // Reference line for drawdown at 0
+          {
+            y: 0,
+            yAxisIndex: 0,
+            borderColor: '#a855f7',
+            strokeDashArray: 4,
+            opacity: 0.7,
+          },
+          // Reference line for cumulative P&L at 0 (only in percentage mode)
+          ...(displayMode === 'percent' ? [{
+            y: 0,
+            yAxisIndex: 1,
+            borderColor: '#10b981',
+            strokeDashArray: 4,
+            opacity: 0.7,
+          }] : []),
+        ],
+      },
     };
-  }, [isHoveringChart, chartData.length, zoomDomain]);
+  }, [chartData, displayMode]);
+
+  const chartSeries = useMemo((): any[] => {
+    const series: any[] = [];
+    
+    if (showDrawdown) {
+      series.push({
+        name: displayMode === 'usdt' ? 'Drawdown USDT' : 'Drawdown %',
+        data: chartData.map(d => displayMode === 'usdt' ? d.drawdown_USDT : d.drawdown_PCT),
+        yAxisIndex: 0, // Left axis
+      });
+    }
+    
+    if (showCumPL) {
+      series.push({
+        name: displayMode === 'usdt' ? 'Cumulative P&L USDT' : 'Cumulative P&L %',
+        data: chartData.map(d => displayMode === 'usdt' ? d.cumPL_USDT : d.cumPL_PCT),
+        yAxisIndex: 1, // Right axis
+      });
+    }
+    
+    return series;
+  }, [chartData, displayMode, showDrawdown, showCumPL]);
+
+  // ApexCharts handles zoom internally, so we don't need custom wheel event handling
 
   if (!data) {
     return (
@@ -271,17 +479,7 @@ export function BacktestChart({ data, symbol, metrics }: BacktestChartProps) {
                 aria-label="Toggle percent mode"
               />
               <span className="text-xs sm:text-sm text-blue-400">%</span>
-              
-              {/* Reset Zoom Button */}
-              {zoomDomain && (
-                <button
-                  onClick={resetZoom}
-                  className="ml-2 px-2 py-1 text-xs bg-slate-700 hover:bg-slate-600 text-white rounded border border-slate-600 transition-colors"
-                  title="Reset Zoom"
-                >
-                  Reset Zoom
-                </button>
-              )}
+
             </div>
           </div>
           {/* Period Controls removed */}
@@ -293,277 +491,15 @@ export function BacktestChart({ data, symbol, metrics }: BacktestChartProps) {
           className="h-80 sm:h-[28rem] w-full bg-transparent rounded-lg shadow-lg p-0"
           onMouseEnter={() => setIsHoveringChart(true)}
           onMouseLeave={() => setIsHoveringChart(false)}
-          style={{ 
-            cursor: isHoveringChart 
-              ? (zoomDomain ? 'zoom-out' : 'zoom-in') 
-              : 'default'
-          }}
         >
-          <div className="w-full h-full">
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart
-                data={visibleChartData}
-                margin={{
-                  top: 20,
-                  right: -10,
-                  left: 13,
-                  bottom: 20,
-                }}
-              >
-                <CartesianGrid
-                  strokeDasharray="4 4"
-                  stroke="#334155"
-                  opacity={0.4}
-                  vertical={false}
-                />
-                <XAxis
-                  dataKey="date"
-                  tickFormatter={formatDate}
-                  stroke="#64748b"
-                  fontSize={12}
-                  tick={{ fontSize: 12, fill: '#cbd5e1', dy: 16 }}
-                  axisLine={{ stroke: '#334155' }}
-                  tickLine={false}
-                  padding={{ left: 0, right: 0 }}
-                  height={20}
-                  textAnchor="end"
-                />
-                {/* Dual Y axes */}
-                <YAxis
-                  yAxisId="left"
-                  orientation="left"
-                  tickFormatter={
-                    displayMode === 'usdt'
-                      ? (v) =>
-                          v.toLocaleString(undefined, {
-                            maximumFractionDigits: 2,
-                          })
-                      : (v) => `${v.toFixed(2)}%`
-                  }
-                  stroke="#10b981"
-                  fontSize={12}
-                  tick={{ fontSize: 12, fill: '#a7f3d0' }}
-                  axisLine={{ stroke: '#10b981' }}
-                  tickLine={false}
-                  domain={([dataMin, dataMax]) => {
-                    // Always include 0 in the domain
-                    const chartDataValues = chartData.map(d => 
-                      displayMode === 'usdt' ? d.cumPL_USDT : d.cumPL_PCT
-                    );
-                    if (chartDataValues.length === 0) return [0, 0];
-                    
-                    const actualMin = Math.min(...chartDataValues, 0); // Always include 0
-                    const actualMax = Math.max(...chartDataValues, 0); // Always include 0
-                    
-                    return [0, actualMax];
-                  }}
-                  ticks={displayMode === 'percent' ? (() => {
-                    // Generate ticks that always include 0 for percentage mode
-                    const chartDataValues = chartData.map(d => d.cumPL_PCT);
-                    if (chartDataValues.length === 0) return [0];
-                    
-                    const dataMin = Math.min(...chartDataValues, 0); // Always include 0
-                    const dataMax = Math.max(...chartDataValues, 0); // Always include 0
-                    
-                    if (dataMin === 0 && dataMax === 0) return [0];
-                    
-                    // Create ticks that include 0
-                    const range = dataMax - dataMin;
-                    const step = range / 5; // Create about 6 ticks
-                    const ticks = [];
-                    
-                    // Add ticks below 0 if needed
-                    if (dataMin < 0) {
-                      for (let i = Math.ceil(dataMin / step); i < 0; i++) {
-                        ticks.push(i * step);
-                      }
-                    }
-                    
-                    // Always add 0
-                    ticks.push(0);
-                    
-                    // Add ticks above 0 if needed
-                    if (dataMax > 0) {
-                      for (let i = 1; i <= Math.floor(dataMax / step); i++) {
-                        ticks.push(i * step);
-                      }
-                    }
-                    
-                    // Add min/max if not already included
-                    if (!ticks.includes(dataMin)) ticks.unshift(dataMin);
-                    if (!ticks.includes(dataMax)) ticks.push(dataMax);
-                    
-                    return ticks.sort((a, b) => a - b);
-                  })() : undefined}
-                  allowDataOverflow
-                  allowDecimals
-                  minTickGap={2}
-                />
-                <YAxis
-                  yAxisId="right"
-                  orientation="right"
-                  tickFormatter={
-                    displayMode === 'usdt'
-                      ? (v) =>
-                          v.toLocaleString(undefined, {
-                            maximumFractionDigits: 2,
-                          })
-                      : (v) => `${v.toFixed(2)}%`
-                  }
-                  stroke="#a855f7"
-                  fontSize={12}
-                  tick={{ fontSize: 12, fill: '#e9d5ff' }}
-                  axisLine={{ stroke: '#a855f7' }}
-                  tickLine={false}
-                  domain={([dataMin, dataMax]) => {
-                    // Always start from 0 for drawdown, but consider actual drawdown values
-                    const chartDataValues = chartData.map(d => 
-                      displayMode === 'usdt' ? d.drawdown_USDT : d.drawdown_PCT
-                    );
-                    if (chartDataValues.length === 0) return [0, 1];
-                    
-                    const actualMax = Math.max(...chartDataValues, 0);
-                    
-                    if (displayMode === 'usdt') {
-                      // For USDT mode: multiply by 3-4 to make drawdown appear in lower portion
-                      return [0, Math.max(actualMax * 4, 10)]; // At least 10 USDT scale
-                    } else {
-                      // For percentage mode: keep existing behavior
-                      return [0, Math.max(actualMax, 1)]; // At least 1% to show scale
-                    }
-                  }}
-                  ticks={(() => {
-                    const chartDataValues = chartData.map(d => 
-                      displayMode === 'usdt' ? d.drawdown_USDT : d.drawdown_PCT
-                    );
-                    if (chartDataValues.length === 0) return [0, 1];
-                    
-                    const actualMax = Math.max(...chartDataValues, 0);
-                    
-                    if (displayMode === 'usdt') {
-                      // For USDT mode: create ticks based on expanded domain
-                      const domainMax = Math.max(actualMax * 4, 10);
-                      const step = domainMax / 5;
-                      return [0, step, step * 2, step * 3, step * 4, domainMax]
-                        .filter((tick, index, arr) => arr.indexOf(tick) === index)
-                        .sort((a, b) => a - b);
-                    } else {
-                      // For percentage mode: keep existing behavior
-                      const dataMax = Math.max(...chartDataValues, 1);
-                      const step = dataMax / 5;
-                      return [0, step, step * 2, step * 3, step * 4, dataMax]
-                        .filter((tick, index, arr) => arr.indexOf(tick) === index)
-                        .sort((a, b) => a - b);
-                    }
-                  })()}
-                  allowDataOverflow
-                  allowDecimals
-                  minTickGap={2}
-                />
-                {/* Reference line for cumulative P&L axis zero (percentage mode) */}
-                {displayMode === 'percent' && showCumPL && (
-                  <ReferenceLine
-                    y={0}
-                    yAxisId="left"
-                    stroke="#10b981"
-                    strokeDasharray="4 4"
-                    strokeWidth={2}
-                    opacity={0.7}
-                  />
-                )}
-                {/* Reference line for drawdown axis zero */}
-                <ReferenceLine
-                  y={0}
-                  yAxisId="right"
-                  stroke="#a855f7"
-                  strokeDasharray="4 4"
-                  strokeWidth={2}
-                  opacity={0.7}
-                />
-                <Tooltip
-                  contentStyle={{
-                    backgroundColor: '#0f172a',
-                    border: '1px solid #a855f7',
-                    borderRadius: '10px',
-                    color: '#f1f5f9',
-                    fontSize: 14,
-                  }}
-                  labelStyle={{ color: '#f472b6', fontWeight: 600 }}
-                  itemStyle={{ fontSize: 13 }}
-                  labelFormatter={formatTooltipLabel}
-                  formatter={formatTooltipValue}
-                />
-
-                {/* Cumulative P&L Line */}
-                {showCumPL && (
-                  <Line
-                    type="monotone"
-                    yAxisId="left"
-                    dataKey={
-                      displayMode === 'usdt' ? 'cumPL_USDT' : 'cumPL_PCT'
-                    }
-                    stroke="#10b981"
-                    strokeWidth={2}
-                    dot={false}
-                    name={
-                      displayMode === 'usdt'
-                        ? 'Cumulative P&L USDT'
-                        : 'Cumulative P&L %'
-                    }
-                    activeDot={{
-                      r: 4,
-                      fill: '#10b981',
-                      stroke: '#065f46',
-                      strokeWidth: 2,
-                    }}
-                  />
-                )}
-                {/* Drawdown Line */}
-                {showDrawdown && (
-                  <Line
-                    type="monotone"
-                    yAxisId="right"
-                    dataKey={
-                      displayMode === 'usdt' ? 'drawdown_USDT' : 'drawdown_PCT'
-                    }
-                    stroke="#a855f7"
-                    strokeWidth={2}
-                    dot={false}
-                    name={
-                      displayMode === 'usdt' ? 'Drawdown USDT' : 'Drawdown %'
-                    }
-                    strokeDasharray="2 2"
-                    activeDot={{
-                      r: 4,
-                      fill: '#a855f7',
-                      stroke: '#7c3aed',
-                      strokeWidth: 2,
-                    }}
-                  />
-                )}
-
-                {/* Zoom/Pan Brush */}
-                {/* <Brush
-                  dataKey="date"
-                  height={30}
-                  stroke="#64748b"
-                  fill="rgba(100, 116, 139, 0.1)"
-                  tickFormatter={formatDate}
-                  travellerWidth={10}
-                  startIndex={zoomDomain?.startIndex ?? 0}
-                  endIndex={zoomDomain?.endIndex ?? chartData.length - 1}
-                  onChange={(brushData) => {
-                    if (brushData?.startIndex !== undefined && brushData?.endIndex !== undefined) {
-                      setZoomDomain({
-                        startIndex: brushData.startIndex,
-                        endIndex: brushData.endIndex
-                      });
-                    }
-                  }}
-                /> */}
-              </LineChart>
-            </ResponsiveContainer>
-          </div>
+          {/* @ts-ignore */}
+          <ReactApexChart
+            options={chartOptions}
+            series={chartSeries}
+            type="line"
+            height="100%"
+            width="100%"
+          />
         </div>
 
         {/* Chart Footer */}

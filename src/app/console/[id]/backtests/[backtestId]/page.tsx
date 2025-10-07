@@ -175,33 +175,23 @@ export default async function BacktestDetailPage({
                   const chartData = {
                     startDate: trades[0]['Date/Time']
                       ? excelDateToISO(trades[0]['Date/Time'])
-                      : '',
+                      : new Date().toISOString(),
                     endDate: trades[trades.length - 1]['Date/Time']
                       ? excelDateToISO(trades[trades.length - 1]['Date/Time'])
-                      : '',
+                      : new Date().toISOString(),
                     initialBalance: trades[0]['Cumulative P&L USDT'] ?? 0,
                     finalBalance:
                       trades[trades.length - 1]['Cumulative P&L USDT'] ?? 0,
-                    equityCurve: trades.map((t: any) => ({
+                    equityCurve: trades.map((t: any, index: number) => ({
                       date: t['Date/Time']
                         ? excelDateToISO(t['Date/Time'])
-                        : '',
-                      value: typeof t['Cumulative P&L USDT'] === 'number'
-                        ? t['Cumulative P&L USDT']
-                        : 0,
-                      // Pass existing values if available
-                      cumPL_USDT: typeof t['Cumulative P&L USDT'] === 'number'
-                        ? t['Cumulative P&L USDT']
-                        : 0,
-                      cumPL_PCT: typeof t['Cumulative P&L %'] === 'number'
-                        ? t['Cumulative P&L %']
-                        : 0,
-                      drawdown_USDT: typeof t['Drawdown USDT'] === 'number'
-                        ? t['Drawdown USDT']
-                        : 0,
-                      drawdown_PCT: typeof t['Drawdown %'] === 'number'
-                        ? t['Drawdown %']
-                        : 0,
+                        : new Date().toISOString(),
+                      value: t['Cumulative P&L USDT'] || 0,
+                      tradeNumber: t['Trade #'] || index + 1,
+                      cumPL_USDT: t['Cumulative P&L USDT'] || 0,
+                      cumPL_PCT: t['Cumulative P&L %'] || 0,
+                      drawdown_USDT: Math.abs(t['Drawdown USDT'] || 0),
+                      drawdown_PCT: Math.abs(t['Drawdown %'] || 0),
                     })),
                   };
                   
