@@ -223,16 +223,28 @@ export default async function BacktestDetailPage({
                   {
                     title: 'Trades analysis',
                     metrics: pair.tradesAnalysis,
+                    values: [5, 6, 7, 9, 11], // Row indices for $ symbol in "Value" column
+                    v_symbol: '$',
+                    all: [4, 5, 6, 7, 10, 12], // Row indices for % symbol in "All %" column
+                    all_symbol: '%'
                   },
                   {
                     title: 'Performance Metrics',
                     metrics: pair.performance,
+                    values: [0, 1, 2, 3, 4, 5, 6, 7], // Row indices for $ symbol in "Value" column
+                    v_symbol: '$',
+                    all: [0, 1, 2, 3, 4, 5, 6, 7], // Row indices for % symbol in "All %" column
+                    all_symbol: '%'
                   },
                   {
                     title: 'Risk performance ratios',
                     metrics: pair.riskPerformanceRatios,
+                    values: [1, 4], // Row indices for $ symbol in "Value" column
+                    v_symbol: '$',
+                    all: [0, 2, 3], // Row indices for % symbol in "All %" column
+                    all_symbol: '%'
                   },
-                ]?.map(({ title, metrics: rawMetrics }) => {
+                ]?.map(({ title, metrics: rawMetrics, values = [], v_symbol = '', all = [], all_symbol = '' }) => {
                   // Parse metrics from JSON string if needed
                   let metrics: any[] = [];
                   try {
@@ -281,16 +293,16 @@ export default async function BacktestDetailPage({
                                     {row['All USDT'] !== '' && row['All USDT'] !== undefined
                                       ? Number(row['All USDT']+ '').toLocaleString(
                                           undefined,
-                                          { maximumFractionDigits: 2 }
-                                        ) + '$'
+                                          { maximumFractionDigits: 4 }
+                                        ) + (values.includes(idx) ? ' ' + v_symbol : '')
                                       : '-'}
                                   </td>
                                   <td className="px-2 py-1 text-right">
                                     {row['All %'] !== '' && row['All %'] !== undefined
-                                      ? Number(row['All %']).toLocaleString(
+                                      ? Number(row['All %']*100).toLocaleString(
                                           undefined,
                                           { maximumFractionDigits: 4 }
-                                        ) + '%'
+                                        ) + (all.includes(idx) ? ' ' + all_symbol : '')
                                       : '-'}
                                   </td>
                                 </tr>

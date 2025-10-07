@@ -177,6 +177,24 @@ export function BacktestChart({ data, symbol, metrics }: BacktestChartProps) {
           easing: 'easeinout' as const,
           speed: 800,
         },
+        // Remove left and right padding
+        offsetX: 0,
+        offsetY: 0,
+        parentHeightOffset: 0,
+        // Remove chart margins to eliminate side padding
+        margin: {
+          top: 0,
+          right: 0,
+          bottom: 0,
+          left: 0,
+        },
+      },
+      plotOptions: {
+        line: {
+          dataLabels: {
+            enabled: false,
+          },
+        },
       },
       colors: ['#a855f7', '#10b981'],
       stroke: {
@@ -251,10 +269,12 @@ export function BacktestChart({ data, symbol, metrics }: BacktestChartProps) {
           },
         },
         axisBorder: {
-          color: '#334155',
+          show: true,
+          color: '#ffffff', // White axis line for datetime
         },
         axisTicks: {
-          color: '#334155',
+          show: true,
+          color: '#ffffff', // White tick marks for datetime
         },
       },
       yaxis: [
@@ -267,7 +287,7 @@ export function BacktestChart({ data, symbol, metrics }: BacktestChartProps) {
           tickAmount: 5,
           labels: {
             style: {
-              colors: '#e9d5ff',
+              colors: '#a855f7', // Match the drawdown line color (purple)
               fontSize: '12px',
             },
             formatter: (value: number) => {
@@ -276,6 +296,14 @@ export function BacktestChart({ data, symbol, metrics }: BacktestChartProps) {
               }
               return `${value.toFixed(2)}%`;
             },
+          },
+          axisBorder: {
+            show: true,
+            color: '#a855f7', // Purple axis line to match drawdown line
+          },
+          axisTicks: {
+            show: true,
+            color: '#a855f7', // Purple tick marks
           },
         },
         {
@@ -286,7 +314,7 @@ export function BacktestChart({ data, symbol, metrics }: BacktestChartProps) {
           max: displayMode === 'percent' ? Math.max(cumPLMax, 0) : Math.max(cumPLMax, 0),
           labels: {
             style: {
-              colors: '#a7f3d0',
+              colors: '#10b981', // Match the cumulative P&L line color (green)
               fontSize: '12px',
             },
             formatter: (value: number) => {
@@ -295,6 +323,14 @@ export function BacktestChart({ data, symbol, metrics }: BacktestChartProps) {
               }
               return `${value.toFixed(2)}%`;
             },
+          },
+          axisBorder: {
+            show: true,
+            color: '#10b981', // Green axis line to match cumulative P&L line
+          },
+          axisTicks: {
+            show: true,
+            color: '#10b981', // Green tick marks
           },
         },
       ],
