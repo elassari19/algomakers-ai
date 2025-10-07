@@ -9,7 +9,7 @@ import { z } from 'zod';
 const pairSchema = z.object({
   symbol: z.string().min(1, 'Symbol is required'),
   timeframe: z.string().min(1, 'Timeframe is required'),
-  strategy: z.string().optional(),
+  version: z.string().optional(),
   priceOneMonth: z.number().min(0),
   priceThreeMonths: z.number().min(0),
   priceSixMonths: z.number().min(0),
@@ -24,7 +24,7 @@ const pairSchema = z.object({
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
-    const search = searchParams.get('q'); // Search query for symbol/timeframe/strategy
+    const search = searchParams.get('q'); // Search query for symbol/timeframe/version
     const limit = searchParams.get('limit');
     const offset = searchParams.get('offset');
     const symbol = searchParams.get('symbol');
@@ -47,7 +47,7 @@ export async function GET(request: NextRequest) {
       };
     }
 
-    // Add search functionality for symbol, timeframe, and strategy
+    // Add search functionality for symbol, timeframe, and version
     if (search && search.trim() !== '') {
       where.OR = [
         {
@@ -63,7 +63,7 @@ export async function GET(request: NextRequest) {
           },
         },
         {
-          strategy: {
+          version: {
             contains: search.trim(),
             mode: 'insensitive',
           },
@@ -138,7 +138,7 @@ export async function POST(request: NextRequest) {
       data: {
         symbol: validatedData.symbol,
         timeframe: validatedData.timeframe,
-        strategy: validatedData.strategy,
+        version: validatedData.version,
         priceOneMonth: validatedData.priceOneMonth,
         priceThreeMonths: validatedData.priceThreeMonths,
         priceSixMonths: validatedData.priceSixMonths,
@@ -161,7 +161,7 @@ export async function POST(request: NextRequest) {
         details: {
           symbol: pair.symbol,
           timeframe: pair.timeframe,
-          strategy: pair.strategy,
+          version: pair.version,
           pricing: {
             oneMonth: pair.priceOneMonth,
             threeMonths: pair.priceThreeMonths,
@@ -182,7 +182,7 @@ export async function POST(request: NextRequest) {
             pairId: pair.id,
             symbol: pair.symbol,
             timeframe: pair.timeframe,
-            strategy: pair.strategy,
+            version: pair.version,
             userRole: session.user.role,
             user: session.user.name,
             userEmail: session.user.email,
@@ -281,7 +281,7 @@ export async function PUT(request: NextRequest) {
           previousValues: {
             symbol: existingPair.symbol,
             timeframe: existingPair.timeframe,
-            strategy: existingPair.strategy,
+            version: existingPair.version,
           },
           userEmail: session.user.email,
           user: session.user.name,
@@ -386,7 +386,7 @@ export async function DELETE(request: NextRequest) {
           deletedPair: {
             symbol: existingPair.symbol,
             timeframe: existingPair.timeframe,
-            strategy: existingPair.strategy,
+            version: existingPair.version,
             subscriptionCount: existingPair._count.subscriptions,
             paymentItemCount: existingPair._count.paymentItems,
           },
@@ -404,7 +404,7 @@ export async function DELETE(request: NextRequest) {
             pairId: id,
             symbol: existingPair.symbol,
             timeframe: existingPair.timeframe,
-            strategy: existingPair.strategy,
+            version: existingPair.version,
             userRole: session.user.role,
             user: session.user.name,
             userEmail: session.user.email,

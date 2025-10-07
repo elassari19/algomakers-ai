@@ -42,7 +42,7 @@ export async function GET(
               select: {
                 id: true,
                 symbol: true,
-                strategy: true,
+                version: true,
               },
             },
           },
@@ -146,7 +146,7 @@ export async function PUT(
               select: {
                 id: true,
                 symbol: true,
-                strategy: true,
+                version: true,
               },
             },
           },

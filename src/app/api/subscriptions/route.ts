@@ -32,7 +32,7 @@ export async function GET(request: NextRequest) {
               id: true,
               symbol: true,
               timeframe: true,
-              strategy: true,
+              version: true,
             }
           },
           payment: {
@@ -119,7 +119,7 @@ export async function GET(request: NextRequest) {
         },
         {
           pair: {
-            strategy: {
+            version: {
               contains: search,
               mode: 'insensitive'
             }
@@ -151,7 +151,7 @@ export async function GET(request: NextRequest) {
             id: true,
             symbol: true,
             timeframe: true,
-            strategy: true,
+            version: true,
           }
         },
         payment: {
@@ -326,7 +326,7 @@ export async function POST(request: NextRequest) {
                   id: true,
                   symbol: true,
                   timeframe: true,
-                  strategy: true,
+                  version: true,
                 }
               }
             }
@@ -477,7 +477,7 @@ export async function POST(request: NextRequest) {
               id: true,
               symbol: true,
               timeframe: true,
-              strategy: true,
+              version: true,
             }
           }
         }
@@ -502,7 +502,7 @@ export async function POST(request: NextRequest) {
               pair: {
                 symbol: pair.symbol,
                 timeframe: pair.timeframe,
-                strategy: pair.strategy,
+                version: pair.version,
               },
               period: subscription.period,
               basePrice: subscription.basePrice,
@@ -581,7 +581,7 @@ export async function PATCH(request: NextRequest) {
             id: true,
             symbol: true,
             timeframe: true,
-            strategy: true,
+            version: true,
           }
         }
       }
@@ -639,7 +639,7 @@ export async function PATCH(request: NextRequest) {
             id: true,
             symbol: true,
             timeframe: true,
-            strategy: true,
+            version: true,
           }
         },
         payment: true,
@@ -740,7 +740,7 @@ export async function DELETE(request: NextRequest) {
             id: true,
             symbol: true,
             timeframe: true,
-            strategy: true,
+            version: true,
           }
         }
       }
@@ -776,7 +776,7 @@ export async function DELETE(request: NextRequest) {
             pair: {
               symbol: existingSubscription.pair.symbol,
               timeframe: existingSubscription.pair.timeframe,
-              strategy: existingSubscription.pair.strategy,
+              version: existingSubscription.pair.version,
             },
             period: existingSubscription.period,
             status: existingSubscription.status,

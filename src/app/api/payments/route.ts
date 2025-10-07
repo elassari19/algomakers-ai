@@ -148,7 +148,7 @@ export async function GET(request: NextRequest) {
               select: {
                 id: true,
                 symbol: true,
-                strategy: true,
+                version: true,
               },
             },
           },
@@ -280,7 +280,7 @@ export async function POST(request: NextRequest) {
               select: {
                 id: true,
                 symbol: true,
-                strategy: true,
+                version: true,
               },
             },
           },
@@ -430,7 +430,7 @@ export async function PUT(request: NextRequest) {
               select: {
                 id: true,
                 symbol: true,
-                strategy: true,
+                version: true,
               },
             },
           },

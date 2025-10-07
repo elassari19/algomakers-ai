@@ -103,8 +103,8 @@ export default async function PairDetailPage({ params }: PairDetailPageProps) {
                     <span className="text-white font-mono">{pair.symbol}</span>
                   </div>
                   <div className="flex justify-between items-center">
-                    <span className="text-white/70">Strategy</span>
-                    <span className="text-white font-mono">{pair.strategy}</span>
+                    <span className="text-white/70">Version</span>
+                    <span className="text-white font-mono">{pair.version}</span>
                   </div>
                   <div className="flex justify-between items-center">
                     <span className="text-white/70">Timeframe</span>
