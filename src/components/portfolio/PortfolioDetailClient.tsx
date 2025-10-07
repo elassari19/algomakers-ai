@@ -123,10 +123,21 @@ export function PortfolioDetailClient({
     const finalBalance = initialBalance + combinedMetrics.totalProfit;
 
     // Generate combined equity curve
-    const equityCurve = Array.from({ length: 9 }, (_, i) => ({
-      date: new Date(2024, i, 1).toISOString().split('T')[0],
-      value: initialBalance + (combinedMetrics.totalProfit * (i + 1)) / 9,
-    }));
+    const equityCurve = Array.from({ length: 9 }, (_, i) => {
+      const currentValue = initialBalance + (combinedMetrics.totalProfit * (i + 1)) / 9;
+      const currentProfitPct = ((currentValue - initialBalance) / initialBalance) * 100;
+      const drawdownValue = Math.max(0, combinedMetrics.maxDrawdown * (i + 1) / 9);
+      
+      return {
+        date: new Date(2024, i, 1).toISOString().split('T')[0],
+        value: currentValue,
+        tradeNumber: i + 1,
+        cumPL_USDT: currentValue - initialBalance,
+        cumPL_PCT: currentProfitPct,
+        drawdown_USDT: drawdownValue,
+        drawdown_PCT: (drawdownValue / initialBalance) * 100,
+      };
+    });
 
     return {
       startDate,
