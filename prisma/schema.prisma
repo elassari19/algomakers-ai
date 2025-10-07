@@ -249,6 +249,94 @@ enum CommissionStatus {
   CANCELLED
 }
 
+model Stats {
+  id        String    @id @default(uuid())
+  date      DateTime  @default(now())
+  type      StatsType
+  category  String    // e.g., "revenue", "users", "subscriptions", "payments"
+  
+  // Numeric metrics
+  totalValue       Decimal? // Total count or amount
+  currentValue     Decimal? // Current period value
+  previousValue    Decimal? // Previous period value for comparison
+  changeValue      Decimal? // Absolute change
+  changePercent    Decimal? // Percentage change
+  
+  // Period information
+  period           StatsPeriod @default(DAILY)
+  periodStart      DateTime?
+  periodEnd        DateTime?
+  
+  // Additional context
+  metadata         Json? // Additional data like breakdown by category, filters applied, etc.
+  
+  // Timestamps
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  
+  @@unique([date, type, category, period])
+  @@index([date, type])
+  @@index([category, period])
+}
+
+enum StatsType {
+  // Revenue & Financial
+  REVENUE_TOTAL
+  REVENUE_MONTHLY
+  REVENUE_DAILY
+  AVERAGE_ORDER_VALUE
+  
+  // User Statistics
+  USER_COUNT_TOTAL
+  USER_COUNT_ACTIVE
+  USER_COUNT_NEW
+  USER_RETENTION_RATE
+  USER_CHURN_RATE
+  
+  // Subscription Statistics
+  SUBSCRIPTION_COUNT_TOTAL
+  SUBSCRIPTION_COUNT_ACTIVE
+  SUBSCRIPTION_COUNT_NEW
+  SUBSCRIPTION_COUNT_EXPIRED
+  SUBSCRIPTION_COUNT_CANCELLED
+  SUBSCRIPTION_CONVERSION_RATE
+  SUBSCRIPTION_RENEWAL_RATE
+  
+  // Payment Statistics
+  PAYMENT_COUNT_TOTAL
+  PAYMENT_COUNT_SUCCESSFUL
+  PAYMENT_COUNT_FAILED
+  PAYMENT_COUNT_PENDING
+  PAYMENT_SUCCESS_RATE
+  
+  // Pair/Product Statistics
+  PAIR_COUNT_TOTAL
+  PAIR_PERFORMANCE_AVG
+  PAIR_POPULARITY
+  
+  // System & Admin
+  AUDIT_LOG_COUNT
+  NOTIFICATION_COUNT
+  EVENT_COUNT
+  
+  // Commission & Affiliate
+  COMMISSION_TOTAL
+  AFFILIATE_COUNT
+  REFERRAL_COUNT
+  
+  // Custom metrics
+  CUSTOM
+}
+
+enum StatsPeriod {
+  DAILY
+  WEEKLY
+  MONTHLY
+  QUARTERLY
+  YEARLY
+  ALL_TIME
+}
+
 enum NotificationType {
   SUBSCRIPTION_CONFIRMED
   SUBSCRIPTION_EXPIRED
