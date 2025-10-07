@@ -178,6 +178,11 @@ const data = {
       icon: LayoutDashboard,
     },
     {
+      title: 'Users Events',
+      url: '/console/1/events',
+      icon: BarChart2,
+    },
+    {
       title: 'Backtests',
       url: '/console/1/backtests',
       icon: PieChart,
