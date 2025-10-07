@@ -89,8 +89,8 @@ export function BacktestChart({ data, symbol, metrics }: BacktestChartProps) {
         : Math.abs(runningPeak - currentEquity);
       
       const drawdown_PCT = point.drawdown_PCT !== undefined 
-        ? Math.abs(point.drawdown_PCT) * 100  // Multiply by 100 to convert decimal to percentage
-        : runningPeak !== 0 ? Math.abs(((runningPeak - currentEquity) / runningPeak) * 100) : 0;
+        ? Math.abs(point.drawdown_PCT)
+        : runningPeak !== 0 ? Math.abs(((runningPeak - currentEquity) / runningPeak)) : 0;
       
       return {
         date: point.date,
