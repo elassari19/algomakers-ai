@@ -49,7 +49,7 @@ interface PairOption {
   id: string;
   symbol: string;
   timeframe: string;
-  strategy: string;
+  version: string;
 }
 
 // Individual pair schema
@@ -416,12 +416,12 @@ export function SubscriptionForm({
                                       <div className="text-left">
                                         <div className="font-medium">{selectedPairs[index]!.symbol}</div>
                                         <div className="text-xs text-slate-400">
-                                          {selectedPairs[index]!.timeframe} • {selectedPairs[index]!.strategy}
+                                          {selectedPairs[index]!.timeframe} • {selectedPairs[index]!.version}
                                         </div>
                                       </div>
                                     </div>
                                   ) : (
-                                    <span className="text-slate-500">Search by symbol, timeframe, or strategy...</span>
+                                    <span className="text-slate-500">Search by symbol, timeframe, or version...</span>
                                   )}
                                   <Search className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                                 </Button>
@@ -430,7 +430,7 @@ export function SubscriptionForm({
                             <PopoverContent className="w-full p-0 bg-slate-800 border-slate-600">
                               <Command>
                                 <CommandInput
-                                  placeholder="Search pairs by symbol, timeframe, or strategy..."
+                                  placeholder="Search pairs by symbol, timeframe, or version..."
                                   value={pairSearches[index] || ''}
                                   onValueChange={(value) => handlePairSearch(index, value)}
                                   className="text-white"
@@ -454,7 +454,7 @@ export function SubscriptionForm({
                                           <div>
                                             <div className="font-medium">{pair.symbol}</div>
                                             <div className="text-xs text-slate-400">
-                                              {pair.timeframe} • {pair.strategy}
+                                              {pair.timeframe} • {pair.version}
                                             </div>
                                           </div>
                                         </div>
@@ -466,7 +466,7 @@ export function SubscriptionForm({
                             </PopoverContent>
                           </Popover>
                           <FormDescription className="text-xs text-slate-400">
-                            Search and select the trading strategy/pair for this subscription
+                            Search and select the trading version/pair for this subscription
                           </FormDescription>
                           <FormMessage className="text-red-400 text-xs" />
                         </FormItem>

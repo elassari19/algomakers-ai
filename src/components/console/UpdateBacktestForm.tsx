@@ -21,7 +21,7 @@ import { Controller } from 'react-hook-form';
 export type UpdateBacktestFormValues = {
   symbol: string;
   timeframe: string;
-  strategy?: string;
+  version?: string;
   performance?: string | null;
   tradesAnalysis?: string | null;
   riskPerformanceRatios?: string | null;
@@ -57,7 +57,7 @@ const UpdateBacktestForm: React.FC<UpdateBacktestFormProps> = ({
   const form = useForm<UpdateBacktestFormValues>({
     defaultValues: {
       symbol: symbol || defaultValues?.symbol || '',
-      strategy: defaultValues?.strategy || '',
+      version: defaultValues?.version || '',
       performance: defaultValues?.performance || null,
       tradesAnalysis: defaultValues?.tradesAnalysis || null,
       riskPerformanceRatios: defaultValues?.riskPerformanceRatios || null,
@@ -81,7 +81,7 @@ const UpdateBacktestForm: React.FC<UpdateBacktestFormProps> = ({
     form.reset({
       symbol: symbol || defaultValues?.symbol || '',
       timeframe: timeframe || defaultValues?.timeframe || '',
-      strategy: defaultValues?.strategy || '',
+      version: defaultValues?.version || '',
       performance: defaultValues?.performance || null,
       tradesAnalysis: defaultValues?.tradesAnalysis || null,
       riskPerformanceRatios: defaultValues?.riskPerformanceRatios || null,
@@ -148,7 +148,7 @@ const UpdateBacktestForm: React.FC<UpdateBacktestFormProps> = ({
               />
               <FormField
                 control={form.control}
-                name="strategy"
+                name="version"
                 render={({ field }) => (
                   <FormItem className="flex-1">
                     <FormLabel>Version</FormLabel>

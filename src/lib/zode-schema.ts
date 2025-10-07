@@ -60,7 +60,7 @@ export const sessionSchema = z.object({
 export const pairSchema = z.object({
   id: z.string().uuid().optional(),
   symbol: z.string().min(3),
-  strategy: z.string().optional(),
+  version: z.string().optional(),
   performance: z.string().optional().nullable(),
   tradesAnalysis: z.string().optional().nullable(),
   riskPerformanceRatios: z.string().optional().nullable(),

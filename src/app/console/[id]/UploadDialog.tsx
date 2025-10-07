@@ -55,14 +55,14 @@ const UploadDialog: React.FC<UploadDialogProps> = ({
 
   // Parse file and extract symbol/timeframe from Properties sheet (XLSX or CSV)
   const parseFile = async (file: File) => {
-    return new Promise<{ symbol: string; timeframe: string; strategy: string; data: any }>(
+    return new Promise<{ symbol: string; timeframe: string; version: string; data: any }>(
       (resolve, reject) => {
         const reader = new FileReader();
         reader.onload = (evt) => {
           try {
             let symbol = '';
             let timeframe = '';
-            let strategy = '';
+            let version = '';
             let data: any = {};
               const workbook = XLSX.read(evt.target?.result, { type: 'array' });
               const sheets = workbook.SheetNames;
@@ -76,9 +76,9 @@ const UploadDialog: React.FC<UploadDialogProps> = ({
               if (data['Properties']) {
                 symbol = data['Properties'][2]?.value || data['Properties'][2]?.Value || '';
                 timeframe = data['Properties'][3]?.value || data['Properties'][3]?.Value || '';
-                strategy = data['Properties'][9]?.value || data['Properties'][9]?.Value || '';
+                version = data['Properties'][13]?.value || data['Properties'][13]?.Value || '';
               }
-            resolve({ symbol, timeframe, strategy, data });
+            resolve({ symbol, timeframe, version, data });
           } catch (err) {
             reject(err);
           }
@@ -100,29 +100,29 @@ const UploadDialog: React.FC<UploadDialogProps> = ({
     const infos: any[] = [];
     for (const file of uploadedFiles) {
       try {
-        const { symbol, timeframe, strategy, data } = await parseFile(file);
+        const { symbol, timeframe, version, data } = await parseFile(file);
         let exists = false;
         let existingData = null;
                 
-        if (symbol && timeframe && strategy) {
+        if (symbol && timeframe && version) {
           // Check existence via API - all three fields required
           const apiUrl = `/api/backtest?symbol=${encodeURIComponent(
             symbol
-          )}&timeframe=${encodeURIComponent(timeframe)}&strategy=${encodeURIComponent(strategy)}`;
+          )}&timeframe=${encodeURIComponent(timeframe)}&version=${encodeURIComponent(version)}`;
                     
           const res = await fetch(apiUrl);
           if (res.ok) {
             const json = await res.json();
             exists = !!json.found;
             existingData = json.pair || null;
-            // console.log('API response:', { found: json.found, exists, existingData: existingData ? { id: existingData.id, symbol: existingData.symbol, timeframe: existingData.timeframe, strategy: existingData.strategy } : null });
+            // console.log('API response:', { found: json.found, exists, existingData: existingData ? { id: existingData.id, symbol: existingData.symbol, timeframe: existingData.timeframe, version: existingData.version } : null });
           } else {
             console.log('API request failed:', res.status, res.statusText);
           }
         } else {
-          console.log('Missing required fields for duplicate check:', { symbol: !!symbol, timeframe: !!timeframe, strategy: !!strategy });
+          console.log('Missing required fields for duplicate check:', { symbol: !!symbol, timeframe: !!timeframe, version: !!version });
         }
-        const info = { file, symbol, timeframe, strategy, exists, data, existingData };
+        const info = { file, symbol, timeframe, version, exists, data, existingData };
         infos.push(info);
         if (exists) update.push(info);
         else add.push(info);
@@ -131,7 +131,7 @@ const UploadDialog: React.FC<UploadDialogProps> = ({
           file,
           symbol: '',
           timeframe: '',
-          strategy: '',
+          version: '',
           exists: false,
           data: null,
           error: true,
@@ -140,7 +140,7 @@ const UploadDialog: React.FC<UploadDialogProps> = ({
           file,
           symbol: '',
           timeframe: '',
-          strategy: '',
+          version: '',
           exists: false,
           data: null,
           error: true,

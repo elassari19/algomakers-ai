@@ -62,7 +62,7 @@ interface PairOption {
   id: string;
   symbol: string;
   timeframe: string;
-  strategy: string;
+  version: string;
 }
 import { useSearchParams, useParams } from 'next/navigation';
 
@@ -465,7 +465,7 @@ const SubscriptionsPage = () => {
         id: pair.id,
         symbol: pair.symbol,
         timeframe: pair.timeframe,
-        strategy: pair.strategy,
+        version: pair.version,
       })));
     } catch (error) {
       console.error('Error fetching form data:', error);
@@ -495,7 +495,7 @@ const SubscriptionsPage = () => {
         id: pair.id,
         symbol: pair.symbol,
         timeframe: pair.timeframe,
-        strategy: pair.strategy,
+        version: pair.version,
       }));
     } catch (error) {
       console.error('Error searching pairs:', error);
@@ -606,7 +606,7 @@ const SubscriptionsPage = () => {
                   <SheetHeader className="p-6 pb-4 flex-shrink-0">
                     <SheetTitle className="text-2xl font-bold text-white">Create New Subscription</SheetTitle>
                     <SheetDescription className="text-slate-400">
-                      Add a new subscription for a user to access a trading strategy.
+                      Add a new subscription for a user to access a trading version.
                     </SheetDescription>
                   </SheetHeader>
                   
@@ -661,7 +661,7 @@ const SubscriptionsPage = () => {
                             <div className="space-y-1 text-sm">
                               <div><span className="text-gray-400">Symbol:</span> {selectedSubscription.pair?.symbol}</div>
                               <div><span className="text-gray-400">Timeframe:</span> {selectedSubscription.pair?.timeframe}</div>
-                              <div><span className="text-gray-400">Strategy:</span> {selectedSubscription.pair?.strategy || 'N/A'}</div>
+                              <div><span className="text-gray-400">Version:</span> {selectedSubscription.pair?.version || 'N/A'}</div>
                             </div>
                           </div>
                         </div>

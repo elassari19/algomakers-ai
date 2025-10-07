@@ -13,7 +13,7 @@ export interface PairSearchResult {
   id: string;
   symbol: string;
   timeframe: string;
-  strategy: string;
+  version: string;
 }
 
 /**
@@ -65,7 +65,7 @@ export async function searchUsers(query: string, limit: number = 10): Promise<Us
 }
 
 /**
- * Search trading pairs by symbol, timeframe, or strategy
+ * Search trading pairs by symbol, timeframe, or version
  * @param query - Search query string
  * @param limit - Maximum number of results to return
  * @returns Array of pair search results
@@ -88,7 +88,7 @@ export async function searchPairs(query: string, limit: number = 10): Promise<Pa
             },
           },
           {
-            strategy: {
+            version: {
               contains: query,
               mode: 'insensitive',
             },
@@ -99,7 +99,7 @@ export async function searchPairs(query: string, limit: number = 10): Promise<Pa
         id: true,
         symbol: true,
         timeframe: true,
-        strategy: true,
+        version: true,
       },
       take: limit,
       orderBy: [
@@ -112,7 +112,7 @@ export async function searchPairs(query: string, limit: number = 10): Promise<Pa
       id: pair.id,
       symbol: pair.symbol,
       timeframe: pair.timeframe,
-      strategy: pair.strategy || 'No Strategy',
+      version: pair.version || 'No Version',
     }));
   } catch (error) {
     console.error('Error searching pairs:', error);
@@ -163,7 +163,7 @@ export async function getAllPairs(limit: number = 50): Promise<PairSearchResult[
         id: true,
         symbol: true,
         timeframe: true,
-        strategy: true,
+        version: true,
       },
       take: limit,
       orderBy: [
@@ -176,7 +176,7 @@ export async function getAllPairs(limit: number = 50): Promise<PairSearchResult[
       id: pair.id,
       symbol: pair.symbol,
       timeframe: pair.timeframe,
-      strategy: pair.strategy || 'No Strategy',
+      version: pair.version || 'No Version',
     }));
   } catch (error) {
     console.error('Error fetching all pairs:', error);
@@ -226,7 +226,7 @@ export async function getPairById(pairId: string): Promise<PairSearchResult | nu
         id: true,
         symbol: true,
         timeframe: true,
-        strategy: true,
+        version: true,
       },
     });
 
@@ -236,7 +236,7 @@ export async function getPairById(pairId: string): Promise<PairSearchResult | nu
       id: pair.id,
       symbol: pair.symbol,
       timeframe: pair.timeframe,
-      strategy: pair.strategy || 'No Strategy',
+      version: pair.version || 'No Version',
     };
   } catch (error) {
     console.error('Error fetching pair by ID:', error);

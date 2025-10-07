@@ -75,7 +75,7 @@ interface PaymentItem {
   pair: {
     id: string;
     symbol: string;
-    strategy?: string;
+    version?: string;
   };
 }
 
@@ -112,7 +112,7 @@ const mockPaymentDetails: PaymentDetails = {
       pair: {
         id: 'pair_001',
         symbol: 'EURUSD',
-        strategy: 'Momentum Trading'
+        version: 'Momentum Trading'
       }
     },
     {
@@ -127,7 +127,7 @@ const mockPaymentDetails: PaymentDetails = {
       pair: {
         id: 'pair_002',
         symbol: 'GBPJPY',
-        strategy: 'Scalping Strategy'
+        version: 'Scalping Strategy'
       }
     }
   ],
@@ -378,7 +378,7 @@ const BillingDetailsPage = () => {
                             </div>
                             <div>
                               <h4 className="text-white font-semibold">{item.pair.symbol}</h4>
-                              <p className="text-white/60 text-sm">{item.pair.strategy}</p>
+                              <p className="text-white/60 text-sm">{item.pair.version}</p>
                               <p className="text-white/60 text-sm">Period: {formatPeriod(item.period)}</p>
                             </div>
                           </div>

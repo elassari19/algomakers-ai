@@ -128,9 +128,9 @@ export default async function BacktestDetailPage({
                     </Badge>
                   </div>
                   <div className="flex justify-between items-center">
-                    <span className="text-white/70">Strategy Name</span>
+                    <span className="text-white/70">Version Name</span>
                     <span className="text-white font-mono max-w-[150px] truncate md:max-w-none">
-                      {pair.strategy || 'N/A'}
+                      {pair.version || 'N/A'}
                     </span>
                   </div>
                   <div className="flex justify-between items-center">

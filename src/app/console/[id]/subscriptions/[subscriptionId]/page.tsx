@@ -27,14 +27,6 @@ import {
   ExternalLink,
 } from 'lucide-react';
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from '@/components/ui/dialog';
-import {
   AlertDialog,
   AlertDialogAction,
   AlertDialogCancel,
@@ -344,9 +336,9 @@ const SubscriptionDetailsPage = () => {
                   </div>
                 </div>
                 <div>
-                  <label className="text-sm text-gray-400">Strategy</label>
+                  <label className="text-sm text-gray-400">Version</label>
                   <div className="text-white font-medium">
-                    {subscription.pair?.strategy || 'Not specified'}
+                    {subscription.pair?.version || 'Not specified'}
                   </div>
                 </div>
               </div>

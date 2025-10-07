@@ -87,7 +87,7 @@ interface PaymentItem {
   pair: {
     id: string;
     symbol: string;
-    strategy?: string;
+    version?: string;
   };
 }
 
@@ -134,7 +134,7 @@ const mockPayments: Payment[] = [
         pair: {
           id: 'pair_001',
           symbol: 'EURUSD',
-          strategy: 'Momentum Trading'
+          version: 'Momentum Trading'
         }
       },
       {
@@ -149,7 +149,7 @@ const mockPayments: Payment[] = [
         pair: {
           id: 'pair_002',
           symbol: 'GBPJPY',
-          strategy: 'Scalping Strategy'
+          version: 'Scalping Strategy'
         }
       }
     ],
@@ -189,7 +189,7 @@ const mockPayments: Payment[] = [
         pair: {
           id: 'pair_003',
           symbol: 'BTCUSD',
-          strategy: 'Trend Following'
+          version: 'Trend Following'
         }
       }
     ]
@@ -225,7 +225,7 @@ const mockPayments: Payment[] = [
         pair: {
           id: 'pair_004',
           symbol: 'AUDUSD',
-          strategy: 'Range Trading'
+          version: 'Range Trading'
         }
       }
     ]
@@ -262,7 +262,7 @@ const mockPayments: Payment[] = [
         pair: {
           id: 'pair_005',
           symbol: 'USDJPY',
-          strategy: 'Breakout Strategy'
+          version: 'Breakout Strategy'
         }
       }
     ],
@@ -301,7 +301,7 @@ const mockPayments: Payment[] = [
         pair: {
           id: 'pair_006',
           symbol: 'EURGBP',
-          strategy: 'Arbitrage Strategy'
+          version: 'Arbitrage Strategy'
         }
       }
     ]
@@ -338,7 +338,7 @@ const mockPayments: Payment[] = [
         pair: {
           id: 'pair_007',
           symbol: 'NZDUSD',
-          strategy: 'Grid Trading'
+          version: 'Grid Trading'
         }
       }
     ],
@@ -378,7 +378,7 @@ const mockPayments: Payment[] = [
         pair: {
           id: 'pair_008',
           symbol: 'USDCAD',
-          strategy: 'Mean Reversion'
+          version: 'Mean Reversion'
         }
       }
     ]
@@ -414,7 +414,7 @@ const mockPayments: Payment[] = [
         pair: {
           id: 'pair_009',
           symbol: 'XAUUSD',
-          strategy: 'Gold Trading Bot'
+          version: 'Gold Trading Bot'
         }
       }
     ],
