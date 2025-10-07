@@ -9,12 +9,6 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-} from '@/components/ui/select';
-import {
   Form,
   FormField,
   FormItem,
@@ -107,7 +101,7 @@ const UpdateBacktestForm: React.FC<UpdateBacktestFormProps> = ({
 
   return (
     <Dialog open={true} onOpenChange={onCancel}>
-      <DialogContent className="max-w-screen w-full md:w-[70vw] h-[90vh] overflow-auto bg-gradient-to-br from-black/40 to-black/60 border backdrop-blur-2xl border-white/30 shadow-2xl">
+      <DialogContent className="max-w-screen w-full md:max-w-[70vw] h-[90vh] overflow-auto bg-gradient-to-br from-black/40 to-black/60 border backdrop-blur-2xl border-white/30 shadow-2xl">
         <DialogHeader>
           <DialogTitle className="text-white text-2xl font-bold mb-4">
             Update Backtest
@@ -139,147 +133,227 @@ const UpdateBacktestForm: React.FC<UpdateBacktestFormProps> = ({
                   </FormItem>
                 )}
               />
-              <Controller
-                name="timeframe"
+              <FormField
                 control={form.control}
+                name="timeframe"
                 render={({ field }) => (
                   <FormItem className="flex-1">
                     <FormLabel>Timeframe</FormLabel>
                     <FormControl>
-                      <Select
-                        value={field.value}
-                        onValueChange={field.onChange}
-                        disabled={true}
-                      >
-                        <SelectTrigger className="w-full">
-                          <span className="text-white/80">
-                            {field.value || 'Select timeframe'}
-                          </span>
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="1m">1m</SelectItem>
-                          <SelectItem value="5m">5m</SelectItem>
-                          <SelectItem value="15m">15m</SelectItem>
-                          <SelectItem value="1h">1h</SelectItem>
-                          <SelectItem value="4h">4h</SelectItem>
-                          <SelectItem value="1d">1d</SelectItem>
-                        </SelectContent>
-                      </Select>
+                      <Input {...field} readOnly={true} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="strategy"
+                render={({ field }) => (
+                  <FormItem className="flex-1">
+                    <FormLabel>Version</FormLabel>
+                    <FormControl>
+                      <Input {...field} readOnly={true} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
               />
             </div>
-            {/* Second row: Period Prices */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-              <FormField
-                control={form.control}
-                name="priceOneMonth"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Price (1 Month)</FormLabel>
-                    <FormControl>
-                      <Input {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="priceThreeMonths"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Price (3 Months)</FormLabel>
-                    <FormControl>
-                      <Input {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="priceSixMonths"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Price (6 Months)</FormLabel>
-                    <FormControl>
-                      <Input {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="priceTwelveMonths"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Price (12 Months)</FormLabel>
-                    <FormControl>
-                      <Input {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            </div>
-            {/* Third row: Period Discounts */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-              <FormField
-                control={form.control}
-                name="discountOneMonth"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Discount (1 Month)</FormLabel>
-                    <FormControl>
-                      <Input {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="discountThreeMonths"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Discount (3 Months)</FormLabel>
-                    <FormControl>
-                      <Input {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="discountSixMonths"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Discount (6 Months)</FormLabel>
-                    <FormControl>
-                      <Input {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="discountTwelveMonths"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Discount (12 Months)</FormLabel>
-                    <FormControl>
-                      <Input {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+
+            {/* Enhanced Pricing Table Layout */}
+            <div className="mb-6">
+              {/* Period Headers */}
+              <div className="grid grid-cols-5 gap-4 mb-4">
+                <div></div> {/* Empty space for row labels */}
+                <div className="text-center">
+                  <h3 className="text-sm font-semibold text-white/90 bg-blue-600/20 py-2 px-3 rounded-lg border border-blue-500/30">
+                    1 Month
+                  </h3>
+                </div>
+                <div className="text-center">
+                  <h3 className="text-sm font-semibold text-white/90 bg-green-600/20 py-2 px-3 rounded-lg border border-green-500/30">
+                    3 Months
+                  </h3>
+                </div>
+                <div className="text-center">
+                  <h3 className="text-sm font-semibold text-white/90 bg-purple-600/20 py-2 px-3 rounded-lg border border-purple-500/30">
+                    6 Months
+                  </h3>
+                </div>
+                <div className="text-center">
+                  <h3 className="text-sm font-semibold text-white/90 bg-orange-600/20 py-2 px-3 rounded-lg border border-orange-500/30">
+                    12 Months
+                  </h3>
+                </div>
+              </div>
+
+              {/* Price Row */}
+              <div className="grid grid-cols-5 gap-4 mb-4 items-end">
+                <div className="flex items-center justify-end pr-2">
+                  <label className="text-sm font-medium text-white/90 bg-slate-700/50 py-2 px-4 rounded-lg">
+                    Price ($)
+                  </label>
+                </div>
+                <FormField
+                  control={form.control}
+                  name="priceOneMonth"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormControl>
+                        <Input {...field} type="number" step="0.01" min="0" className="text-center" placeholder="0.00" />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="priceThreeMonths"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormControl>
+                        <Input {...field} type="number" step="0.01" min="0" className="text-center" placeholder="0.00" />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="priceSixMonths"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormControl>
+                        <Input {...field} type="number" step="0.01" min="0" className="text-center" placeholder="0.00" />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="priceTwelveMonths"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormControl>
+                        <Input {...field} type="number" step="0.01" min="0" className="text-center" placeholder="0.00" />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+
+              {/* Discount Row */}
+              <div className="grid grid-cols-5 gap-4 mb-4 items-end">
+                <div className="flex items-center justify-end pr-2">
+                  <label className="text-sm font-medium text-white/90 bg-slate-700/50 py-2 px-4 rounded-lg">
+                    Discount (%)
+                  </label>
+                </div>
+                <FormField
+                  control={form.control}
+                  name="discountOneMonth"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormControl>
+                        <Input {...field} type="number" step="0.01" min="0" max="100" className="text-center" placeholder="0" />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="discountThreeMonths"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormControl>
+                        <Input {...field} type="number" step="0.01" min="0" max="100" className="text-center" placeholder="0" />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="discountSixMonths"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormControl>
+                        <Input {...field} type="number" step="0.01" min="0" max="100" className="text-center" placeholder="0" />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="discountTwelveMonths"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormControl>
+                        <Input {...field} type="number" step="0.01" min="0" max="100" className="text-center" placeholder="0" />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+
+              {/* Final Price Row (Display Only) */}
+              <div className="grid grid-cols-5 gap-4 mb-4 items-center">
+                <div className="flex items-center justify-end pr-2">
+                  <label className="text-sm font-medium text-white/90 bg-slate-800/70 py-2 px-4 rounded-lg border border-slate-600">
+                    Final Price
+                  </label>
+                </div>
+                <div>
+                  <Input 
+                    readOnly={true} 
+                    value={(() => {
+                      const price = Number(form.watch('priceOneMonth')) || 0;
+                      const discount = Number(form.watch('discountOneMonth')) || 0;
+                      return (price - (price * discount / 100)).toFixed(2);
+                    })()} 
+                    className="bg-slate-800/50 border-slate-600 text-white/80 cursor-not-allowed text-center font-semibold"
+                  />
+                </div>
+                <div>
+                  <Input 
+                    readOnly={true} 
+                    value={(() => {
+                      const price = Number(form.watch('priceThreeMonths')) || 0;
+                      const discount = Number(form.watch('discountThreeMonths')) || 0;
+                      return (price - (price * discount / 100)).toFixed(2);
+                    })()} 
+                    className="bg-slate-800/50 border-slate-600 text-white/80 cursor-not-allowed text-center font-semibold"
+                  />
+                </div>
+                <div>
+                  <Input 
+                    readOnly={true} 
+                    value={(() => {
+                      const price = Number(form.watch('priceSixMonths')) || 0;
+                      const discount = Number(form.watch('discountSixMonths')) || 0;
+                      return (price - (price * discount / 100)).toFixed(2);
+                    })()} 
+                    className="bg-slate-800/50 border-slate-600 text-white/80 cursor-not-allowed text-center font-semibold"
+                  />
+                </div>
+                <div>
+                  <Input 
+                    readOnly={true} 
+                    value={(() => {
+                      const price = Number(form.watch('priceTwelveMonths')) || 0;
+                      const discount = Number(form.watch('discountTwelveMonths')) || 0;
+                      return (price - (price * discount / 100)).toFixed(2);
+                    })()} 
+                    className="bg-slate-800/50 border-slate-600 text-white/80 cursor-not-allowed text-center font-semibold"
+                  />
+                </div>
+              </div>
             </div>
             <div className="flex gap-4 mt-6">
               <Button

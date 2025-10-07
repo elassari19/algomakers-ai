@@ -12,12 +12,6 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-} from '@/components/ui/select';
-import {
   Form,
   FormField,
   FormItem,
@@ -31,7 +25,7 @@ import { m } from 'framer-motion';
 const formSchema = z.object({
   symbol: z.string().min(1, 'Symbol is required'),
   timeframe: z.string().min(1, 'Timeframe is required'),
-  strategy: z.string().optional(),
+  version: z.string().optional(),
   performance: z.string().optional().nullable(),
   tradesAnalysis: z.string().optional().nullable(),
   riskPerformanceRatios: z.string().optional().nullable(),
@@ -70,7 +64,7 @@ const BacktestForm: React.FC<BacktestFormProps> = ({
     resolver: zodResolver(formSchema),
     defaultValues: {
       symbol: symbol || defaultValues?.symbol || '',
-      strategy: defaultValues?.strategy || '',
+      version: defaultValues?.version || '',
       performance: null,
       tradesAnalysis: null,
       riskPerformanceRatios: null,
@@ -95,7 +89,7 @@ const BacktestForm: React.FC<BacktestFormProps> = ({
     form.reset({
       symbol: symbol || defaultValues?.symbol || '',
       timeframe: timeframe || defaultValues?.timeframe || '',
-      strategy: defaultValues?.strategy || '',
+      version: defaultValues?.version || '',
       performance: defaultValues?.performance || null,
       tradesAnalysis: defaultValues?.tradesAnalysis || null,
       riskPerformanceRatios: defaultValues?.riskPerformanceRatios || null,
@@ -147,31 +141,27 @@ const BacktestForm: React.FC<BacktestFormProps> = ({
                   </FormItem>
                 )}
               />
-              <Controller
-                name="timeframe"
+              <FormField
                 control={form.control}
+                name="timeframe"
                 render={({ field }) => (
                   <FormItem className="flex-1">
                     <FormLabel>Timeframe</FormLabel>
                     <FormControl>
-                      <Select
-                        value={field.value}
-                        onValueChange={field.onChange}
-                      >
-                        <SelectTrigger className="w-full">
-                          <span className="text-white/80">
-                            {field.value || 'Select timeframe'}
-                          </span>
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="1m">1m</SelectItem>
-                          <SelectItem value="5m">5m</SelectItem>
-                          <SelectItem value="15m">15m</SelectItem>
-                          <SelectItem value="1h">1h</SelectItem>
-                          <SelectItem value="4h">4h</SelectItem>
-                          <SelectItem value="1d">1d</SelectItem>
-                        </SelectContent>
-                      </Select>
+                      <Input {...field} readOnly={true} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="version"
+                render={({ field }) => (
+                  <FormItem className="flex-1">
+                    <FormLabel>Version</FormLabel>
+                    <FormControl>
+                      <Input {...field} readOnly={true} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -185,7 +175,7 @@ const BacktestForm: React.FC<BacktestFormProps> = ({
                 name="priceOneMonth"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Price (1 Month)</FormLabel>
+                    <FormLabel>Price $ (1 Month)</FormLabel>
                     <FormControl>
                       <Input {...field} />
                     </FormControl>
@@ -198,7 +188,7 @@ const BacktestForm: React.FC<BacktestFormProps> = ({
                 name="priceThreeMonths"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Price (3 Months)</FormLabel>
+                    <FormLabel>Price $ (3 Months)</FormLabel>
                     <FormControl>
                       <Input {...field} />
                     </FormControl>
@@ -211,7 +201,7 @@ const BacktestForm: React.FC<BacktestFormProps> = ({
                 name="priceSixMonths"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Price (6 Months)</FormLabel>
+                    <FormLabel>Price $ (6 Months)</FormLabel>
                     <FormControl>
                       <Input {...field} />
                     </FormControl>
@@ -224,7 +214,7 @@ const BacktestForm: React.FC<BacktestFormProps> = ({
                 name="priceTwelveMonths"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Price (12 Months)</FormLabel>
+                    <FormLabel>Price $ (12 Months)</FormLabel>
                     <FormControl>
                       <Input {...field} />
                     </FormControl>
@@ -240,7 +230,7 @@ const BacktestForm: React.FC<BacktestFormProps> = ({
                 name="discountOneMonth"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Discount (1 Month)</FormLabel>
+                    <FormLabel>Discount % (1 Month)</FormLabel>
                     <FormControl>
                       <Input {...field} />
                     </FormControl>
@@ -253,7 +243,7 @@ const BacktestForm: React.FC<BacktestFormProps> = ({
                 name="discountThreeMonths"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Discount (3 Months)</FormLabel>
+                    <FormLabel>Discount % (3 Months)</FormLabel>
                     <FormControl>
                       <Input {...field} />
                     </FormControl>
@@ -266,7 +256,7 @@ const BacktestForm: React.FC<BacktestFormProps> = ({
                 name="discountSixMonths"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Discount (6 Months)</FormLabel>
+                    <FormLabel>Discount % (6 Months)</FormLabel>
                     <FormControl>
                       <Input {...field} />
                     </FormControl>
@@ -279,7 +269,7 @@ const BacktestForm: React.FC<BacktestFormProps> = ({
                 name="discountTwelveMonths"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Discount (12 Months)</FormLabel>
+                    <FormLabel>Discount % (12 Months)</FormLabel>
                     <FormControl>
                       <Input {...field} />
                     </FormControl>
@@ -287,6 +277,65 @@ const BacktestForm: React.FC<BacktestFormProps> = ({
                   </FormItem>
                 )}
               />
+            </div>
+            {/* Fourth row: Final Prices (after discount) - Display Only for Admin Review */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-white/90">
+                  Final Price (1 Month) <span className="text-xs text-white/60">(Preview Only)</span>
+                </label>
+                <Input 
+                  readOnly={true} 
+                  value={(() => {
+                    const price = Number(form.watch('priceOneMonth')) || 0;
+                    const discount = Number(form.watch('discountOneMonth')) || 0;
+                    return (price - (price * discount / 100)).toFixed(2);
+                  })()} 
+                  className="bg-slate-800/50 border-slate-600 text-white/80 cursor-not-allowed"
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-white/90">
+                  Final Price (3 Months) <span className="text-xs text-white/60">(Preview Only)</span>
+                </label>
+                <Input 
+                  readOnly={true} 
+                  value={(() => {
+                    const price = Number(form.watch('priceThreeMonths')) || 0;
+                    const discount = Number(form.watch('discountThreeMonths')) || 0;
+                    return (price - (price * discount / 100)).toFixed(2);
+                  })()} 
+                  className="bg-slate-800/50 border-slate-600 text-white/80 cursor-not-allowed"
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-white/90">
+                  Final Price (6 Months) <span className="text-xs text-white/60">(Preview Only)</span>
+                </label>
+                <Input 
+                  readOnly={true} 
+                  value={(() => {
+                    const price = Number(form.watch('priceSixMonths')) || 0;
+                    const discount = Number(form.watch('discountSixMonths')) || 0;
+                    return (price - (price * discount / 100)).toFixed(2);
+                  })()} 
+                  className="bg-slate-800/50 border-slate-600 text-white/80 cursor-not-allowed"
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-white/90">
+                  Final Price (12 Months) <span className="text-xs text-white/60">(Preview Only)</span>
+                </label>
+                <Input 
+                  readOnly={true} 
+                  value={(() => {
+                    const price = Number(form.watch('priceTwelveMonths')) || 0;
+                    const discount = Number(form.watch('discountTwelveMonths')) || 0;
+                    return (price - (price * discount / 100)).toFixed(2);
+                  })()} 
+                  className="bg-slate-800/50 border-slate-600 text-white/80 cursor-not-allowed"
+                />
+              </div>
             </div>
             <div className="flex gap-4 mt-6">
               <Button

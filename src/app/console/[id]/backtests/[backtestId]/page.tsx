@@ -226,7 +226,8 @@ export default async function BacktestDetailPage({
                     values: [5, 6, 7, 9, 11], // Row indices for $ symbol in "Value" column
                     v_symbol: '$',
                     all: [4, 5, 6, 7, 10, 12], // Row indices for % symbol in "All %" column
-                    all_symbol: '%'
+                    all_symbol: '%',
+                    ignore: []
                   },
                   {
                     title: 'Performance Metrics',
@@ -234,7 +235,8 @@ export default async function BacktestDetailPage({
                     values: [0, 1, 2, 3, 4, 5, 6, 7], // Row indices for $ symbol in "Value" column
                     v_symbol: '$',
                     all: [0, 1, 2, 3, 4, 5, 6, 7], // Row indices for % symbol in "All %" column
-                    all_symbol: '%'
+                    all_symbol: '%',
+                    ignore: []
                   },
                   {
                     title: 'Risk performance ratios',
@@ -242,9 +244,10 @@ export default async function BacktestDetailPage({
                     values: [1, 4], // Row indices for $ symbol in "Value" column
                     v_symbol: '$',
                     all: [0, 2, 3], // Row indices for % symbol in "All %" column
-                    all_symbol: '%'
+                    all_symbol: '%',
+                    ignore: [3]
                   },
-                ]?.map(({ title, metrics: rawMetrics, values = [], v_symbol = '', all = [], all_symbol = '' }) => {
+                ]?.map(({ title, metrics: rawMetrics, values = [], v_symbol = '', all = [], all_symbol = '', ignore = [] }) => {
                   // Parse metrics from JSON string if needed
                   let metrics: any[] = [];
                   try {
@@ -281,6 +284,10 @@ export default async function BacktestDetailPage({
                           <tbody>
                             {metrics.map(
                               (row: any, idx: number) => {
+                                // Skip rendering if row index is in ignore array
+                                if (ignore.includes(idx)) {
+                                  return null;
+                                }
                                 return(
                                 <tr
                                   key={idx}
