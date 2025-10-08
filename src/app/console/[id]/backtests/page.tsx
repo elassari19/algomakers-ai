@@ -76,7 +76,7 @@ const parseFile = async (file: File) => {
       try {
         let symbol = '';
         let timeframe = '';
-        let strategy = '';
+        let version = '';
         let data: Record<string, any> = {};
         if (file.name.endsWith('.csv')) {
           const text = evt.target?.result;
@@ -99,7 +99,7 @@ const parseFile = async (file: File) => {
         if (data['Properties'] && Array.isArray(data['Properties'])) {
           symbol = data['Properties'][2]?.value || '';
           timeframe = data['Properties'][3]?.value || '';
-          strategy = data['Properties'][9]?.value || '';
+          version = data['Properties'][12]?.value || '';
         }
         
         // Split data into separate columns based on sheet names and stringify them
@@ -112,7 +112,7 @@ const parseFile = async (file: File) => {
         resolve({
           symbol,
           timeframe,
-          strategy,
+          version,
           performance,
           tradesAnalysis,
           riskPerformanceRatios,
@@ -194,6 +194,27 @@ const ConsolePage = () => {
         });
         return;
       }
+      
+      // Update file metrics stats for the updated backtest
+      try {
+        await fetch('/api/stats', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            pairId: result.pair.id,
+            symbol: values.symbol,
+            timeframe: values.timeframe,
+            version: values.version,
+            fileId: values.fileId,
+            performance: values.performance,
+            tradesAnalysis: values.tradesAnalysis,
+            properties: values.properties,
+          }),
+        });
+      } catch (statsError) {
+        console.error('Error updating file metrics:', statsError);
+      }
+      
       toast.success('Backtest updated successfully!', {
         style: { background: '#22c55e', color: 'white' },
       });
@@ -219,7 +240,7 @@ const ConsolePage = () => {
   const columns: Column[] = [
     { key: 'symbol', header: 'Symbol', sortable: true },
     { key: 'timeframe', header: 'Timeframe', sortable: true },
-    { key: 'strategy', header: 'Strategy', sortable: true },
+    { key: 'version', header: 'Version', sortable: true },
     {
       key: 'oneMonth',
       header: '1 Month',
@@ -339,8 +360,114 @@ const ConsolePage = () => {
     },
   ];
 
-  // Calculate stats from backtest data
-  const calculateStats = (pairs: any[]) => {
+  // Fetch stats from the file metrics API
+  const fetchStatsFromAPI = async () => {
+    try {
+      const res = await fetch('/api/stats?type=FILE_METRICS');
+      const data = await res.json();
+      
+      if (res.ok && data.stats && data.stats.length > 0) {
+        // Extract file metrics from the stats metadata
+        const allFileMetrics: any[] = [];
+        
+        data.stats.forEach((stat: any) => {
+          const metadata = stat.metadata;
+          if (metadata) {
+            // Handle both array format and direct object format
+            if (Array.isArray(metadata.fileMetrics)) {
+              metadata.fileMetrics.forEach((metric: any) => {
+                allFileMetrics.push({
+                  ...metric,
+                  pairId: metadata.pairId,
+                  symbol: metadata.symbol,
+                  timeframe: metadata.timeframe,
+                  version: metadata.version
+                });
+              });
+            } else if (metadata.initialCapital !== undefined || metadata.netProfit !== undefined || metadata.roi !== undefined) {
+              // Direct object format
+              allFileMetrics.push({
+                initialCapital: metadata.initialCapital || 0,
+                netProfit: metadata.netProfit || 0,
+                roi: metadata.roi || 0,
+                pairId: metadata.pairId,
+                symbol: metadata.symbol,
+                timeframe: metadata.timeframe,
+                version: metadata.version
+              });
+            }
+          }
+        });
+        
+        return calculateStatsFromFileMetrics(allFileMetrics);
+      }
+      
+      return {
+        totalBacktests: 0,
+        profitableBacktests: 0,
+        totalProfit: 0,
+        bestPerformer: { symbol: 'N/A', roi: 0 },
+        averageROI: 0,
+      };
+    } catch (error) {
+      console.error('Error fetching stats from API:', error);
+      return {
+        totalBacktests: 0,
+        profitableBacktests: 0,
+        totalProfit: 0,
+        bestPerformer: { symbol: 'N/A', roi: 0 },
+        averageROI: 0,
+      };
+    }
+  };
+
+  // Calculate stats from file metrics data
+  const calculateStatsFromFileMetrics = (fileMetrics: any[]) => {
+    if (!fileMetrics || fileMetrics.length === 0) {
+      return {
+        totalBacktests: 0,
+        profitableBacktests: 0,
+        totalProfit: 0,
+        bestPerformer: { symbol: 'N/A', roi: 0 },
+        averageROI: 0,
+      };
+    }
+
+    // Total backtests = length of file metrics
+    const totalBacktests = fileMetrics.length;
+    
+    // Profitable backtests = count where netProfit > 0
+    const profitableBacktests = fileMetrics.filter(metric => metric.netProfit > 0).length;
+    
+    // Total profit = sum of all netProfits
+    const totalProfit = fileMetrics.reduce((sum, metric) => sum + (metric.netProfit || 0), 0);
+    
+    // Best performer = max ROI
+    const bestPerformer = fileMetrics.reduce(
+      (best, metric) => {
+        if (metric.roi > best.roi) {
+          return { symbol: metric.symbol || 'N/A', roi: metric.roi };
+        }
+        return best;
+      },
+      { symbol: 'N/A', roi: 0 }
+    );
+    
+    // Average ROI
+    const totalROI = fileMetrics.reduce((sum, metric) => sum + (metric.roi || 0), 0);
+    const averageROI = totalBacktests > 0 ? totalROI / totalBacktests : 0;
+
+    return {
+      totalBacktests,
+      profitableBacktests,
+      totalProfit,
+      bestPerformer,
+      averageROI,
+    };
+  };
+
+  // Fallback: Calculate stats from backtest pair data (legacy)
+  const calculateStatsFromPairs = (pairs: any[]) => {
     if (!pairs || pairs.length === 0) {
       return {
         totalBacktests: 0,
@@ -422,14 +549,23 @@ const ConsolePage = () => {
       if (res.ok && data.pairs) {
         setBacktests(data.pairs);
         
-        // Calculate and set stats
-        const calculatedStats = calculateStats(data.pairs);
-        setStats(calculatedStats);
+        // Try to fetch stats from file metrics API first
+        const statsFromAPI = await fetchStatsFromAPI();
+        
+        // If no stats from API, fall back to calculating from pairs
+        if (statsFromAPI.totalBacktests === 0) {
+          const calculatedStats = calculateStatsFromPairs(data.pairs);
+          setStats(calculatedStats);
+        } else {
+          setStats(statsFromAPI);
+        }
       }
     } catch (err) {
       // Optionally show a toast
+      console.error('Error fetching backtests:', err);
     }
   };
+  console.log('stats:', stats);
 
   useEffect(() => {
     fetchAllBacktests();
@@ -459,6 +595,27 @@ const ConsolePage = () => {
         });
         return;
       }
+      
+      // Create file metrics stats for the new backtest
+      try {
+        await fetch('/api/stats', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            pairId: result.pair.id,
+            symbol: values.symbol,
+            timeframe: values.timeframe,
+            version: values.version,
+            fileId: values.fileId,
+            performance: values.performance,
+            tradesAnalysis: values.tradesAnalysis,
+            properties: values.properties,
+          }),
+        });
+      } catch (statsError) {
+        console.error('Error creating file metrics:', statsError);
+      }
+      
       toast.success('Backtest added successfully!', {
         style: { background: '#22c55e', color: 'white' },
       });
@@ -560,6 +717,28 @@ const ConsolePage = () => {
                       body: JSON.stringify(parsed),
                     });
                     if (res.ok) {
+                      const result = await res.json();
+                      
+                      // Create file metrics stats for the new backtest
+                      try {
+                        await fetch('/api/stats', {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({
+                            pairId: result.pair.id,
+                            symbol: parsed.symbol,
+                            timeframe: parsed.timeframe,
+                            version: parsed.version,
+                            fileId: parsed.fileId,
+                            performance: parsed.performance,
+                            tradesAnalysis: parsed.tradesAnalysis,
+                            properties: parsed.properties,
+                          }),
+                        });
+                      } catch (statsError) {
+                        console.error('Error creating file metrics:', statsError);
+                      }
+                      
                       toast.success(
                         `Added: ${parsed.symbol} ${parsed.timeframe}`,
                         { style: { background: '#22c55e', color: 'white' } }
@@ -592,12 +771,8 @@ const ConsolePage = () => {
                       const queryParams = new URLSearchParams({
                         symbol: parsed.symbol,
                         timeframe: parsed.timeframe,
+                        version: parsed.version || '', // Always include version, even if empty
                       });
-                      
-                      // Only add strategy if it exists and is not empty
-                      if (parsed.strategy && parsed.strategy.trim() !== '') {
-                        queryParams.append('strategy', parsed.strategy);
-                      }
                       
                       const res = await fetch(`/api/backtest?${queryParams.toString()}`);
                       if (res.ok) {

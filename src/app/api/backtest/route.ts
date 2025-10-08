@@ -3,6 +3,53 @@ import { getServerSession } from 'next-auth/next';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { createAuditLog, AuditAction, AuditTargetType } from '@/lib/audit';
+import { upsertFileMetricsStats, deleteFileMetricsStats } from '../../../lib/stats-service';
+
+// Helper function to create file metrics stats using shared service
+const createFileMetricsStats = async (pairId: string, pairData: any) => {
+  try {
+    // Extract basic metrics from the pair data
+    let initialCapital = 0;
+    let netProfit = 0;
+    let roi = 0;
+    const properties = JSON.parse(pairData.properties);
+    const performance = JSON.parse(pairData.performance);
+
+    // Extract from properties
+    try {
+      initialCapital = properties[113]?.value;
+      netProfit = performance[1]['All USDT'];
+      roi = (performance[1]['All USDT'] / properties[113]?.value) * 100;
+      console.log('__metrics:', { initialCapital, netProfit, roi });
+    } catch (e) {
+      console.warn('Failed to parse properties JSON:', e);
+    }
+
+    // Prepare stats data
+    const statsData = {
+      pairId,
+      initialCapital,
+      netProfit,
+      roi,
+      symbol: pairData.symbol,
+      timeframe: pairData.timeframe,
+      version: pairData.version,
+    };
+    
+    console.log('Creating/updating file metrics stats:', statsData);
+    
+    // Use shared service instead of HTTP call
+    const result = await upsertFileMetricsStats(statsData);
+    console.log('File metrics stats created/updated:', result);
+    return result;
+  } catch (error) {
+    console.error('Error creating file metrics stats:', {
+      message: error instanceof Error ? error.message : String(error),
+      error: error
+    });
+    // Don't throw - let the main operation continue
+  }
+};
 
 // GET /api/backtest?symbol=BTCUSD&timeframe=1H
 export async function GET(request: Request) {
@@ -10,7 +57,7 @@ export async function GET(request: Request) {
   const id = searchParams.get('id');
   const symbol = searchParams.get('symbol');
   const timeframe = searchParams.get('timeframe');
-  const strategy = searchParams.get('strategy');
+  const version = searchParams.get('version');
 
   // If id is provided, fetch by id
   if (id) {
@@ -30,21 +77,14 @@ export async function GET(request: Request) {
     }
   }
 
-  // If symbol and timeframe are provided, fetch one
-  if (symbol && timeframe) {
+  // If symbol, timeframe and version are provided, fetch one
+  if (symbol && timeframe && version !== undefined) {
     try {
       const whereClause: any = { 
         symbol, 
-        timeframe
+        timeframe,
+        version: version || null  // Use the version as-is, or null if empty/undefined
       };
-      
-      // Only add strategy to where clause if it's provided
-      if (strategy !== null && strategy !== undefined && strategy !== '') {
-        whereClause.strategy = strategy;
-      } else {
-        // If no strategy provided, find pairs where strategy is null or empty
-        whereClause.strategy = null;
-      }
       
       const pair = await prisma.pair.findFirst({
         where: whereClause,
@@ -93,7 +133,7 @@ export async function POST(request: NextRequest) {
     const {
       symbol,
       performance,
-      strategy,
+      version,
       tradesAnalysis,
       riskPerformanceRatios,
       listOfTrades,
@@ -113,9 +153,9 @@ export async function POST(request: NextRequest) {
     const parseNum = (v: any) =>
       v === '' || v === null || typeof v === 'undefined' ? 0 : parseFloat(v);
 
-    if (!symbol || !timeframe || !strategy) {
+    if (!symbol || !timeframe || !version) {
       return NextResponse.json(
-        { error: 'Missing symbol, timeframe or strategy' },
+        { error: 'Missing symbol, timeframe or version' },
         { status: 400 }
       );
     }
@@ -124,7 +164,7 @@ export async function POST(request: NextRequest) {
       data: {
         symbol,
         performance,
-        strategy,
+        version,
         tradesAnalysis,
         riskPerformanceRatios,
         listOfTrades,
@@ -142,7 +182,7 @@ export async function POST(request: NextRequest) {
     });
 
     // Log based on user role: USER -> audit, non-USER -> event
-    if (session.user.role) {
+    if (session.user.role && pair) {
       // Create audit log for USER role
       await createAuditLog({
         adminId: session.user.id,
@@ -152,7 +192,7 @@ export async function POST(request: NextRequest) {
         details: {
           symbol: pair.symbol,
           timeframe: pair.timeframe,
-          strategy: pair.strategy,
+          version: pair.version,
           userEmail: session.user.email,
           user: session.user.name
         },
@@ -167,7 +207,7 @@ export async function POST(request: NextRequest) {
             pairId: pair.id,
             symbol: pair.symbol,
             timeframe: pair.timeframe,
-            strategy: pair.strategy,
+            version: pair.version,
             userRole: session.user.role,
             user: session.user.name,
             userEmail: session.user.email
@@ -175,6 +215,9 @@ export async function POST(request: NextRequest) {
         },
       });
     }
+
+    // Create/update file metrics stats entry
+    await createFileMetricsStats(pair.id, pair);
 
     return NextResponse.json({ success: true, pair });
   } catch (error) {
@@ -200,7 +243,7 @@ export async function PATCH(request: NextRequest) {
     const {
       symbol,
       timeframe,
-      strategy,
+      version,
       performance,
       tradesAnalysis,
       riskPerformanceRatios,
@@ -220,24 +263,23 @@ export async function PATCH(request: NextRequest) {
     const parseNum = (v: any) =>
       v === '' || v === null || typeof v === 'undefined' ? 0 : parseFloat(v);
 
+    if (!symbol || !timeframe || version === undefined) {
+      return NextResponse.json(
+        { error: 'Missing symbol, timeframe or version' },
+        { status: 400 }
+      );
+    }
+
     // Find the pair first to get its ID, then update by ID
     const whereClause: any = { 
       symbol, 
-      timeframe
+      timeframe,
+      version: version || null  // Use the version as-is, or null if empty/undefined
     };
-    
-    // Only add strategy to where clause if it's provided and not empty
-    if (strategy !== null && strategy !== undefined && strategy !== '') {
-      whereClause.strategy = strategy;
-    } else {
-      // If no strategy provided, find pairs where strategy is null or empty
-      whereClause.strategy = null;
-    }
     
     const existingPair = await prisma.pair.findFirst({
       where: whereClause,
     });
-    console.log('Existing pair found:', existingPair);
 
     if (!existingPair) {
       return NextResponse.json({ error: 'Pair not found' }, { status: 404 });
@@ -248,7 +290,7 @@ export async function PATCH(request: NextRequest) {
       data: {
         symbol,
         performance,
-        strategy,
+        version,
         tradesAnalysis,
         riskPerformanceRatios,
         listOfTrades,
@@ -298,6 +340,9 @@ export async function PATCH(request: NextRequest) {
       });
     }
 
+    // Update file metrics stats entry
+    await createFileMetricsStats(pair.id, pair);
+
     return NextResponse.json({ success: true, pair });
   } catch (error) {
     const message =
@@ -334,6 +379,14 @@ export async function DELETE(request: NextRequest) {
     }
 
     await prisma.pair.delete({ where: { id } });
+
+    // Delete associated file metrics stats using shared service
+    try {
+      await deleteFileMetricsStats(id);
+    } catch (statsError) {
+      console.error('Error deleting file metrics stats:', statsError);
+      // Don't fail the main operation if stats deletion fails
+    }
 
     // Log based on user role: USER -> audit, non-USER -> event
     if (session.user.role) {

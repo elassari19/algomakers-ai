@@ -76,7 +76,7 @@ const UploadDialog: React.FC<UploadDialogProps> = ({
               if (data['Properties']) {
                 symbol = data['Properties'][2]?.value || data['Properties'][2]?.Value || '';
                 timeframe = data['Properties'][3]?.value || data['Properties'][3]?.Value || '';
-                version = data['Properties'][13]?.value || data['Properties'][13]?.Value || '';
+                version = data['Properties'][12]?.value || data['Properties'][12]?.Value || '';
               }
             resolve({ symbol, timeframe, version, data });
           } catch (err) {
@@ -104,11 +104,11 @@ const UploadDialog: React.FC<UploadDialogProps> = ({
         let exists = false;
         let existingData = null;
                 
-        if (symbol && timeframe && version) {
-          // Check existence via API - all three fields required
+        if (symbol && timeframe && version !== undefined) {
+          // Check existence via API - all three fields are required
           const apiUrl = `/api/backtest?symbol=${encodeURIComponent(
             symbol
-          )}&timeframe=${encodeURIComponent(timeframe)}&version=${encodeURIComponent(version)}`;
+          )}&timeframe=${encodeURIComponent(timeframe)}&version=${encodeURIComponent(version || '')}`;
                     
           const res = await fetch(apiUrl);
           if (res.ok) {
@@ -120,7 +120,7 @@ const UploadDialog: React.FC<UploadDialogProps> = ({
             console.log('API request failed:', res.status, res.statusText);
           }
         } else {
-          console.log('Missing required fields for duplicate check:', { symbol: !!symbol, timeframe: !!timeframe, version: !!version });
+          console.log('Missing required fields for duplicate check:', { symbol: !!symbol, timeframe: !!timeframe, version: version !== undefined });
         }
         const info = { file, symbol, timeframe, version, exists, data, existingData };
         infos.push(info);
