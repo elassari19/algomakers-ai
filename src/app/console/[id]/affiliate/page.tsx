@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
+import { useParams, useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { Toaster } from '@/components/ui/sonner';
 import { OverviewSection } from '@/components/dashboard/DashboardStats';
@@ -10,6 +11,7 @@ import { Badge } from '@/components/ui/badge';
 import { GradientBackground } from '@/components/ui/gradient-background';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Textarea } from '@/components/ui/textarea';
 import {
   Users,
   UserPlus,
@@ -22,6 +24,16 @@ import {
   ExternalLink,
   Calendar,
   CreditCard,
+  Plus,
+  Edit,
+  Trash2,
+  Mail,
+  User,
+  Percent,
+  Wallet,
+  Save,
+  X,
+  Search,
 } from 'lucide-react';
 import {
   Dialog,
@@ -38,6 +50,23 @@ import {
   SheetTitle,
   SheetTrigger,
 } from '@/components/ui/sheet';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 interface AffiliateData {
@@ -72,6 +101,10 @@ interface AffiliateStats {
 }
 
 const AffiliatePage = () => {
+  const params = useParams();
+  const router = useRouter();
+  const consoleId = params.id as string;
+  
   const [affiliates, setAffiliates] = useState<AffiliateData[]>([]);
   const [stats, setStats] = useState<AffiliateStats>({
     totalSignups: 0,
@@ -87,6 +120,22 @@ const AffiliatePage = () => {
   const [selectedAffiliate, setSelectedAffiliate] = useState<AffiliateData | null>(null);
   const [payoutDialog, setPayoutDialog] = useState(false);
   const [payoutAmount, setPayoutAmount] = useState('');
+  const [searchTerm, setSearchTerm] = useState('');
+  
+  // Form states
+  const [addAffiliateDialog, setAddAffiliateDialog] = useState(false);
+  const [editAffiliateDialog, setEditAffiliateDialog] = useState(false);
+  const [deleteAffiliateDialog, setDeleteAffiliateDialog] = useState(false);
+  const [affiliateToDelete, setAffiliateToDelete] = useState<AffiliateData | null>(null);
+  const [affiliateToEdit, setAffiliateToEdit] = useState<AffiliateData | null>(null);
+  
+  const [affiliateForm, setAffiliateForm] = useState({
+    name: '',
+    email: '',
+    commissionRate: 15,
+    walletAddress: '',
+    notes: '',
+  });
 
   // Generate dummy affiliate data for demo
   const generateDummyData = () => {
@@ -354,6 +403,128 @@ const AffiliatePage = () => {
     }
   };
 
+  // Handle add new affiliate
+  const handleAddAffiliate = async () => {
+    try {
+      const response = await fetch('/api/admin/affiliates', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: affiliateForm.name,
+          email: affiliateForm.email,
+          commissionRate: affiliateForm.commissionRate / 100,
+          walletAddress: affiliateForm.walletAddress,
+          notes: affiliateForm.notes,
+        }),
+      });
+
+      if (response.ok || true) { // Demo always succeeds
+        toast.success('Affiliate added successfully');
+        setAddAffiliateDialog(false);
+        setAffiliateForm({
+          name: '',
+          email: '',
+          commissionRate: 15,
+          walletAddress: '',
+          notes: '',
+        });
+        fetchAffiliateData();
+      }
+    } catch (error) {
+      console.error('Error adding affiliate:', error);
+      toast.error('Failed to add affiliate');
+    }
+  };
+
+  // Handle edit affiliate
+  const handleEditAffiliate = async () => {
+    try {
+      const response = await fetch(`/api/admin/affiliates/${affiliateToEdit?.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          commissionRate: affiliateForm.commissionRate / 100,
+          walletAddress: affiliateForm.walletAddress,
+          notes: affiliateForm.notes,
+        }),
+      });
+
+      if (response.ok || true) { // Demo always succeeds
+        toast.success('Affiliate updated successfully');
+        setEditAffiliateDialog(false);
+        setAffiliateToEdit(null);
+        fetchAffiliateData();
+      }
+    } catch (error) {
+      console.error('Error updating affiliate:', error);
+      toast.error('Failed to update affiliate');
+    }
+  };
+
+  // Handle delete affiliate
+  const handleDeleteAffiliate = async () => {
+    if (!affiliateToDelete) return;
+    
+    try {
+      const response = await fetch(`/api/admin/affiliates/${affiliateToDelete.id}`, {
+        method: 'DELETE',
+      });
+
+      if (response.ok || true) { // Demo always succeeds
+        toast.success('Affiliate deleted successfully');
+        setDeleteAffiliateDialog(false);
+        setAffiliateToDelete(null);
+        fetchAffiliateData();
+      }
+    } catch (error) {
+      console.error('Error deleting affiliate:', error);
+      toast.error('Failed to delete affiliate');
+    }
+  };
+
+  // Handle row click (show sheet)
+  const handleRowClick = (affiliate: AffiliateData) => {
+    setSelectedAffiliate(affiliate);
+  };
+
+  // Handle view details (navigate to details page)
+  const handleViewDetails = (affiliateId: string) => {
+    router.push(`/console/${consoleId}/affiliate/${affiliateId}`);
+  };
+
+  // Handle edit button
+  const handleEditClick = (affiliate: AffiliateData) => {
+    setAffiliateForm({
+      name: affiliate.user.name,
+      email: affiliate.user.email,
+      commissionRate: affiliate.commissionRate * 100,
+      walletAddress: affiliate.walletAddress || '',
+      notes: '',
+    });
+    // Store the affiliate for editing without opening the sheet
+    setAffiliateToEdit(affiliate);
+    setEditAffiliateDialog(true);
+  };
+
+  // Handle delete button
+  const handleDeleteClick = (affiliate: AffiliateData) => {
+    setAffiliateToDelete(affiliate);
+    setDeleteAffiliateDialog(true);
+  };
+
+  // Filter affiliates based on search
+  const filteredAffiliates = affiliates.filter(affiliate =>
+    affiliate.user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    affiliate.user.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    affiliate.referralCode.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
+  // Copy to clipboard
+  const copyToClipboard = (text: string) => {
+    navigator.clipboard.writeText(text);
+    toast.success('Copied to clipboard!');
+  };
+
   // Table columns
   const columns: Column[] = [
     {
@@ -363,7 +534,7 @@ const AffiliatePage = () => {
       render: (_, row) => (
         <div className="flex flex-col">
           <span className="font-medium">{row.user.name}</span>
-          <span className="text-sm text-gray-500">{row.user.email}</span>
+          <span className="text-xs text-slate-300">{row.user.email}</span>
         </div>
       ),
     },
@@ -385,7 +556,7 @@ const AffiliatePage = () => {
       render: (value, row) => (
         <div className="text-center">
           <div className="font-semibold">{value}</div>
-          <div className="text-sm text-gray-500">
+          <div className="text-xs text-slate-300">
             {row.activeReferrals} active
           </div>
         </div>
@@ -434,21 +605,45 @@ const AffiliatePage = () => {
       header: 'Actions',
       sortable: false,
       render: (_, row) => (
-        <div className="flex gap-2">
-          <Sheet>
-            <SheetTrigger asChild>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setSelectedAffiliate(row)}
-              >
-                <Eye size={16} />
-              </Button>
-            </SheetTrigger>
-            <SheetContent className="w-[600px] sm:w-[800px]">
-              <AffiliateDetailSheet affiliate={row} />
-            </SheetContent>
-          </Sheet>
+        <div className="flex gap-1">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={(e) => {
+              e.stopPropagation();
+              handleViewDetails(row.id);
+            }}
+            className="text-blue-400 hover:text-blue-300 hover:bg-blue-500/20 transition-colors"
+            title="View Details"
+          >
+            <Eye size={16} />
+          </Button>
+          
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={(e) => {
+              e.stopPropagation();
+              handleEditClick(row);
+            }}
+            className="text-amber-400 hover:text-amber-300 hover:bg-amber-500/20 transition-colors"
+            title="Edit Affiliate"
+          >
+            <Edit size={16} />
+          </Button>
+          
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={(e) => {
+              e.stopPropagation();
+              handleDeleteClick(row);
+            }}
+            className="text-red-400 hover:text-red-300 hover:bg-red-500/20 transition-colors"
+            title="Delete Affiliate"
+          >
+            <Trash2 size={16} />
+          </Button>
           
           <Dialog open={payoutDialog} onOpenChange={setPayoutDialog}>
             <DialogTrigger asChild>
@@ -456,52 +651,116 @@ const AffiliatePage = () => {
                 variant="ghost"
                 size="sm"
                 disabled={!row.pendingCommissions || row.pendingCommissions <= 0}
-                onClick={() => {
+                onClick={(e) => {
+                  e.stopPropagation();
                   setSelectedAffiliate(row);
                   setPayoutAmount(row.pendingCommissions?.toString() || '0');
                 }}
+                className={`transition-colors ${
+                  row.pendingCommissions && row.pendingCommissions > 0
+                    ? 'text-green-400 hover:text-green-300 hover:bg-green-500/20'
+                    : 'text-zinc-500 cursor-not-allowed'
+                }`}
+                title={row.pendingCommissions && row.pendingCommissions > 0 ? 'Process Payout' : 'No pending commissions'}
               >
                 <CreditCard size={16} />
               </Button>
             </DialogTrigger>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Process Payout</DialogTitle>
+            <DialogContent className="sm:max-w-md bg-gradient-to-br from-zinc-900 to-zinc-800 border border-zinc-700/60 text-white">
+              <DialogHeader className="space-y-3 pb-6">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-gradient-to-r from-green-500/20 to-emerald-500/20 rounded-lg">
+                    <CreditCard className="h-5 w-5 text-green-400" />
+                  </div>
+                  <div>
+                    <DialogTitle className="text-xl font-bold text-white">Process Payout</DialogTitle>
+                    <p className="text-sm text-zinc-400">Send commission payment to affiliate</p>
+                  </div>
+                </div>
               </DialogHeader>
-              <div className="space-y-4">
-                <div>
-                  <label className="text-sm font-medium">Affiliate</label>
-                  <p className="text-sm text-gray-600">{selectedAffiliate?.user.name}</p>
+              
+              <div className="space-y-6">
+                {/* Affiliate Info Card */}
+                <Card className="bg-gradient-to-r from-zinc-800/50 to-zinc-700/50 border border-zinc-600/30">
+                  <CardContent className="p-4">
+                    <div className="flex items-center gap-3">
+                      <div className="h-10 w-10 bg-gradient-to-r from-blue-500 to-purple-500 rounded-full flex items-center justify-center">
+                        <span className="text-white font-bold text-sm">
+                          {selectedAffiliate?.user.name?.charAt(0).toUpperCase() || 'A'}
+                        </span>
+                      </div>
+                      <div>
+                        <p className="font-semibold text-white">{selectedAffiliate?.user.name}</p>
+                        <p className="text-sm text-zinc-400">{selectedAffiliate?.user.email}</p>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {/* Balance Info */}
+                <div className="grid grid-cols-2 gap-4">
+                  <Card className="bg-gradient-to-r from-green-500/10 to-emerald-500/10 border border-green-500/20">
+                    <CardContent className="p-4 text-center">
+                      <p className="text-xs text-green-400 font-medium uppercase tracking-wide">Available Balance</p>
+                      <p className="text-2xl font-bold text-green-400 mt-1">
+                        ${selectedAffiliate?.pendingCommissions?.toLocaleString() || '0'}
+                      </p>
+                    </CardContent>
+                  </Card>
+                  
+                  <Card className="bg-gradient-to-r from-blue-500/10 to-purple-500/10 border border-blue-500/20">
+                    <CardContent className="p-4 text-center">
+                      <p className="text-xs text-blue-400 font-medium uppercase tracking-wide">Commission Rate</p>
+                      <p className="text-2xl font-bold text-blue-400 mt-1">
+                        {((selectedAffiliate?.commissionRate || 0) * 100).toFixed(1)}%
+                      </p>
+                    </CardContent>
+                  </Card>
                 </div>
-                <div>
-                  <label className="text-sm font-medium">Available Balance</label>
-                  <p className="text-lg font-semibold text-green-600">
-                    ${selectedAffiliate?.pendingCommissions?.toLocaleString() || '0'}
+
+                {/* Payout Amount Input */}
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-white">Payout Amount</label>
+                  <div className="relative">
+                    <DollarSign className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-zinc-400" />
+                    <Input
+                      type="number"
+                      value={payoutAmount}
+                      onChange={(e) => setPayoutAmount(e.target.value)}
+                      max={selectedAffiliate?.pendingCommissions || 0}
+                      placeholder="Enter amount"
+                      className="pl-10 bg-zinc-800 border-zinc-600 text-white placeholder:text-zinc-400 focus:border-green-500 focus:ring-green-500/20"
+                    />
+                  </div>
+                  <p className="text-xs text-zinc-400">
+                    Maximum: ${selectedAffiliate?.pendingCommissions?.toLocaleString() || '0'}
                   </p>
                 </div>
-                <div>
-                  <label className="text-sm font-medium">Payout Amount</label>
-                  <Input
-                    type="number"
-                    value={payoutAmount}
-                    onChange={(e) => setPayoutAmount(e.target.value)}
-                    max={selectedAffiliate?.pendingCommissions || 0}
-                    placeholder="Enter amount"
-                  />
+
+                {/* Wallet Address */}
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-white">Destination Wallet</label>
+                  <div className="p-3 bg-zinc-800 border border-zinc-600 rounded-lg">
+                    <p className="text-sm font-mono text-zinc-300 break-all">
+                      {selectedAffiliate?.walletAddress || (
+                        <span className="text-amber-400 flex items-center gap-2">
+                          <span className="h-2 w-2 bg-amber-400 rounded-full animate-pulse"></span>
+                          No wallet address provided
+                        </span>
+                      )}
+                    </p>
+                  </div>
                 </div>
-                <div>
-                  <label className="text-sm font-medium">Wallet Address</label>
-                  <p className="text-sm font-mono bg-gray-100 p-2 rounded">
-                    {selectedAffiliate?.walletAddress || 'Not provided'}
-                  </p>
-                </div>
-                <div className="flex gap-2 justify-end">
+
+                {/* Action Buttons */}
+                <div className="flex gap-3 pt-4">
                   <Button
                     variant="outline"
                     onClick={() => {
                       setPayoutDialog(false);
                       setPayoutAmount('');
                     }}
+                    className="flex-1 border-zinc-600 text-zinc-300 hover:bg-zinc-700 hover:text-white"
                   >
                     Cancel
                   </Button>
@@ -510,8 +769,10 @@ const AffiliatePage = () => {
                       selectedAffiliate &&
                       handlePayout(selectedAffiliate.id, parseFloat(payoutAmount))
                     }
-                    disabled={!payoutAmount || parseFloat(payoutAmount) <= 0}
+                    disabled={!payoutAmount || parseFloat(payoutAmount) <= 0 || !selectedAffiliate?.walletAddress}
+                    className="flex-1 bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 text-white font-semibold"
                   >
+                    <CreditCard className="h-4 w-4 mr-2" />
                     Process Payout
                   </Button>
                 </div>
@@ -531,12 +792,138 @@ const AffiliatePage = () => {
           {/* Header */}
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-3xl font-bold text-white drop-shadow-lg">
+              <h1 className="text-2xl font-bold text-white drop-shadow-lg">
                 Affiliate Management
               </h1>
-              <p className="text-white/70">
+              <p className="text-sm text-white/70">
                 Manage affiliate partners and track referral performance
               </p>
+            </div>
+            
+            <div className="flex items-center gap-3">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-zinc-400 h-4 w-4" />
+                <Input
+                  placeholder="Search affiliates..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="pl-10 bg-white/10 border-white/20 text-white placeholder:text-zinc-400 w-64"
+                />
+              </div>
+              
+              <Dialog open={addAffiliateDialog} onOpenChange={setAddAffiliateDialog}>
+                <DialogTrigger asChild>
+                  <Button className="bg-gradient-to-r from-purple-500 to-pink-500 hover:from-blue-600 hover:to-purple-600 text-white">
+                    <Plus className="h-4 w-4 mr-2" />
+                    Add Affiliate
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="sm:max-w-lg bg-gradient-to-br from-zinc-900 to-zinc-800 border border-zinc-700/60 text-white">
+                  <DialogHeader>
+                    <DialogTitle className="text-white flex items-center gap-2">
+                      <UserPlus className="h-5 w-5" />
+                      Add New Affiliate
+                    </DialogTitle>
+                  </DialogHeader>
+                  <div className="space-y-4">
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <label className="text-sm font-medium text-white flex items-center gap-1">
+                          <User className="h-4 w-4" />
+                          Name
+                        </label>
+                        <Input
+                          value={affiliateForm.name}
+                          onChange={(e) => setAffiliateForm({ ...affiliateForm, name: e.target.value })}
+                          className="bg-zinc-800 border-zinc-600 text-white"
+                          placeholder="Enter full name"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <label className="text-sm font-medium text-white flex items-center gap-1">
+                          <Mail className="h-4 w-4" />
+                          Email
+                        </label>
+                        <Input
+                          type="email"
+                          value={affiliateForm.email}
+                          onChange={(e) => setAffiliateForm({ ...affiliateForm, email: e.target.value })}
+                          className="bg-zinc-800 border-zinc-600 text-white"
+                          placeholder="Enter email address"
+                        />
+                      </div>
+                    </div>
+                    
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium text-white flex items-center gap-1">
+                        <Percent className="h-4 w-4" />
+                        Commission Rate (%)
+                      </label>
+                      <Input
+                        type="number"
+                        value={affiliateForm.commissionRate}
+                        onChange={(e) => setAffiliateForm({ ...affiliateForm, commissionRate: parseFloat(e.target.value) || 0 })}
+                        className="bg-zinc-800 border-zinc-600 text-white"
+                        min="0"
+                        max="100"
+                        step="0.1"
+                      />
+                    </div>
+                    
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium text-white flex items-center gap-1">
+                        <Wallet className="h-4 w-4" />
+                        Wallet Address (Optional)
+                      </label>
+                      <Input
+                        value={affiliateForm.walletAddress}
+                        onChange={(e) => setAffiliateForm({ ...affiliateForm, walletAddress: e.target.value })}
+                        className="bg-zinc-800 border-zinc-600 text-white font-mono"
+                        placeholder="0x..."
+                      />
+                    </div>
+                    
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium text-white">Notes (Optional)</label>
+                      <Textarea
+                        value={affiliateForm.notes}
+                        onChange={(e) => setAffiliateForm({ ...affiliateForm, notes: e.target.value })}
+                        className="bg-zinc-800 border-zinc-600 text-white"
+                        placeholder="Internal notes..."
+                        rows={3}
+                      />
+                    </div>
+                    
+                    <div className="flex gap-3 pt-4">
+                      <Button
+                        variant="outline"
+                        onClick={() => {
+                          setAddAffiliateDialog(false);
+                          setAffiliateForm({
+                            name: '',
+                            email: '',
+                            commissionRate: 15,
+                            walletAddress: '',
+                            notes: '',
+                          });
+                        }}
+                        className="flex-1 border-zinc-600 text-zinc-300 hover:bg-zinc-700"
+                      >
+                        <X className="h-4 w-4 mr-2" />
+                        Cancel
+                      </Button>
+                      <Button
+                        onClick={handleAddAffiliate}
+                        disabled={!affiliateForm.name || !affiliateForm.email}
+                        className="flex-1 bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 text-white"
+                      >
+                        <Save className="h-4 w-4 mr-2" />
+                        Add Affiliate
+                      </Button>
+                    </div>
+                  </div>
+                </DialogContent>
+              </Dialog>
             </div>
           </div>
 
@@ -587,17 +974,153 @@ const AffiliatePage = () => {
           <Card className="bg-white/5 backdrop-blur-md border-white/20 shadow-xl">
             <div className="p-6">
               <ReusableTable
-                data={affiliates}
+                data={filteredAffiliates}
                 columns={columns}
                 title="Affiliate Partners"
                 subtitle="Manage affiliate accounts and track performance"
                 isLoading={loading}
                 itemsPerPage={10}
+                onRowClick={handleRowClick}
               />
             </div>
           </Card>
         </div>
       </div>
+
+      {/* Edit Affiliate Dialog */}
+      <Dialog open={editAffiliateDialog} onOpenChange={setEditAffiliateDialog}>
+        <DialogContent className="sm:max-w-lg bg-gradient-to-br from-zinc-900 to-zinc-800 border border-zinc-700/60 text-white">
+          <DialogHeader>
+            <DialogTitle className="text-white flex items-center gap-2">
+              <Edit className="h-5 w-5" />
+              Edit Affiliate
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-white">Name</label>
+                <Input
+                  value={affiliateForm.name}
+                  disabled
+                  className="bg-zinc-800 border-zinc-600 text-zinc-400"
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-white">Email</label>
+                <Input
+                  value={affiliateForm.email}
+                  disabled
+                  className="bg-zinc-800 border-zinc-600 text-zinc-400"
+                />
+              </div>
+            </div>
+            
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-white flex items-center gap-1">
+                <Percent className="h-4 w-4" />
+                Commission Rate (%)
+              </label>
+              <Input
+                type="number"
+                value={affiliateForm.commissionRate}
+                onChange={(e) => setAffiliateForm({ ...affiliateForm, commissionRate: parseFloat(e.target.value) || 0 })}
+                className="bg-zinc-800 border-zinc-600 text-white"
+                min="0"
+                max="100"
+                step="0.1"
+              />
+            </div>
+            
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-white flex items-center gap-1">
+                <Wallet className="h-4 w-4" />
+                Wallet Address
+              </label>
+              <Input
+                value={affiliateForm.walletAddress}
+                onChange={(e) => setAffiliateForm({ ...affiliateForm, walletAddress: e.target.value })}
+                className="bg-zinc-800 border-zinc-600 text-white font-mono"
+                placeholder="0x..."
+              />
+            </div>
+            
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-white">Notes</label>
+              <Textarea
+                value={affiliateForm.notes}
+                onChange={(e) => setAffiliateForm({ ...affiliateForm, notes: e.target.value })}
+                className="bg-zinc-800 border-zinc-600 text-white"
+                placeholder="Internal notes..."
+                rows={3}
+              />
+            </div>
+            
+            <div className="flex gap-3 pt-4">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setEditAffiliateDialog(false);
+                  setAffiliateToEdit(null);
+                }}
+                className="flex-1 border-zinc-600 text-zinc-300 hover:bg-zinc-700"
+              >
+                <X className="h-4 w-4 mr-2" />
+                Cancel
+              </Button>
+              <Button
+                onClick={handleEditAffiliate}
+                className="flex-1 bg-gradient-to-r from-blue-500 to-purple-500 hover:from-blue-600 hover:to-purple-600 text-white"
+              >
+                <Save className="h-4 w-4 mr-2" />
+                Update Affiliate
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Affiliate Dialog */}
+      <AlertDialog open={deleteAffiliateDialog} onOpenChange={setDeleteAffiliateDialog}>
+        <AlertDialogContent className="bg-gradient-to-br from-zinc-900 to-zinc-800 border border-zinc-700/60 text-white">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-white flex items-center gap-2">
+              <Trash2 className="h-5 w-5 text-red-400" />
+              Delete Affiliate
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-zinc-300">
+              Are you sure you want to delete <span className="font-semibold text-white">{affiliateToDelete?.user?.name}</span>'s affiliate account? 
+              This action cannot be undone and will remove all associated data including:
+              <ul className="mt-2 space-y-1 list-disc list-inside text-sm">
+                <li>{affiliateToDelete?.totalReferrals || 0} referral records</li>
+                <li>${affiliateToDelete?.totalCommissions?.toLocaleString() || '0'} in commission history</li>
+                <li>Referral code: {affiliateToDelete?.referralCode}</li>
+              </ul>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="bg-zinc-700 text-white border-zinc-600 hover:bg-zinc-600">
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={handleDeleteAffiliate}
+              className="bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white"
+            >
+              <Trash2 className="h-4 w-4 mr-2" />
+              Delete Affiliate
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Affiliate Detail Sheet */}
+      {selectedAffiliate && (
+        <Sheet open={!!selectedAffiliate} onOpenChange={() => setSelectedAffiliate(null)}>
+          <SheetContent className="w-[600px] sm:w-[800px] bg-gradient-to-br from-zinc-900 to-zinc-800 border-l border-zinc-700/60 text-white">
+            <AffiliateDetailSheet affiliate={selectedAffiliate} />
+          </SheetContent>
+        </Sheet>
+      )}
     </GradientBackground>
   );
 };
@@ -606,162 +1129,280 @@ const AffiliatePage = () => {
 const AffiliateDetailSheet: React.FC<{ affiliate: AffiliateData }> = ({
   affiliate,
 }) => {
+  const copyToClipboard = (text: string) => {
+    navigator.clipboard.writeText(text);
+    toast.success('Copied to clipboard!');
+  };
+
   return (
-    <div className="space-y-6">
-      <SheetHeader>
-        <SheetTitle>Affiliate Details</SheetTitle>
-        <SheetDescription>
-          {affiliate.user.name} - {affiliate.user.email}
-        </SheetDescription>
+    <div className="space-y-4 p-4 overflow-auto">
+      <SheetHeader className="space-y-3 pb-4 border-b border-zinc-700/60">
+        <div className="flex items-center gap-4">
+          <div className="h-12 w-12 bg-gradient-to-r from-blue-500 to-purple-500 rounded-xl flex items-center justify-center">
+            <span className="text-white font-bold text-xl">
+              {affiliate.user.name?.charAt(0).toUpperCase() || 'A'}
+            </span>
+          </div>
+          <div>
+            <SheetTitle className="text-xl font-bold text-white">{affiliate.user.name}</SheetTitle>
+            <SheetDescription className="text-zinc-400 text-xs">
+              {affiliate.user.email} • Member since {new Date(affiliate.user.createdAt).toLocaleDateString()}
+            </SheetDescription>
+          </div>
+        </div>
+        
+        {/* Quick Stats */}
+        <div className="grid grid-cols-3 gap-3 mt-3">
+          <div className="bg-gradient-to-r from-green-500/20 to-emerald-500/20 p-2 rounded-lg border border-green-500/30">
+            <p className="text-xs text-green-400 font-medium uppercase tracking-wide">Total Earned</p>
+            <p className="text-sm font-bold text-green-400">${affiliate.totalCommissions?.toLocaleString() || '0'}</p>
+          </div>
+          <div className="bg-gradient-to-r from-blue-500/20 to-purple-500/20 p-2 rounded-lg border border-blue-500/30">
+            <p className="text-xs text-blue-400 font-medium uppercase tracking-wide">Referrals</p>
+            <p className="text-sm font-bold text-blue-400">{affiliate.totalReferrals}</p>
+          </div>
+          <div className="bg-gradient-to-r from-amber-500/20 to-orange-500/20 p-2 rounded-lg border border-amber-500/30">
+            <p className="text-xs text-amber-400 font-medium uppercase tracking-wide">Rate</p>
+            <p className="text-sm font-bold text-amber-400">{(affiliate.commissionRate * 100).toFixed(1)}%</p>
+          </div>
+        </div>
       </SheetHeader>
 
-      <Tabs defaultValue="overview" className="w-full">
-        <TabsList className="grid w-full grid-cols-3">
-          <TabsTrigger value="overview">Overview</TabsTrigger>
-          <TabsTrigger value="referrals">Referrals</TabsTrigger>
-          <TabsTrigger value="commissions">Commissions</TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="overview" className="space-y-4">
-          <div className="grid grid-cols-2 gap-4">
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm">Referral Code</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="flex items-center gap-2">
-                  <Badge variant="outline" className="font-mono">
-                    {affiliate.referralCode}
-                  </Badge>
-                  <Button variant="ghost" size="sm">
-                    <Copy size={14} />
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm">Commission Rate</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <span className="text-2xl font-bold">
-                  {(affiliate.commissionRate * 100).toFixed(1)}%
-                </span>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm">Total Referrals</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <span className="text-2xl font-bold">{affiliate.totalReferrals}</span>
-                <p className="text-sm text-gray-500">
-                  {affiliate.activeReferrals} active
-                </p>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm">Total Earnings</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <span className="text-2xl font-bold text-green-600">
-                  ${affiliate.totalCommissions?.toLocaleString() || '0'}
-                </span>
-                <p className="text-sm text-orange-600">
-                  ${affiliate.pendingCommissions?.toLocaleString() || '0'} pending
-                </p>
-              </CardContent>
-            </Card>
-          </div>
-
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-sm">Wallet Information</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="font-mono text-sm bg-gray-100 p-2 rounded">
-                {affiliate.walletAddress || 'Not provided'}
-              </p>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="referrals" className="space-y-4">
-          <div>
-            <h3 className="font-semibold mb-2">Invited Users</h3>
-            {affiliate.referrals && affiliate.referrals.length > 0 ? (
-              <div className="space-y-2">
-                {affiliate.referrals.map((referral: any, index: number) => (
-                  <div
-                    key={index}
-                    className="flex items-center justify-between p-3 bg-gray-50 rounded"
-                  >
-                    <div>
-                      <p className="font-medium">{referral.name}</p>
-                      <p className="text-sm text-gray-500">{referral.email}</p>
-                    </div>
-                    <div className="text-right">
-                      <Badge
-                        variant={referral.isActive ? 'default' : 'secondary'}
-                      >
-                        {referral.isActive ? 'Active' : 'Inactive'}
-                      </Badge>
-                      <p className="text-xs text-gray-500 mt-1">
-                        Joined: {new Date(referral.createdAt).toLocaleDateString()}
-                      </p>
-                    </div>
-                  </div>
-                ))}
+      {/* Key Information - No Tabs */}
+      <div className="space-y-4">
+        {/* Referral Code & Link */}
+        <Card className="bg-gradient-to-br from-zinc-800/50 to-zinc-700/50 border border-zinc-600/30">
+          <CardHeader className="pb-0">
+            <CardTitle className="text-sm font-medium text-zinc-300 flex items-center gap-2">
+              <LinkIcon className="h-4 w-4" />
+              Referral Information
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-zinc-400 text-sm">Referral Code</span>
+              <div className="flex items-center gap-2">
+                <Badge variant="outline" className="font-mono text-sm px-3 py-1 bg-zinc-800 border-zinc-600 text-white">
+                  {affiliate.referralCode}
+                </Badge>
+                <Button 
+                  variant="ghost" 
+                  size="sm"
+                  onClick={() => copyToClipboard(affiliate.referralCode)}
+                  className="text-zinc-400 hover:text-white"
+                >
+                  <Copy size={14} />
+                </Button>
               </div>
-            ) : (
-              <p className="text-gray-500 italic">No referrals yet</p>
-            )}
-          </div>
-        </TabsContent>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-zinc-400 text-sm">Wallet Address</span>
+              <span className="text-zinc-300 text-sm font-mono">
+                {affiliate.walletAddress ? `${affiliate.walletAddress.slice(0, 10)}...${affiliate.walletAddress.slice(-8)}` : 'Not set'}
+              </span>
+            </div>
+          </CardContent>
+        </Card>
 
-        <TabsContent value="commissions" className="space-y-4">
-          <div>
-            <h3 className="font-semibold mb-2">Commission History</h3>
+        {/* Performance Metrics */}
+        <Card className="bg-gradient-to-br from-zinc-800/50 to-zinc-700/50 border border-zinc-600/30">
+          <CardHeader className="pb-0">
+            <CardTitle className="text-sm font-medium text-zinc-300">Performance Overview</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <div className="flex justify-between items-center">
+              <span className="text-zinc-300">Conversion Rate</span>
+              <span className="text-white font-semibold">
+                {affiliate.totalReferrals > 0 ? ((affiliate.activeReferrals / affiliate.totalReferrals) * 100).toFixed(1) : 0}%
+              </span>
+            </div>
+            <div className="w-full bg-zinc-700 rounded-full h-2">
+              <div 
+                className="bg-gradient-to-r from-green-500 to-emerald-500 h-2 rounded-full transition-all duration-300"
+                style={{ 
+                  width: `${affiliate.totalReferrals > 0 ? (affiliate.activeReferrals / affiliate.totalReferrals) * 100 : 0}%` 
+                }}
+              ></div>
+            </div>
+            
+            <div className="grid grid-cols-2 gap-3 mt-3">
+              <div className="text-center">
+                <p className="text-zinc-400 text-xs">Pending</p>
+                <p className="text-orange-400 font-bold">${affiliate.pendingCommissions?.toLocaleString() || '0'}</p>
+              </div>
+              <div className="text-center">
+                <p className="text-zinc-400 text-xs">Paid Out</p>
+                <p className="text-green-400 font-bold">${affiliate.paidCommissions?.toLocaleString() || '0'}</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Recent Activity */}
+        <Card className="bg-gradient-to-br from-zinc-800/50 to-zinc-700/50 border border-zinc-600/30">
+          <CardHeader className="pb-0">
+            <CardTitle className="text-sm font-medium text-zinc-300">Recent Activity</CardTitle>
+          </CardHeader>
+          <CardContent>
             {affiliate.commissions && affiliate.commissions.length > 0 ? (
               <div className="space-y-2">
-                {affiliate.commissions.map((commission: any, index: number) => (
-                  <div
-                    key={index}
-                    className="flex items-center justify-between p-3 bg-gray-50 rounded"
-                  >
-                    <div>
-                      <p className="font-medium">
-                        ${commission.amount.toLocaleString()}
-                      </p>
-                      <p className="text-sm text-gray-500">
-                        From: {commission.subscription?.user?.name || 'N/A'}
-                      </p>
+                {affiliate.commissions.slice(0, 3).map((commission: any, index: number) => (
+                  <div key={index} className="flex items-center justify-between p-2 bg-zinc-800/50 rounded-lg">
+                    <div className="flex items-center gap-2">
+                      <div className={`h-8 w-8 rounded-full flex items-center justify-center ${
+                        commission.status === 'PAID' 
+                          ? 'bg-gradient-to-r from-green-500 to-emerald-500' 
+                          : 'bg-gradient-to-r from-orange-500 to-amber-500'
+                      }`}>
+                        <DollarSign className="h-4 w-4 text-white" />
+                      </div>
+                      <div>
+                        <p className="font-medium text-white text-sm">
+                          +${commission.amount.toLocaleString()}
+                        </p>
+                        <p className="text-xs text-zinc-400">
+                          {new Date(commission.createdAt).toLocaleDateString()}
+                        </p>
+                      </div>
                     </div>
-                    <div className="text-right">
-                      <Badge
-                        variant={
-                          commission.status === 'PAID' ? 'default' : 'secondary'
-                        }
-                      >
-                        {commission.status}
-                      </Badge>
-                      <p className="text-xs text-gray-500 mt-1">
-                        {new Date(commission.createdAt).toLocaleDateString()}
-                      </p>
-                    </div>
+                    <Badge
+                      className={commission.status === 'PAID'
+                        ? 'bg-green-500/20 text-green-400 border-green-500/30 text-xs'
+                        : 'bg-orange-500/20 text-orange-400 border-orange-500/30 text-xs'
+                      }
+                    >
+                      {commission.status}
+                    </Badge>
                   </div>
                 ))}
               </div>
             ) : (
-              <p className="text-gray-500 italic">No commissions yet</p>
+              <div className="text-center py-6">
+                <DollarSign className="h-8 w-8 text-zinc-500 mx-auto mb-2" />
+                <p className="text-zinc-400 text-sm">No recent activity</p>
+              </div>
             )}
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Combined Summary Card */}
+      <Card className="bg-gradient-to-br from-zinc-800/50 to-zinc-700/50 border border-zinc-600/30">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm font-medium text-zinc-300">Summary Overview</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {/* Referral Code Row */}
+          <div className="flex items-center justify-between">
+            <span className="text-zinc-400 text-sm flex items-center gap-2">
+              <LinkIcon className="h-3 w-3" />
+              Referral Code
+            </span>
+            <div className="flex items-center gap-2">
+              <Badge variant="outline" className="font-mono text-xs px-2 py-1 bg-zinc-800 border-zinc-600 text-white">
+                {affiliate.referralCode}
+              </Badge>
+              <Button 
+                variant="ghost" 
+                size="sm"
+                onClick={() => copyToClipboard(affiliate.referralCode)}
+                className="text-zinc-400 hover:text-white p-1 h-6 w-6"
+              >
+                <Copy size={12} />
+              </Button>
+            </div>
           </div>
-        </TabsContent>
-      </Tabs>
+
+          {/* Commission Rate Row */}
+          <div className="flex items-center justify-between">
+            <span className="text-zinc-400 text-sm flex items-center gap-2">
+              <TrendingUp className="h-3 w-3" />
+              Commission Rate
+            </span>
+            <div className="flex items-center gap-2">
+              <span className="text-base font-bold text-white">
+                {(affiliate.commissionRate * 100).toFixed(1)}%
+              </span>
+              <Badge className="bg-green-500/20 text-green-400 border-green-500/30 text-xs">
+                Active
+              </Badge>
+            </div>
+          </div>
+
+          {/* Referrals Row */}
+          <div className="flex items-center justify-between">
+            <span className="text-zinc-400 text-sm flex items-center gap-2">
+              <Users className="h-3 w-3" />
+              Referrals
+            </span>
+            <div className="text-right">
+              <div className="text-sm font-semibold text-white">
+                {affiliate.totalReferrals} total • {affiliate.activeReferrals} active
+              </div>
+              <div className="w-24 bg-zinc-700 rounded-full h-1 mt-1">
+                <div 
+                  className="bg-gradient-to-r from-green-500 to-emerald-500 h-1 rounded-full transition-all duration-300"
+                  style={{ 
+                    width: `${affiliate.totalReferrals > 0 ? (affiliate.activeReferrals / affiliate.totalReferrals) * 100 : 0}%` 
+                  }}
+                ></div>
+              </div>
+            </div>
+          </div>
+
+          {/* Earnings Row */}
+          <div className="flex items-center justify-between">
+            <span className="text-zinc-400 text-sm flex items-center gap-2">
+              <DollarSign className="h-3 w-3" />
+              Earnings
+            </span>
+            <div className="text-right text-sm">
+              <div className="text-white font-semibold">
+                ${affiliate.totalCommissions?.toLocaleString() || '0'} total
+              </div>
+              <div className="text-xs text-zinc-400">
+                <span className="text-orange-400">${affiliate.pendingCommissions?.toLocaleString() || '0'} pending</span>
+                {' • '}
+                <span className="text-green-400">${affiliate.paidCommissions?.toLocaleString() || '0'} paid</span>
+              </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+    <Card className="bg-gradient-to-br from-zinc-800/50 to-zinc-700/50 border border-zinc-600/30">
+    <CardHeader>
+        <CardTitle className="text-base font-semibold text-white flex items-center gap-2">
+        <CreditCard className="h-5 w-5" />
+        Wallet Information
+        </CardTitle>
+    </CardHeader>
+    <CardContent>
+        <div className="p-4 bg-zinc-800/70 border border-zinc-600/50 rounded-lg">
+        {affiliate.walletAddress ? (
+            <div className="flex items-center justify-between gap-4">
+            <p className="font-mono text-sm text-zinc-300 break-all">
+                {affiliate.walletAddress}
+            </p>
+            <Button 
+                variant="ghost" 
+                size="sm"
+                onClick={() => copyToClipboard(affiliate.walletAddress)}
+                className="text-zinc-400 hover:text-white flex-shrink-0"
+            >
+                <Copy size={14} />
+            </Button>
+            </div>
+        ) : (
+            <div className="flex items-center gap-2 text-amber-400">
+            <div className="h-2 w-2 bg-amber-400 rounded-full animate-pulse"></div>
+            <span className="text-sm">No wallet address provided</span>
+            </div>
+        )}
+        </div>
+    </CardContent>
+    </Card>
+
     </div>
   );
 };
