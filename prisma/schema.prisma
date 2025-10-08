@@ -20,6 +20,8 @@ model User {
   createdAt           DateTime       @default(now())
   resetToken          String?
   resetTokenExpiry    DateTime?
+  referredBy          String?        // ID of the user who referred this user
+  isActive            Boolean        @default(true)
   accounts            Account[]
   affiliate           Affiliate?
   auditLogs           AuditLog[]     @relation("UserAuditLogs")
@@ -29,6 +31,8 @@ model User {
   payments            Payment[]
   sessions            Session[]
   subscriptions       Subscription[]
+  referrer            User?          @relation("UserReferrals", fields: [referredBy], references: [id])
+  referrals           User[]         @relation("UserReferrals")
 }
 
 model Account {
@@ -159,7 +163,9 @@ model Commission {
   subscriptionId String
   amount         Decimal
   status         CommissionStatus
+  type           String           @default("REFERRAL")
   payoutId       String?
+  paidAt         DateTime?
   createdAt      DateTime         @default(now())
   affiliate      Affiliate        @relation(fields: [affiliateId], references: [id])
   subscription   Subscription     @relation(fields: [subscriptionId], references: [id])
