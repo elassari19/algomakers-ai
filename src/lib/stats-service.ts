@@ -1,6 +1,21 @@
 import { prisma } from '@/lib/prisma';
 import { StatsPeriod, StatsType } from '@/generated/prisma';
 
+export async function patchMetricsStats(id: string, newMetrics: Record<string, any>) {
+  try {
+    await fetch('/api/affiliates/stats', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        type: 'FILE_METRICS',
+        data: { id, ...newMetrics }
+      })
+    });
+  } catch (error) {
+    console.error('Error updating file metrics:', error);
+  }
+};
+
 export async function upsertFileMetricsStats(data: Record<string, any>) {
   try {
     // Only require pairId
