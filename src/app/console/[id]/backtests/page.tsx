@@ -565,7 +565,6 @@ const ConsolePage = () => {
       console.error('Error fetching backtests:', err);
     }
   };
-  console.log('stats:', stats);
 
   useEffect(() => {
     fetchAllBacktests();

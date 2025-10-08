@@ -95,7 +95,6 @@ export async function POST(request: NextRequest) {
           }
         }
       });
-      console.log('Stats updated for pairId:', pairId);
     } else {
       // Create new record
       stats = await prisma.stats.create({
@@ -109,7 +108,6 @@ export async function POST(request: NextRequest) {
           }
         }
       });
-      console.log('Stats created for pairId:', pairId);
     }
 
     return NextResponse.json({ success: true, stats });
@@ -153,7 +151,6 @@ export async function DELETE(request: NextRequest) {
     });
 
     if (!existingStats) {
-      console.log('No stats record found for pairId:', pairId);
       return NextResponse.json({ success: true, message: 'No stats record found' });
     }
 
@@ -161,7 +158,6 @@ export async function DELETE(request: NextRequest) {
       where: { id: existingStats.id }
     });
 
-    console.log('Stats deleted for pairId:', pairId);
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error('Error deleting stats:', error);

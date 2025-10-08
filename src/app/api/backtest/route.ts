@@ -20,7 +20,6 @@ const createFileMetricsStats = async (pairId: string, pairData: any) => {
       initialCapital = properties[113]?.value;
       netProfit = performance[1]['All USDT'];
       roi = (performance[1]['All USDT'] / properties[113]?.value) * 100;
-      console.log('__metrics:', { initialCapital, netProfit, roi });
     } catch (e) {
       console.warn('Failed to parse properties JSON:', e);
     }
@@ -40,7 +39,6 @@ const createFileMetricsStats = async (pairId: string, pairData: any) => {
     
     // Use shared service instead of HTTP call
     const result = await upsertFileMetricsStats(statsData);
-    console.log('File metrics stats created/updated:', result);
     return result;
   } catch (error) {
     console.error('Error creating file metrics stats:', {

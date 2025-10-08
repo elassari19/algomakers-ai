@@ -62,7 +62,6 @@ export async function upsertFileMetricsStats(data: Record<string, any>) {
           metadata: newMetadata
         }
       });
-      console.log('Stats updated for pairId:', pairId);
     } else {
       // Create new record
       stats = await prisma.stats.create({
@@ -74,7 +73,6 @@ export async function upsertFileMetricsStats(data: Record<string, any>) {
           metadata: newMetadata
         }
       });
-      console.log('Stats created for pairId:', pairId);
     }
 
     return { success: true, stats };
@@ -98,7 +96,6 @@ export async function deleteFileMetricsStats(pairId: string) {
     });
 
     if (!existingStats) {
-      console.log('No stats record found for pairId:', pairId);
       return { success: true, message: 'No stats record found' };
     }
 
@@ -106,7 +103,6 @@ export async function deleteFileMetricsStats(pairId: string) {
       where: { id: existingStats.id }
     });
 
-    console.log('Stats deleted for pairId:', pairId);
     return { success: true };
   } catch (error) {
     console.error('Error deleting stats:', error);
