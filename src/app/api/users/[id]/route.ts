@@ -1,5 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { StatsType } from '@/generated/prisma';
+import { patchMetricsStats } from '@/lib/stats-service';
+import { createAuditLog, AuditAction, AuditTargetType } from '@/lib/audit';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/lib/auth';
 import { z } from 'zod';
 
 // Validation schema for user update
@@ -87,6 +92,11 @@ export async function PUT(
   try {
     const { id } = await params;
     const body = await request.json();
+    const session = await getServerSession(authOptions);
+
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
 
     if (!id) {
       return NextResponse.json(
@@ -155,6 +165,68 @@ export async function PUT(
       },
     });
 
+    // Track user update stats
+    try {
+      await patchMetricsStats(StatsType.USER_METRICS, {
+        id: updatedUser.id,
+        userId: updatedUser.id,
+        updaterUserId: session.user.id,
+        updaterEmail: session.user.email,
+        updaterRole: session.user.role,
+        targetUserEmail: updatedUser.email,
+        updatedFields: Object.keys(validatedData),
+        previousValues: {
+          email: existingUser.email,
+          name: existingUser.name,
+          role: existingUser.role,
+          tradingviewUsername: existingUser.tradingviewUsername,
+        },
+        newValues: validatedData,
+        updatedAt: new Date().toISOString(),
+        type: 'USER_UPDATED'
+      });
+    } catch (statsError) {
+      console.error('Failed to track user update stats:', statsError);
+    }
+
+    // Log based on user role: non-USER -> audit, USER -> event
+    if (session.user.role !== 'USER') {
+      // Create audit log for admin roles
+      await createAuditLog({
+        adminId: session.user.id,
+        action: AuditAction.UPDATE_USER,
+        targetType: AuditTargetType.USER,
+        targetId: updatedUser.id,
+        details: {
+          updatedFields: Object.keys(validatedData),
+          previousValues: {
+            email: existingUser.email,
+            name: existingUser.name,
+            role: existingUser.role,
+            tradingviewUsername: existingUser.tradingviewUsername,
+          },
+          newValues: validatedData,
+          adminEmail: session.user.email,
+          adminName: session.user.name,
+        },
+      });
+    } else if (session.user.role === 'USER') {
+      // Create event for USER role
+      await prisma.event.create({
+        data: {
+          userId: session.user.id,
+          eventType: 'USER_UPDATED',
+          metadata: {
+            targetUserId: updatedUser.id,
+            targetUserEmail: updatedUser.email,
+            updatedFields: Object.keys(validatedData),
+            userRole: session.user.role,
+            timestamp: new Date().toISOString(),
+          },
+        },
+      });
+    }
+
     return NextResponse.json({
       success: true,
       user: updatedUser,
@@ -192,6 +264,11 @@ export async function DELETE(
 ) {
   try {
     const { id } = await params;
+    const session = await getServerSession(authOptions);
+
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
 
     if (!id) {
       return NextResponse.json(
@@ -241,6 +318,67 @@ export async function DELETE(
     await prisma.user.delete({
       where: { id },
     });
+
+    // Track user deletion stats
+    try {
+      await patchMetricsStats(StatsType.USER_METRICS, {
+        id: id,
+        userId: id,
+        deleterUserId: session.user.id,
+        deleterEmail: session.user.email,
+        deleterRole: session.user.role,
+        deletedUserInfo: {
+          email: existingUser.email,
+          name: existingUser.name,
+          role: existingUser.role,
+          tradingviewUsername: existingUser.tradingviewUsername,
+          subscriptionCount: existingUser._count.subscriptions,
+          paymentCount: existingUser._count.payments,
+        },
+        deletedAt: new Date().toISOString(),
+        type: 'USER_DELETED'
+      });
+    } catch (statsError) {
+      console.error('Failed to track user deletion stats:', statsError);
+    }
+
+    // Log based on user role: non-USER -> audit, USER -> event
+    if (session.user.role !== 'USER') {
+      // Create audit log for admin roles
+      await createAuditLog({
+        adminId: session.user.id,
+        action: AuditAction.DELETE_USER,
+        targetType: AuditTargetType.USER,
+        targetId: id,
+        details: {
+          deletedUser: {
+            email: existingUser.email,
+            name: existingUser.name,
+            role: existingUser.role,
+            tradingviewUsername: existingUser.tradingviewUsername,
+            subscriptionCount: existingUser._count.subscriptions,
+            paymentCount: existingUser._count.payments,
+          },
+          adminEmail: session.user.email,
+          adminName: session.user.name,
+        },
+      });
+    } else if (session.user.role === 'USER') {
+      // Create event for USER role
+      await prisma.event.create({
+        data: {
+          userId: session.user.id,
+          eventType: 'USER_DELETED',
+          metadata: {
+            deletedUserId: id,
+            deletedUserEmail: existingUser.email,
+            deletedUserRole: existingUser.role,
+            userRole: session.user.role,
+            timestamp: new Date().toISOString(),
+          },
+        },
+      });
+    }
 
     return NextResponse.json({
       success: true,

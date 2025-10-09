@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
+import { patchMetricsStats } from '@/lib/stats-service';
+import { StatsType } from '@/generated/prisma';
 
 export async function GET(request: NextRequest) {
   try {
@@ -151,6 +153,23 @@ export async function POST(request: NextRequest) {
       },
     });
 
+    // Track affiliate creation stats
+    try {
+      await patchMetricsStats(StatsType.AFFILIATE_METRICS, {
+        id: affiliate.id,
+        userId: affiliate.userId,
+        userName: affiliate.user.name || 'Unknown',
+        userEmail: affiliate.user.email,
+        referralCode: affiliate.referralCode,
+        commissionRate: Number(affiliate.commissionRate),
+        createdAt: new Date().toISOString(),
+        createdBy: user.id,
+        type: 'AFFILIATE_CREATION'
+      });
+    } catch (statsError) {
+      console.error('Failed to update affiliate creation stats:', statsError);
+    }
+
     return NextResponse.json({
       message: 'Affiliate account created successfully',
       affiliate,
@@ -239,6 +258,21 @@ export async function PATCH(request: NextRequest) {
       },
     });
 
+    // Track affiliate update stats
+    try {
+      await patchMetricsStats(StatsType.AFFILIATE_METRICS, {
+        id: affiliateId,
+        updatedFields: Object.keys(updateData),
+        oldCommissionRate: existingAffiliate.commissionRate ? Number(existingAffiliate.commissionRate) : null,
+        newCommissionRate: commissionRate ? Number(commissionRate) : null,
+        updatedAt: new Date().toISOString(),
+        updatedBy: user.id,
+        type: 'AFFILIATE_UPDATE'
+      });
+    } catch (statsError) {
+      console.error('Failed to update affiliate update stats:', statsError);
+    }
+
     return NextResponse.json({
       message: 'Affiliate updated successfully',
       affiliate: updatedAffiliate,
@@ -319,6 +353,22 @@ export async function DELETE(request: NextRequest) {
     await prisma.affiliate.delete({
       where: { id: affiliateId },
     });
+
+    // Track affiliate deletion stats
+    try {
+      await patchMetricsStats(StatsType.AFFILIATE_METRICS, {
+        id: affiliateId,
+        referralCode: existingAffiliate.referralCode,
+        commissionsCount: existingAffiliate.commissions.length,
+        commissionsTotal: existingAffiliate.commissions.reduce((sum, c) => sum + Number(c.amount), 0),
+        forceDelete: force,
+        deletedAt: new Date().toISOString(),
+        deletedBy: user.id,
+        type: 'AFFILIATE_DELETION'
+      });
+    } catch (statsError) {
+      console.error('Failed to update affiliate deletion stats:', statsError);
+    }
 
     return NextResponse.json({
       message: 'Affiliate deleted successfully',

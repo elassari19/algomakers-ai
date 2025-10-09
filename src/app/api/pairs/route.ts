@@ -3,6 +3,8 @@ import { getServerSession } from 'next-auth/next';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { createAuditLog, AuditAction, AuditTargetType } from '@/lib/audit';
+import { patchMetricsStats } from '@/lib/stats-service';
+import { StatsType } from '@/generated/prisma';
 import { z } from 'zod';
 
 // Validation schema for pair creation/update
@@ -191,6 +193,36 @@ export async function POST(request: NextRequest) {
       });
     }
 
+    // Track pair creation stats
+    try {
+      await patchMetricsStats(StatsType.FILE_METRICS, {
+        id: pair.id,
+        pairId: pair.id,
+        symbol: pair.symbol,
+        timeframe: pair.timeframe,
+        version: pair.version,
+        creatorUserId: session.user.id,
+        creatorEmail: session.user.email,
+        creatorRole: session.user.role,
+        pricing: {
+          oneMonth: Number(pair.priceOneMonth),
+          threeMonths: Number(pair.priceThreeMonths),
+          sixMonths: Number(pair.priceSixMonths),
+          twelveMonths: Number(pair.priceTwelveMonths)
+        },
+        discounts: {
+          oneMonth: Number(pair.discountOneMonth),
+          threeMonths: Number(pair.discountThreeMonths),
+          sixMonths: Number(pair.discountSixMonths),
+          twelveMonths: Number(pair.discountTwelveMonths)
+        },
+        createdAt: new Date().toISOString(),
+        type: 'PAIR_CREATED'
+      });
+    } catch (statsError) {
+      console.error('Failed to track pair creation stats:', statsError);
+    }
+
     return NextResponse.json({ pair }, { status: 201 });
   } catch (error) {
     if (error instanceof z.ZodError) {
@@ -306,6 +338,31 @@ export async function PUT(request: NextRequest) {
       });
     }
 
+    // Track pair update stats
+    try {
+      await patchMetricsStats(StatsType.FILE_METRICS, {
+        id: pair.id,
+        pairId: pair.id,
+        symbol: pair.symbol,
+        timeframe: pair.timeframe,
+        version: pair.version,
+        updaterUserId: session.user.id,
+        updaterEmail: session.user.email,
+        updaterRole: session.user.role,
+        updatedFields: Object.keys(validatedData),
+        newValues: validatedData,
+        previousValues: {
+          symbol: existingPair.symbol,
+          timeframe: existingPair.timeframe,
+          version: existingPair.version
+        },
+        updatedAt: new Date().toISOString(),
+        type: 'PAIR_UPDATED'
+      });
+    } catch (statsError) {
+      console.error('Failed to track pair update stats:', statsError);
+    }
+
     return NextResponse.json({ pair });
   } catch (error) {
     if (error instanceof z.ZodError) {
@@ -411,6 +468,28 @@ export async function DELETE(request: NextRequest) {
           },
         },
       });
+    }
+
+    // Track pair deletion stats
+    try {
+      await patchMetricsStats(StatsType.FILE_METRICS, {
+        id: id,
+        pairId: id,
+        symbol: existingPair.symbol,
+        timeframe: existingPair.timeframe,
+        version: existingPair.version,
+        deleterUserId: session.user.id,
+        deleterEmail: session.user.email,
+        deleterRole: session.user.role,
+        deletedPairStats: {
+          subscriptionCount: existingPair._count.subscriptions,
+          paymentItemCount: existingPair._count.paymentItems
+        },
+        deletedAt: new Date().toISOString(),
+        type: 'PAIR_DELETED'
+      });
+    } catch (statsError) {
+      console.error('Failed to track pair deletion stats:', statsError);
     }
 
     return NextResponse.json({ message: 'Pair deleted successfully' });

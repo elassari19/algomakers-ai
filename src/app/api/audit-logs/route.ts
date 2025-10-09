@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { patchMetricsStats } from '@/lib/stats-service';
+import { StatsType } from '@/generated/prisma';
 
 // GET /api/audit-logs - Fetch audit logs with filtering and pagination
 export async function GET(request: NextRequest) {
@@ -153,6 +155,25 @@ export async function POST(request: NextRequest) {
         },
       },
     });
+
+    // Track audit log creation stats
+    try {
+      await patchMetricsStats(StatsType.AUDIT_METRICS, {
+        id: auditLog.id,
+        adminId: auditLog.adminId,
+        adminName: auditLog.admin.name || 'Unknown',
+        adminEmail: auditLog.admin.email,
+        adminRole: auditLog.admin.role,
+        action: auditLog.action,
+        targetId: auditLog.targetId,
+        targetType: auditLog.targetType,
+        createdAt: new Date().toISOString(),
+        hasDetails: !!auditLog.details,
+        type: 'AUDIT_LOG_CREATION'
+      });
+    } catch (statsError) {
+      console.error('Failed to track audit log creation stats:', statsError);
+    }
 
     return NextResponse.json({
       success: true,

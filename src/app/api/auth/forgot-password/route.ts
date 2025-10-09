@@ -4,6 +4,8 @@ import { z } from 'zod';
 import { EmailService } from '@/lib/email-service';
 import { randomBytes } from 'crypto';
 import { createAuditLog, AuditAction, AuditTargetType } from '@/lib/audit';
+import { patchMetricsStats } from '@/lib/stats-service';
+import { StatsType } from '@/generated/prisma';
 
 const forgotPasswordSchema = z.object({
   email: z.string().email('Invalid email address'),
@@ -138,6 +140,23 @@ export async function POST(request: NextRequest) {
           role: userWithRole.role,
         },
       });
+    }
+
+    // Track password reset request stats
+    try {
+      await patchMetricsStats(StatsType.USER_METRICS, {
+        id: user.id,
+        userName: user.name || 'Unknown',
+        userEmail: user.email,
+        userRole: userWithRole?.role || 'USER',
+        resetTokenExpiry: resetTokenExpiry.toISOString(),
+        requestedAt: new Date().toISOString(),
+        emailSentSuccessfully: true, // Assume success unless caught in email error
+        hasAuditLog: userWithRole?.role !== 'USER',
+        type: 'PASSWORD_RESET_REQUEST'
+      });
+    } catch (statsError) {
+      console.error('Failed to track password reset stats:', statsError);
     }
 
     return NextResponse.json({

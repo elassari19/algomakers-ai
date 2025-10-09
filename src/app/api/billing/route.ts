@@ -3,6 +3,8 @@ import { getServerSession } from 'next-auth/next';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { createAuditLog, AuditAction, AuditTargetType } from '@/lib/audit';
+import { patchMetricsStats } from '@/lib/stats-service';
+import { StatsType } from '@/generated/prisma';
 
 export async function GET(request: NextRequest) {
   try {
@@ -145,7 +147,7 @@ export async function GET(request: NextRequest) {
           ]
         : [],
     }));
-
+    
     return NextResponse.json({
       payments: transformedPayments,
       stats,
@@ -206,6 +208,24 @@ export async function POST(request: NextRequest) {
           },
         },
       });
+    }
+
+    // Track payment creation stats
+    try {
+      await patchMetricsStats(StatsType.BILLING_METRICS, {
+        id: payment.id,
+        userId: session.user.id,
+        userEmail: session.user.email,
+        userRole: session.user.role,
+        paymentAmount: Number(payment.totalAmount),
+        paymentStatus: payment.status,
+        network: payment.network,
+        hasSubscription: !!subscriptionData,
+        createdAt: new Date().toISOString(),
+        type: 'PAYMENT_CREATED'
+      });
+    } catch (statsError) {
+      console.error('Failed to track payment creation stats:', statsError);
     }
 
     return NextResponse.json({ success: true, payment });
@@ -273,6 +293,24 @@ export async function PATCH(request: NextRequest) {
           },
         },
       });
+    }
+
+    // Track payment update stats
+    try {
+      await patchMetricsStats(StatsType.BILLING_METRICS, {
+        id: payment.id,
+        userId: session.user.id,
+        userEmail: session.user.email,
+        userRole: session.user.role,
+        previousStatus: payment.status, // Note: this will be the new status since we already updated
+        newStatus: status,
+        txHash: txHash,
+        paymentAmount: Number(payment.totalAmount),
+        updatedAt: new Date().toISOString(),
+        type: 'PAYMENT_UPDATED'
+      });
+    } catch (statsError) {
+      console.error('Failed to track payment update stats:', statsError);
     }
 
     return NextResponse.json({ success: true, payment });

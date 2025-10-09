@@ -6,7 +6,12 @@ import {
   SubscriptionPeriod,
   SubscriptionStatus,
   InviteStatus,
+  StatsType,
 } from '@/generated/prisma';
+import { patchMetricsStats } from '@/lib/stats-service';
+import { createAuditLog, AuditAction, AuditTargetType } from '@/lib/audit';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/lib/auth';
 
 interface NOWPaymentsWebhook {
   payment_id: string;
@@ -29,6 +34,7 @@ interface NOWPaymentsWebhook {
 export async function POST(request: NextRequest) {
   try {
     const body: NOWPaymentsWebhook = await request.json();
+    const session = await getServerSession(authOptions);
 
     // Verify webhook signature from NOWPayments
     const signature = request.headers.get('x-nowpayments-sig');
@@ -68,6 +74,54 @@ export async function POST(request: NextRequest) {
         break;
       default:
         console.log('Unhandled payment status:', body.payment_status);
+    }
+
+    // Track webhook processing stats (non-blocking)
+    patchMetricsStats(StatsType.BILLING_METRICS, {
+      id: 'nowpayments-webhook',
+      event: 'webhook_received',
+      webhookProcessed: 1,
+      [`${body.payment_status}Status`]: 1,
+    }).catch(console.error);
+
+    // Log based on user role: non-USER -> audit, USER -> event
+    if (session?.user?.role !== 'USER') {
+      // Create audit log for admin roles
+      await createAuditLog({
+        adminId: session?.user?.id || 'system',
+        action: AuditAction.UPDATE_PAYMENT,
+        targetType: AuditTargetType.PAYMENT,
+        targetId: body.payment_id,
+        details: {
+          webhookProcessed: {
+            paymentId: body.payment_id,
+            paymentStatus: body.payment_status,
+            orderId: body.order_id,
+            amount: body.pay_amount,
+            currency: body.pay_currency,
+            processedAt: new Date().toISOString(),
+          },
+          adminEmail: session?.user?.email,
+          adminName: session?.user?.name,
+        },
+      });
+    } else if (session?.user?.role === 'USER') {
+      // Create event for USER role
+      await prisma.event.create({
+        data: {
+          userId: session.user.id,
+          eventType: 'PAYMENT_WEBHOOK',
+          metadata: {
+            paymentId: body.payment_id,
+            paymentStatus: body.payment_status,
+            orderId: body.order_id,
+            amount: body.pay_amount,
+            currency: body.pay_currency,
+            userRole: session.user.role,
+            timestamp: new Date().toISOString(),
+          },
+        },
+      });
     }
 
     return NextResponse.json({ success: true });

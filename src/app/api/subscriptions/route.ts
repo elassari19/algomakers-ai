@@ -3,6 +3,8 @@ import { getServerSession } from 'next-auth/next';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { createAuditLog, AuditAction, AuditTargetType } from '@/lib/audit';
+import { StatsType } from '@/generated/prisma';
+import { patchMetricsStats } from '@/lib/stats-service';
 
 export async function GET(request: NextRequest) {
   try {
@@ -234,6 +236,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
+    const session = await getServerSession(authOptions);
     
     // Check if it's the new multi-pair format or legacy single pair format
     const isMultiPair = body.pairs && Array.isArray(body.pairs);
@@ -337,10 +340,30 @@ export async function POST(request: NextRequest) {
         return createdSubscriptions;
       });
 
+      // Track multi-subscription creation stats
+      try {
+        await patchMetricsStats(StatsType.USER_METRICS, {
+          id: subscriptions[0].id,
+          subscriptionId: subscriptions[0].id,
+          userId: userId,
+          subscriptionCount: subscriptions.length,
+          creatorUserId: session?.user?.id,
+          creatorEmail: session?.user?.email,
+          creatorRole: session?.user?.role,
+          targetUserEmail: user.email,
+          pairIds: subscriptions.map(s => s.pairId),
+          pairSymbols: subscriptions.map(s => s.pair.symbol),
+          periods: subscriptions.map(s => s.period),
+          createdAt: new Date().toISOString(),
+          type: 'MULTI_SUBSCRIPTION_CREATED'
+        });
+      } catch (statsError) {
+        console.error('Failed to track multi-subscription creation stats:', statsError);
+      }
+
       // Create audit log for multi-pair subscription creation
-      const session = await getServerSession(authOptions);
       if (session?.user?.id) {
-        if (session.user.role) {
+        if (session.user.role !== 'USER') {
           // Create audit log for admin roles
           await createAuditLog({
             adminId: session.user.id,
@@ -359,11 +382,11 @@ export async function POST(request: NextRequest) {
                 timeframe: s.pair.timeframe,
                 period: s.period,
               })),
-              userEmail: session.user.email,
-              user: session.user.name,
+              adminEmail: session.user.email,
+              adminName: session.user.name,
             },
           });
-        } else {
+        } else if (session.user.role === 'USER') {
           // Create event for USER role
           await prisma.event.create({
             data: {
@@ -378,8 +401,7 @@ export async function POST(request: NextRequest) {
                   period: s.period,
                 })),
                 userRole: session.user.role,
-                user: session.user.name,
-                userEmail: session.user.email,
+                timestamp: new Date().toISOString(),
               },
             },
           });
@@ -483,10 +505,31 @@ export async function POST(request: NextRequest) {
         }
       });
 
+      // Track single subscription creation stats
+      try {
+        await patchMetricsStats(StatsType.USER_METRICS, {
+          id: subscription.id,
+          subscriptionId: subscription.id,
+          userId: userId,
+          creatorUserId: session?.user?.id,
+          creatorEmail: session?.user?.email,
+          creatorRole: session?.user?.role,
+          targetUserEmail: user.email,
+          pairId: pairId,
+          pairSymbol: pair.symbol,
+          period: subscription.period,
+          basePrice: subscription.basePrice,
+          discountRate: subscription.discountRate,
+          createdAt: new Date().toISOString(),
+          type: 'SUBSCRIPTION_CREATED'
+        });
+      } catch (statsError) {
+        console.error('Failed to track subscription creation stats:', statsError);
+      }
+
       // Create audit log for single subscription creation
-      const session = await getServerSession(authOptions);
       if (session?.user?.id) {
-        if (session.user.role) {
+        if (session.user.role !== 'USER') {
           // Create audit log for admin roles
           await createAuditLog({
             adminId: session.user.id,
@@ -507,11 +550,11 @@ export async function POST(request: NextRequest) {
               period: subscription.period,
               basePrice: subscription.basePrice,
               discountRate: subscription.discountRate,
-              userEmail: session.user.email,
-              user: session.user.name,
+              adminEmail: session.user.email,
+              adminName: session.user.name,
             },
           });
-        } else {
+        } else if (session.user.role === 'USER') {
           // Create event for USER role
           await prisma.event.create({
             data: {
@@ -524,8 +567,7 @@ export async function POST(request: NextRequest) {
                 symbol: pair.symbol,
                 period: subscription.period,
                 userRole: session.user.role,
-                user: session.user.name,
-                userEmail: session.user.email,
+                timestamp: new Date().toISOString(),
               },
             },
           });
@@ -646,8 +688,32 @@ export async function PATCH(request: NextRequest) {
       }
     });
 
+    // Track subscription update stats
+    try {
+      await patchMetricsStats(StatsType.USER_METRICS, {
+        id: subscription.id,
+        subscriptionId: subscription.id,
+        updaterUserId: session.user.id,
+        updaterEmail: session.user.email,
+        updaterRole: session.user.role,
+        targetUserId: existingSubscription.user.id,
+        targetUserEmail: existingSubscription.user.email,
+        updatedFields: Object.keys(dataToUpdate),
+        previousValues: {
+          status: existingSubscription.status,
+          inviteStatus: existingSubscription.inviteStatus,
+        },
+        newValues: dataToUpdate,
+        pairSymbol: existingSubscription.pair.symbol,
+        updatedAt: new Date().toISOString(),
+        type: 'SUBSCRIPTION_UPDATED'
+      });
+    } catch (statsError) {
+      console.error('Failed to track subscription update stats:', statsError);
+    }
+
     // Create audit log for subscription update
-    if (session.user.role) {
+    if (session.user.role !== 'USER') {
       // Create audit log for admin roles
       await createAuditLog({
         adminId: session.user.id,
@@ -670,11 +736,11 @@ export async function PATCH(request: NextRequest) {
             inviteStatus: existingSubscription.inviteStatus,
           },
           newValues: dataToUpdate,
-          userEmail: session.user.email,
-          user: session.user.name,
+          adminEmail: session.user.email,
+          adminName: session.user.name,
         },
       });
-    } else {
+    } else if (session.user.role === 'USER') {
       // Create event for USER role
       await prisma.event.create({
         data: {
@@ -685,8 +751,7 @@ export async function PATCH(request: NextRequest) {
             targetUserId: existingSubscription.user.id,
             updatedFields: Object.keys(dataToUpdate),
             userRole: session.user.role,
-            user: session.user.name,
-            userEmail: session.user.email,
+            timestamp: new Date().toISOString(),
           },
         },
       });
@@ -758,8 +823,31 @@ export async function DELETE(request: NextRequest) {
       where: { id }
     });
 
+    // Track subscription deletion stats
+    try {
+      await patchMetricsStats(StatsType.USER_METRICS, {
+        id: id,
+        subscriptionId: id,
+        deleterUserId: session.user.id,
+        deleterEmail: session.user.email,
+        deleterRole: session.user.role,
+        targetUserId: existingSubscription.user.id,
+        targetUserEmail: existingSubscription.user.email,
+        deletedSubscriptionInfo: {
+          pairSymbol: existingSubscription.pair.symbol,
+          period: existingSubscription.period,
+          status: existingSubscription.status,
+          inviteStatus: existingSubscription.inviteStatus,
+        },
+        deletedAt: new Date().toISOString(),
+        type: 'SUBSCRIPTION_DELETED'
+      });
+    } catch (statsError) {
+      console.error('Failed to track subscription deletion stats:', statsError);
+    }
+
     // Create audit log for subscription deletion
-    if (session.user.role) {
+    if (session.user.role !== 'USER') {
       // Create audit log for admin roles
       await createAuditLog({
         adminId: session.user.id,
@@ -782,11 +870,11 @@ export async function DELETE(request: NextRequest) {
             status: existingSubscription.status,
             inviteStatus: existingSubscription.inviteStatus,
           },
-          userEmail: session.user.email,
-          user: session.user.name,
+          adminEmail: session.user.email,
+          adminName: session.user.name,
         },
       });
-    } else {
+    } else if (session.user.role === 'USER') {
       // Create event for USER role
       await prisma.event.create({
         data: {
@@ -798,8 +886,7 @@ export async function DELETE(request: NextRequest) {
             symbol: existingSubscription.pair.symbol,
             period: existingSubscription.period,
             userRole: session.user.role,
-            user: session.user.name,
-            userEmail: session.user.email,
+            timestamp: new Date().toISOString(),
           },
         },
       });

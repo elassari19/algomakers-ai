@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
+import { patchMetricsStats } from '@/lib/stats-service';
+import { StatsType } from '@/generated/prisma';
 
 export async function POST(request: NextRequest) {
   try {
@@ -62,6 +64,24 @@ export async function POST(request: NextRequest) {
         { message: 'Payout amount exceeds pending commissions' },
         { status: 400 }
       );
+    }
+
+    // Track payout request stats
+    try {
+      await patchMetricsStats(StatsType.PAYOUT_METRICS, {
+        id: affiliateId,
+        affiliateName: affiliate.user.name || 'Unknown',
+        affiliateEmail: affiliate.user.email,
+        requestedAmount: Number(amount),
+        totalPendingCommissions: Number(totalPending),
+        pendingCommissionsCount: affiliate.commissions.length,
+        requestedAt: new Date().toISOString(),
+        requestedBy: user.id,
+        status: 'PROCESSING',
+        type: 'PAYOUT_REQUEST'
+      });
+    } catch (statsError) {
+      console.error('Failed to track payout request stats:', statsError);
     }
 
     // Process payout by updating commission statuses
@@ -148,6 +168,27 @@ export async function POST(request: NextRequest) {
         },
       },
     });
+
+    // Track successful payout completion stats
+    try {
+      await patchMetricsStats(StatsType.PAYOUT_METRICS, {
+        id: affiliateId,
+        affiliateName: affiliate.user.name || 'Unknown',
+        affiliateEmail: affiliate.user.email,
+        payoutAmount: Number(amount),
+        commissionsProcessed: commissionsToUpdate.length,
+        totalPendingBefore: Number(totalPending),
+        remainingPending: Number(totalPending - amount),
+        processedAt: new Date().toISOString(),
+        processedBy: user.id,
+        processedByName: user.name || user.email,
+        status: 'COMPLETED',
+        type: 'PAYOUT_COMPLETION'
+      });
+      
+    } catch (statsError) {
+      console.error('Failed to update payout completion stats:', statsError);
+    }
 
     return NextResponse.json({
       message: 'Payout processed successfully',

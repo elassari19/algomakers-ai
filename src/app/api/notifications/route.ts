@@ -2,7 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { NotificationType, Role } from "@/generated/prisma";
+import { NotificationType, Role, StatsType } from "@/generated/prisma";
+import { patchMetricsStats } from "@/lib/stats-service";
+import { createAuditLog, AuditAction, AuditTargetType } from "@/lib/audit";
 
 // GET /api/notifications - Fetch notifications for user or admin
 export async function GET(request: NextRequest) {
@@ -108,11 +110,6 @@ export async function POST(request: NextRequest) {
     }
 
     const user = session.user;
-    
-    // Only admins and managers can create notifications
-    if (user.role !== Role.ADMIN && user.role !== Role.MANAGER) {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-    }
 
     const body = await request.json();
     const { userId, type, title, message, data } = body;
@@ -152,6 +149,67 @@ export async function POST(request: NextRequest) {
         }
       }
     });
+
+    // Log based on user role: non-USER -> audit, USER -> event
+    if (user.role !== Role.USER) {
+      // Create audit log for non-USER roles
+      await createAuditLog({
+        adminId: user.id,
+        action: AuditAction.CREATE_NOTIFICATION,
+        targetType: AuditTargetType.NOTIFICATION,
+        targetId: notification.id,
+        details: {
+          notificationId: notification.id,
+          notificationType: type,
+          notificationTitle: title,
+          targetUserId: userId || null,
+          targetUserEmail: notification.user?.email || null,
+          creatorRole: user.role,
+          creatorEmail: user.email,
+          isSystemWide: !userId,
+          hasData: !!data,
+          messageLength: message.length,
+          actionType: 'NOTIFICATION_CREATION'
+        },
+      });
+    } else {
+      // Create user event for USER role
+      await prisma.event.create({
+        data: {
+          userId: user.id,
+          eventType: 'NOTIFICATION_CREATED',
+          metadata: {
+            notificationId: notification.id,
+            notificationType: type,
+            targetUserId: userId || null,
+            isSystemWide: !userId,
+            creatorRole: user.role,
+            hasData: !!data,
+            timestamp: new Date().toISOString(),
+          },
+        },
+      });
+    }
+
+    // Track notification creation stats
+    try {
+      await patchMetricsStats(StatsType.NOTIFICATION_METRICS, {
+        id: notification.id,
+        creatorUserId: user.id,
+        creatorEmail: user.email,
+        creatorRole: user.role,
+        targetUserId: userId || null,
+        targetUserEmail: notification.user?.email || null,
+        notificationType: type,
+        notificationTitle: title,
+        hasData: !!data,
+        isSystemWide: !userId,
+        createdAt: new Date().toISOString(),
+        type: 'NOTIFICATION_CREATED'
+      });
+    } catch (statsError) {
+      console.error('Failed to track notification creation stats:', statsError);
+    }
 
     return NextResponse.json(notification, { status: 201 });
 

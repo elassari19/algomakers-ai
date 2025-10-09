@@ -5,6 +5,9 @@ import { prisma } from '@/lib/prisma';
 import { userSchema } from '@/lib/zode-schema';
 import bcrypt from 'bcryptjs';
 import { z } from 'zod';
+import { patchMetricsStats } from '@/lib/stats-service';
+import { StatsType } from '@/generated/prisma';
+import { createAuditLog, AuditAction, AuditTargetType } from '@/lib/audit';
 
 // Individual field schemas
 const updateNameSchema = z.object({
@@ -285,6 +288,22 @@ export async function PUT(request: NextRequest) {
           },
         });
 
+        // Create audit log for account deletion
+        await createAuditLog({
+          adminId: session.user.id,
+          action: AuditAction.DELETE_USER,
+          targetType: AuditTargetType.USER,
+          targetId: session.user.id,
+          details: {
+            action: 'delete-account',
+            deletionType: 'SOFT_DELETE',
+            deletedBy: session.user.id,
+            originalEmail: currentUser.email,
+            timestamp: new Date().toISOString(),
+            reason: 'USER_REQUESTED_DELETION',
+          },
+        });
+
         return NextResponse.json({
           message: 'Account deleted successfully',
         });
@@ -321,6 +340,41 @@ export async function PUT(request: NextRequest) {
           },
         },
       });
+
+      // Create audit log for profile updates
+      await createAuditLog({
+        adminId: session.user.id,
+        action: AuditAction.UPDATE_USER,
+        targetType: AuditTargetType.USER,
+        targetId: session.user.id,
+        details: {
+          action: data.action,
+          updatedFields,
+          newEmail: updatedFields.includes('email') ? updatedUser.email : undefined,
+          newName: updatedFields.includes('name') ? updatedUser.name : undefined,
+          hasTradingViewUsername: !!updatedUser.tradingviewUsername,
+          emailVerificationStatus: updatedUser.emailVerified ? 'VERIFIED' : 'UNVERIFIED',
+          timestamp: new Date().toISOString(),
+        },
+      });
+
+      // Track profile update stats
+      try {
+        await patchMetricsStats(StatsType.USER_METRICS, {
+          id: session.user.id,
+          userName: updatedUser.name || 'Unknown',
+          userEmail: updatedUser.email,
+          userRole: updatedUser.role,
+          action: data.action,
+          updatedFields,
+          updatedAt: new Date().toISOString(),
+          emailVerificationStatus: updatedUser.emailVerified ? 'VERIFIED' : 'UNVERIFIED',
+          hasTradingViewUsername: !!updatedUser.tradingviewUsername,
+          type: 'PROFILE_UPDATE'
+        });
+      } catch (statsError) {
+        console.error('Failed to track profile update stats:', statsError);
+      }
 
       return NextResponse.json({
         message: successMessage,

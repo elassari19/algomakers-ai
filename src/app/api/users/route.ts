@@ -3,6 +3,8 @@ import { getServerSession } from 'next-auth/next';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { createAuditLog, AuditAction, AuditTargetType } from '@/lib/audit';
+import { StatsType } from '@/generated/prisma';
+import { patchMetricsStats } from '@/lib/stats-service';
 import { z } from 'zod';
 import bcrypt from 'bcryptjs';
 
@@ -150,7 +152,26 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    // Create audit log for user creation
+    // Track user creation stats
+    try {
+      await patchMetricsStats(StatsType.USER_METRICS, {
+        id: newUser.id,
+        userId: newUser.id,
+        creatorUserId: session.user.id,
+        creatorEmail: session.user.email,
+        creatorRole: session.user.role,
+        createdUserEmail: newUser.email,
+        createdUserRole: newUser.role,
+        hasPassword: !!hashedPassword,
+        hasTradingViewUsername: !!newUser.tradingviewUsername,
+        createdAt: new Date().toISOString(),
+        type: 'USER_CREATED'
+      });
+    } catch (statsError) {
+      console.error('Failed to track user creation stats:', statsError);
+    }
+
+    // Log based on user role: non-USER -> audit, USER -> event
     if (session.user.role !== 'USER') {
       // Create audit log for admin roles
       await createAuditLog({
@@ -165,11 +186,11 @@ export async function POST(request: NextRequest) {
             role: newUser.role,
             tradingviewUsername: newUser.tradingviewUsername,
           },
-          userEmail: session.user.email,
-          user: session.user.name,
+          adminEmail: session.user.email,
+          adminName: session.user.name,
         },
       });
-    } else {
+    } else if (session.user.role === 'USER') {
       // Create event for USER role
       await prisma.event.create({
         data: {
@@ -180,8 +201,7 @@ export async function POST(request: NextRequest) {
             createdUserEmail: newUser.email,
             createdUserRole: newUser.role,
             userRole: session.user.role,
-            user: session.user.name,
-            userEmail: session.user.email,
+            timestamp: new Date().toISOString(),
           },
         },
       });
@@ -288,7 +308,32 @@ export async function PUT(request: NextRequest) {
       },
     });
 
-    // Create audit log for user update
+    // Track user update stats
+    try {
+      await patchMetricsStats(StatsType.USER_METRICS, {
+        id: updatedUser.id,
+        userId: updatedUser.id,
+        updaterUserId: session.user.id,
+        updaterEmail: session.user.email,
+        updaterRole: session.user.role,
+        targetUserEmail: updatedUser.email,
+        updatedFields: Object.keys(validatedData),
+        previousValues: {
+          email: existingUser.email,
+          name: existingUser.name,
+          role: existingUser.role,
+          tradingviewUsername: existingUser.tradingviewUsername,
+        },
+        newValues: validatedData,
+        passwordUpdated: !!validatedData.password,
+        updatedAt: new Date().toISOString(),
+        type: 'USER_UPDATED'
+      });
+    } catch (statsError) {
+      console.error('Failed to track user update stats:', statsError);
+    }
+
+    // Log based on user role: non-USER -> audit, USER -> event
     if (session.user.role !== 'USER') {
       // Create audit log for admin roles
       await createAuditLog({
@@ -305,11 +350,11 @@ export async function PUT(request: NextRequest) {
             tradingviewUsername: existingUser.tradingviewUsername,
           },
           newValues: validatedData,
-          userEmail: session.user.email,
-          user: session.user.name,
+          adminEmail: session.user.email,
+          adminName: session.user.name,
         },
       });
-    } else {
+    } else if (session.user.role === 'USER') {
       // Create event for USER role
       await prisma.event.create({
         data: {
@@ -320,8 +365,7 @@ export async function PUT(request: NextRequest) {
             targetUserEmail: updatedUser.email,
             updatedFields: Object.keys(validatedData),
             userRole: session.user.role,
-            user: session.user.name,
-            userEmail: session.user.email,
+            timestamp: new Date().toISOString(),
           },
         },
       });
@@ -408,7 +452,30 @@ export async function DELETE(request: NextRequest) {
       where: { id },
     });
 
-    // Create audit log for user deletion
+    // Track user deletion stats
+    try {
+      await patchMetricsStats(StatsType.USER_METRICS, {
+        id: id,
+        userId: id,
+        deleterUserId: session.user.id,
+        deleterEmail: session.user.email,
+        deleterRole: session.user.role,
+        deletedUserInfo: {
+          email: existingUser.email,
+          name: existingUser.name,
+          role: existingUser.role,
+          tradingviewUsername: existingUser.tradingviewUsername,
+          subscriptionCount: existingUser._count.subscriptions,
+          paymentCount: existingUser._count.payments,
+        },
+        deletedAt: new Date().toISOString(),
+        type: 'USER_DELETED'
+      });
+    } catch (statsError) {
+      console.error('Failed to track user deletion stats:', statsError);
+    }
+
+    // Log based on user role: non-USER -> audit, USER -> event
     if (session.user.role !== 'USER') {
       // Create audit log for admin roles
       await createAuditLog({
@@ -425,11 +492,11 @@ export async function DELETE(request: NextRequest) {
             subscriptionCount: existingUser._count.subscriptions,
             paymentCount: existingUser._count.payments,
           },
-          userEmail: session.user.email,
-          user: session.user.name,
+          adminEmail: session.user.email,
+          adminName: session.user.name,
         },
       });
-    } else {
+    } else if (session.user.role === 'USER') {
       // Create event for USER role
       await prisma.event.create({
         data: {
@@ -440,8 +507,7 @@ export async function DELETE(request: NextRequest) {
             deletedUserEmail: existingUser.email,
             deletedUserRole: existingUser.role,
             userRole: session.user.role,
-            user: session.user.name,
-            userEmail: session.user.email,
+            timestamp: new Date().toISOString(),
           },
         },
       });

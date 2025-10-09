@@ -3,6 +3,8 @@ import { prisma } from '@/lib/prisma';
 import { z } from 'zod';
 import bcrypt from 'bcryptjs';
 import { createAuditLog, AuditAction, AuditTargetType } from '@/lib/audit';
+import { patchMetricsStats } from '@/lib/stats-service';
+import { StatsType } from '@/generated/prisma';
 
 const resetPasswordSchema = z.object({
   token: z.string().min(1, 'Reset token is required'),
@@ -87,6 +89,24 @@ export async function POST(request: NextRequest) {
           role: userWithRole.role,
         },
       });
+    }
+
+    // Track password reset completion stats
+    try {
+      await patchMetricsStats(StatsType.USER_METRICS, {
+        id: `password-reset-completed-${user.id}-${Date.now()}`,
+        userId: user.id,
+        userName: user.name || 'Unknown',
+        userEmail: user.email,
+        userRole: userWithRole?.role || 'USER',
+        completedAt: new Date().toISOString(),
+        tokenUsed: token,
+        hasAuditLog: userWithRole?.role !== 'USER',
+        resetMethod: 'TOKEN_RESET',
+        type: 'PASSWORD_RESET_COMPLETION'
+      });
+    } catch (statsError) {
+      console.error('Failed to track password reset completion stats:', statsError);
     }
 
     return NextResponse.json({

@@ -56,6 +56,13 @@ export enum AuditAction {
   // Notifications
   NOTIFICATION_RECEIVED = 'NOTIFICATION_RECEIVED',
   NOTIFICATION_READ = 'NOTIFICATION_READ',
+  CREATE_NOTIFICATION = 'CREATE_NOTIFICATION',
+  DELETE_NOTIFICATION = 'DELETE_NOTIFICATION',
+
+  // Email
+  SEND_EMAIL = 'SEND_EMAIL',
+  EMAIL_BOUNCED = 'EMAIL_BOUNCED',
+  EMAIL_COMPLAINT = 'EMAIL_COMPLAINT',
   
   // System administration
   SYSTEM_BACKUP = 'SYSTEM_BACKUP',
@@ -81,6 +88,7 @@ export enum AuditTargetType {
   PAYMENT = 'PAYMENT',
   SYSTEM = 'SYSTEM',
   CONFIG = 'CONFIG',
+  NOTIFICATION = 'NOTIFICATION',
 }
 
 // Interface for audit log details
@@ -113,17 +121,21 @@ export async function createAuditLog({
   details?: AuditDetails;
 }): Promise<void> {
   try {
-    // Import prisma dynamically to avoid circular dependencies
-    const { prisma } = await import('@/lib/prisma');
+    // Use fetch to call the audit logs API route to ensure all API logic is invoked
+    const baseUrl = process.env.NEXTAUTH_URL || 'http://localhost:3000';
     
-    await prisma.auditLog.create({
-      data: {
+    await fetch(`${baseUrl}/api/audit-logs`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
         adminId,
         action: action.toString(),
         targetId,
         targetType: targetType?.toString(),
         details: details || {},
-      },
+      }),
     });
   } catch (error) {
     // Silently fail audit logging to not break main functionality

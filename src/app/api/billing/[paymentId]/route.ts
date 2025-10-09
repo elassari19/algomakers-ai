@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth/next';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
+import { patchMetricsStats } from '@/lib/stats-service';
+import { StatsType } from '@/generated/prisma';
+import { createAuditLog, AuditAction, AuditTargetType } from '@/lib/audit';
 
 export async function GET(
   request: NextRequest,
@@ -162,6 +165,54 @@ export async function PUT(
         },
       },
     });
+
+    // Create audit log for admin payment update
+    await createAuditLog({
+      adminId: session.user.id,
+      action: AuditAction.PROCESS_PAYMENT,
+      targetType: AuditTargetType.SUBSCRIPTION,
+      targetId: payment.id,
+      details: {
+        paymentId: payment.id,
+        paymentUserId: payment.user.id,
+        paymentUserEmail: payment.user.email,
+        adminRole: session.user.role,
+        adminEmail: session.user.email,
+        updatedFields: Object.keys(updateData).filter(key => key !== 'updatedAt'),
+        newStatus: updateData.status,
+        newTxHash: updateData.txHash,
+        newActuallyPaid: updateData.actuallyPaid,
+        newNetwork: updateData.network,
+        paymentAmount: Number(payment.totalAmount),
+        updateReason: body.reason || 'Administrative update',
+        actionType: 'ADMIN_PAYMENT_UPDATE'
+      },
+    });
+
+    // Track admin payment update stats
+    try {
+      await patchMetricsStats(StatsType.BILLING_METRICS, {
+        id: paymentId,
+        adminUserId: session.user.id,
+        adminEmail: session.user.email,
+        adminRole: session.user.role,
+        paymentUserId: payment.user.id,
+        paymentUserEmail: payment.user.email,
+        updatedFields: Object.keys(updateData).filter(key => key !== 'updatedAt'),
+        newStatus: updateData.status,
+        newTxHash: updateData.txHash,
+        newActuallyPaid: updateData.actuallyPaid,
+        newNetwork: updateData.network,
+        paymentAmount: Number(payment.totalAmount),
+        hasSubscription: !!payment.subscription,
+        subscriptionStatus: payment.subscription?.status,
+        itemsCount: payment.paymentItems.length,
+        updatedAt: new Date().toISOString(),
+        type: 'ADMIN_PAYMENT_UPDATE'
+      });
+    } catch (statsError) {
+      console.error('Failed to track admin payment update stats:', statsError);
+    }
 
     return NextResponse.json({
       success: true,

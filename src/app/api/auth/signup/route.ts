@@ -4,6 +4,8 @@ import { prisma } from '@/lib/prisma';
 import { z } from 'zod';
 import { EmailService } from '@/lib/email-service';
 import { createAuditLog, AuditAction, AuditTargetType } from '@/lib/audit';
+import { patchMetricsStats } from '@/lib/stats-service';
+import { StatsType } from '@/generated/prisma';
 
 const signupSchema = z.object({
   name: z.string().min(2, 'Name must be at least 2 characters'),
@@ -140,6 +142,25 @@ export async function POST(request: NextRequest) {
           },
         },
       });
+    }
+
+    // Track user signup stats
+    try {
+      await patchMetricsStats(StatsType.USER_METRICS, {
+        id: user.id,
+        userName: user.name,
+        userEmail: user.email,
+        userRole: user.role,
+        hasTradingViewUsername: !!tradingViewUsername,
+        tradingViewUsername: tradingViewUsername || null,
+        signupAt: new Date().toISOString(),
+        welcomeEmailSent: true, // Assume success unless caught in email error
+        hasAuditLog: user.role !== 'USER',
+        registrationMethod: 'EMAIL_PASSWORD',
+        type: 'USER_SIGNUP'
+      });
+    } catch (statsError) {
+      console.error('Failed to track user signup stats:', statsError);
     }
 
     return NextResponse.json({

@@ -1,6 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import nodemailer from 'nodemailer';
+import { prisma } from '@/lib/prisma';
+import { StatsType } from '@/generated/prisma';
+import { patchMetricsStats } from '@/lib/stats-service';
+import { createAuditLog, AuditAction, AuditTargetType } from '@/lib/audit';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/lib/auth';
 import {
   welcomeEmail,
   paymentReceiptEmail,
@@ -132,6 +138,9 @@ function generateEmailContent(request: SendEmailRequest) {
 
 export async function POST(request: NextRequest) {
   try {
+    // Get user session for audit logging
+    const session = await getServerSession(authOptions);
+    
     // Validate request body
     const body = await request.json();
     const emailRequest = sendEmailSchema.parse(body);
@@ -173,6 +182,63 @@ export async function POST(request: NextRequest) {
       `Email sent successfully to ${emailRequest.to}:`,
       info.messageId
     );
+
+    // Track email sending stats
+    try {
+      await patchMetricsStats(StatsType.NOTIFICATION_METRICS, {
+        id: info.messageId,
+        messageId: info.messageId,
+        template: emailRequest.template,
+        to: emailRequest.to,
+        senderUserId: session?.user?.id,
+        senderEmail: session?.user?.email,
+        senderRole: session?.user?.role,
+        emailSubject: subject,
+        emailType: emailRequest.template,
+        sentAt: new Date().toISOString(),
+        type: 'EMAIL_SENT'
+      });
+    } catch (statsError) {
+      console.error('Failed to track email sending stats:', statsError);
+    }
+
+    // Log based on user role: non-USER -> audit, USER -> event
+    if (session?.user?.role !== 'USER') {
+      // Create audit log for admin roles
+      await createAuditLog({
+        adminId: session?.user?.id || 'system',
+        action: AuditAction.SEND_EMAIL,
+        targetType: AuditTargetType.USER,
+        targetId: emailRequest.to,
+        details: {
+          sentEmail: {
+            messageId: info.messageId,
+            template: emailRequest.template,
+            to: emailRequest.to,
+            subject: subject,
+            sentAt: new Date().toISOString(),
+          },
+          adminEmail: session?.user?.email,
+          adminName: session?.user?.name,
+        },
+      });
+    } else if (session?.user?.role === 'USER') {
+      // Create event for USER role
+      await prisma.event.create({
+        data: {
+          userId: session.user.id,
+          eventType: 'EMAIL_SENT',
+          metadata: {
+            messageId: info.messageId,
+            template: emailRequest.template,
+            to: emailRequest.to,
+            subject: subject,
+            userRole: session.user.role,
+            timestamp: new Date().toISOString(),
+          },
+        },
+      });
+    }
 
     return NextResponse.json({
       success: true,

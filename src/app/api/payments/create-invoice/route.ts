@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { PaymentNetwork, PaymentStatus } from '@/generated/prisma';
+import { PaymentNetwork, PaymentStatus, StatsType } from '@/generated/prisma';
+import { patchMetricsStats } from '@/lib/stats-service';
+import { createAuditLog, AuditAction, AuditTargetType } from '@/lib/audit';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/lib/auth';
 
 interface CreateInvoiceRequest {
   amount: number;
@@ -49,14 +53,11 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // TODO: Get user session when auth is implemented
-    // const session = await getServerSession(authOptions);
-    // if (!session?.user?.id) {
-    //   return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    // }
-
-    // For now, use a placeholder user ID
-    const userId = 'temp-user-id';
+    // Get user session for audit logging
+    const session = await getServerSession(authOptions);
+    
+    // For now, use a placeholder user ID if no session
+    const userId = session?.user?.id || 'temp-user-id';
 
     // Validate environment variables
     if (!process.env.NOWPAYMENTS_API_KEY) {
@@ -256,6 +257,74 @@ export async function POST(request: NextRequest) {
         );
         // Continue with other pairs, don't fail the entire request
       }
+    }
+
+    // Track invoice creation stats
+    try {
+      await patchMetricsStats(StatsType.BILLING_METRICS, {
+        id: paymentRecord.id,
+        paymentId: paymentRecord.id,
+        invoiceId: transformedInvoice.nowPaymentsId,
+        orderId: orderId,
+        amount: body.amount,
+        currency: body.currency,
+        network: body.network,
+        pairIds: pairIds,
+        pairCount: pairIds.length,
+        paymentItemsCreated: paymentItems.length,
+        hasOrderData: !!body.orderData,
+        orderData: body.orderData,
+        expiresAt: transformedInvoice.expiresAt,
+        invoiceUrl: transformedInvoice.invoiceUrl,
+        createdAt: new Date().toISOString(),
+        type: 'INVOICE_CREATED'
+      });
+    } catch (statsError) {
+      console.error('Failed to track invoice creation stats:', statsError);
+    }
+
+    // Log based on user role: non-USER -> audit, USER -> event
+    if (session?.user?.role !== 'USER') {
+      // Create audit log for admin roles
+      await createAuditLog({
+        adminId: session?.user?.id || 'system',
+        action: AuditAction.CREATE_PAYMENT,
+        targetType: AuditTargetType.PAYMENT,
+        targetId: paymentRecord.id,
+        details: {
+          createdInvoice: {
+            id: paymentRecord.id,
+            invoiceId: transformedInvoice.id,
+            amount: body.amount,
+            currency: body.currency,
+            network: body.network,
+            pairIds: pairIds,
+            orderId: transformedInvoice.orderId,
+            expiresAt: transformedInvoice.expiresAt,
+          },
+          adminEmail: session?.user?.email,
+          adminName: session?.user?.name,
+        },
+      });
+    } else if (session?.user?.role === 'USER') {
+      // Create event for USER role
+      await prisma.event.create({
+        data: {
+          userId: session.user.id,
+          eventType: 'INVOICE_CREATED',
+          metadata: {
+            paymentId: paymentRecord.id,
+            invoiceId: transformedInvoice.id,
+            amount: body.amount,
+            currency: body.currency,
+            network: body.network,
+            pairIds: pairIds,
+            orderId: transformedInvoice.orderId,
+            userRole: session.user.role,
+            timestamp: new Date().toISOString(),
+          },
+        },
+      });
     }
 
     return NextResponse.json({
