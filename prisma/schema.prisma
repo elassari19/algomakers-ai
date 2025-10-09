@@ -21,7 +21,7 @@ model User {
   resetToken          String?
   resetTokenExpiry    DateTime?
   referredBy          String?        // ID of the user who referred this user
-  isActive            Boolean        @default(true)
+  status              UserStatus     @default(UNVERIFIED)
   accounts            Account[]
   affiliate           Affiliate?
   auditLogs           AuditLog[]     @relation("UserAuditLogs")
@@ -210,6 +210,14 @@ enum Role {
   ADMIN
   SUPPORT
   MANAGER
+}
+
+enum UserStatus {
+  ACTIVE
+  INACTIVE
+  SUSPENDED
+  DELETED
+  UNVERIFIED
 }
 
 enum SubscriptionPeriod {

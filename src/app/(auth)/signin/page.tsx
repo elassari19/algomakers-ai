@@ -30,7 +30,7 @@ function SignInForm() {
   const handleSuccess = () => {
     toast.success('Welcome back! Redirecting to dashboard...', {
       description: 'You have successfully signed in.',
-      duration: 1000,
+      duration: 2000,
       style: { backgroundColor: '#22c55e', color: '#fff' },
     });
     setTimeout(() => {
@@ -40,9 +40,9 @@ function SignInForm() {
   };
 
   const handleError = (error: string) => {
-    const userFriendlyError = handleAuthError(error);
+    console.log('Sign in error:', error);
     toast.error('Sign in failed', {
-      description: userFriendlyError,
+      description: error,
       duration: 4000,
       style: { backgroundColor: '#ef4444', color: '#fff' },
     });
