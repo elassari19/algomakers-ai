@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { z } from 'zod';
-import { EmailService } from '@/lib/email-service';
+import { sendEmail } from '@/lib/email-service';
 import { randomBytes } from 'crypto';
 import { createAuditLog, AuditAction, AuditTargetType } from '@/lib/audit';
 import { patchMetricsStats } from '@/lib/stats-service';
@@ -67,14 +67,17 @@ export async function POST(request: NextRequest) {
         timeZone: 'UTC',
       }) + ' UTC';
 
-    // Send password reset email
+    // Send password reset email using sendEmail
     try {
-      await EmailService.sendPasswordResetEmail(user.email, {
-        firstName: user.name || 'there',
-        resetUrl,
-        expiryTime,
+      await sendEmail({
+        template: 'password_reset',
+        to: user.email,
+        params: {
+          firstName: user.name || 'there',
+          resetUrl,
+          expiryTime,
+        },
       });
-
       // Log successful email send
       await prisma.event.create({
         data: {
@@ -90,7 +93,6 @@ export async function POST(request: NextRequest) {
     } catch (emailError) {
       // Log failed email send but don't fail the request
       console.error('Failed to send password reset email:', emailError);
-
       await prisma.event.create({
         data: {
           userId: user.id,

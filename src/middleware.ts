@@ -18,6 +18,7 @@ export default withAuth(
           '/signup',
           '/forgot-password',
           '/reset-password',
+          '/verify-email',
           '/dashboard',
           '/subscriptions',
           '/billing',

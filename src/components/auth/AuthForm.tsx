@@ -314,12 +314,19 @@ export function AuthForm({
             )}
 
             {isLogin && (
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between gap-2">
                 <Link
                   href="/forgot-password"
                   className="text-sm text-blue-400 hover:text-blue-300 transition-colors"
                 >
                   Forgot password?
+                </Link>
+
+                <Link
+                  href="/verify-email"
+                  className="text-sm text-blue-400 hover:text-blue-300 transition-colors"
+                >
+                  Verify your account
                 </Link>
               </div>
             )}

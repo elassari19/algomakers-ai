@@ -1,163 +1,317 @@
-import {
-  type WelcomeEmailParams,
-  type PaymentReceiptEmailParams,
-  type InvitePendingEmailParams,
-  type InviteCompletedEmailParams,
-  type RenewalReminderEmailParams,
-  type PasswordResetEmailParams,
-} from './email-template';
+export interface VerifyEmailParams {
+  code: string;
+  name?: string;
+  url: string;
+}
 
-// Base URL for API calls
-const getBaseUrl = () => {
-  if (process.env.NEXTAUTH_URL) {
-    return process.env.NEXTAUTH_URL;
-  }
-  if (process.env.VERCEL_URL) {
-    return `https://${process.env.VERCEL_URL}`;
-  }
-  return 'http://localhost:3000';
+export function verifyEmail({ name, url }: VerifyEmailParams) {
+  const subject = 'Verify your AlgoMakers.Ai email address';
+  const html = `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto;">
+      <h1 style="color: #2D3748;">Verify your email</h1>
+      <p>Hello${name ? ` ${name}` : ''},</p>
+      <p>Thank you for signing up! Please verify your email address to activate your account.</p>
+      <div style="margin: 32px 0; text-align: center;">
+        <a href="${url}" style="background: #3182CE; color: #fff; padding: 12px 24px; border-radius: 6px; text-decoration: none; font-weight: bold; display: inline-block;">Verify Email</a>
+      </div>
+      <hr style="margin: 32px 0; border: none; border-top: 1px solid #E2E8F0;">
+      <div style="color: #4A5568; font-size: 0.95em; margin-bottom: 16px;">
+        Need help? <a href="mailto:support@algomakers.ai" style="color: #3182CE; text-decoration: underline;">Contact Support</a>
+      </div>
+      <small style="color: #A0AEC0;">&copy; ${new Date().getFullYear()} AlgoMakers.Ai</small>
+    </div>
+  `;
+  return { subject, html };
+}
+
+
+export interface WelcomeEmailParams {
+  tradingViewUsername: string;
+  url: string;
+}
+
+export function welcomeEmail({ tradingViewUsername, url }: WelcomeEmailParams) {
+  const subject = '🎉 Welcome to AlgoMakers.Ai – Let’s get started';
+  const html = `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto;">
+      <h1 style="color: #2D3748;">You’re in!</h1>
+      <p>Thank you for signing up with <strong>AlgoMakers.Ai</strong>!</p>
+      <p>
+        <strong>TradingView username on file:</strong> <span style="color: #3182CE;">${tradingViewUsername}</span>
+      </p>
+      <h2 style="color: #4A5568;">How to accept your TradingView invite:</h2>
+      <ol>
+        <li>Log in to your TradingView account.</li>
+        <li>Check your notifications (bell icon at the top right).</li>
+        <li>Find the invite from <strong>AlgoMakers.Ai</strong> and click <strong>Accept</strong>.</li>
+        <li>Access your new indicators in the TradingView chart.</li>
+      </ol>
+      <p>Thank you for signing up! Please verify your email address to activate your account.</p>
+      <div style="margin: 32px 0; text-align: center;">
+        <a href="${url}" style="background: #3182CE; color: #fff; padding: 12px 24px; border-radius: 6px; text-decoration: none; font-weight: bold; display: inline-block;">Verify Email</a>
+      </div>
+      <p>If you have any questions, just reply to this email. Happy trading!</p>
+      <hr style="margin: 32px 0; border: none; border-top: 1px solid #E2E8F0;">
+      <small style="color: #A0AEC0;">&copy; ${new Date().getFullYear()} AlgoMakers.Ai</small>
+    </div>
+  `;
+  return { subject, html };
+}
+
+export interface PaymentReceiptEmailParams {
+  firstName: string;
+  pair: string;
+  period: string;
+  amount: string;
+  network: string;
+  txHash: string;
+  expiryDate: string;
+  tradingViewUsername: string;
+  dashboardUrl: string;
+}
+
+export function paymentReceiptEmail({ firstName, pair, period, amount, network, txHash, expiryDate, tradingViewUsername, dashboardUrl }: PaymentReceiptEmailParams) {
+  const subject = `✅ Payment received for ${pair} subscription`;
+  const html = `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto;">
+      <h1 style="color: #2D3748;">Your payment was successful!</h1>
+      <p>Hello ${firstName},</p>
+      <p>We’ve received your payment for <strong>${pair}</strong> – <strong>${period}</strong>.</p>
+      <h2 style="color: #4A5568; font-size: 1.1em;">Details:</h2>
+      <ul style="list-style: none; padding: 0;">
+        <li><strong>Amount:</strong> ${amount} USDT</li>
+        <li><strong>Network:</strong> ${network}</li>
+        <li><strong>Transaction ID:</strong> <span style="color: #3182CE;">${txHash}</span></li>
+        <li><strong>Subscription:</strong> ${pair} (${period})</li>
+        <li><strong>Expiry:</strong> ${expiryDate}</li>
+      </ul>
+      <p>Next step: 🎯 Our admin will send your TradingView invite shortly to <strong>${tradingViewUsername}</strong>.</p>
+      <div style="margin: 32px 0;">
+        <a href="${dashboardUrl}" style="background: #3182CE; color: #fff; padding: 12px 24px; border-radius: 6px; text-decoration: none; font-weight: bold;">Go to Dashboard</a>
+      </div>
+      <hr style="margin: 32px 0; border: none; border-top: 1px solid #E2E8F0;">
+      <div style="color: #4A5568; font-size: 0.95em; margin-bottom: 16px;">
+        Thank you for choosing AlgoMakers.Ai 🚀<br>
+        Need help? <a href="mailto:support@algomakers.ai" style="color: #3182CE; text-decoration: underline;">Contact Support</a>
+      </div>
+      <small style="color: #A0AEC0;">&copy; ${new Date().getFullYear()} AlgoMakers.Ai</small>
+    </div>
+  `;
+  return { subject, html };
+}
+
+export interface InvitePendingEmailParams {
+  firstName: string;
+  pair: string;
+  period: string;
+  tradingViewUsername: string;
+  dashboardUrl: string;
+}
+
+export function invitePendingEmail({ firstName, pair, period, tradingViewUsername, dashboardUrl }: InvitePendingEmailParams) {
+  const subject = '⏳ Your TradingView invite is being processed';
+  const html = `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto;">
+      <h1 style="color: #2D3748;">We’re preparing your access</h1>
+      <p>Hello ${firstName},</p>
+      <p>Your subscription to <strong>${pair}</strong> – <strong>${period}</strong> is confirmed.</p>
+      <p>Our admin is now processing your TradingView invite for username: <span style="color: #3182CE;">${tradingViewUsername}</span>.</p>
+      <p>You’ll get another email once the invite is completed.</p>
+      <div style="margin: 32px 0;">
+        <a href="${dashboardUrl}" style="background: #3182CE; color: #fff; padding: 12px 24px; border-radius: 6px; text-decoration: none; font-weight: bold;">Check Subscription Status</a>
+      </div>
+      <hr style="margin: 32px 0; border: none; border-top: 1px solid #E2E8F0;">
+      <div style="color: #4A5568; font-size: 0.95em; margin-bottom: 16px;">
+        AlgoMakers.Ai team
+      </div>
+      <small style="color: #A0AEC0;">&copy; ${new Date().getFullYear()} AlgoMakers.Ai</small>
+    </div>
+  `;
+  return { subject, html };
+}
+
+export interface InviteCompletedEmailParams {
+  firstName: string;
+  tradingViewUsername: string;
+  pair: string;
+  period: string;
+  expiryDate: string;
+  tradingViewUrl: string;
+}
+
+export function inviteCompletedEmail({ firstName, tradingViewUsername, pair, period, expiryDate, tradingViewUrl }: InviteCompletedEmailParams) {
+  const subject = '🎉 Your TradingView invite is ready!';
+  const html = `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto;">
+      <h1 style="color: #2D3748;">Start using your subscription today</h1>
+      <p>Hello ${firstName},</p>
+      <p>Great news! We’ve sent a TradingView invite to your account: <span style="color: #3182CE;">${tradingViewUsername}</span>.</p>
+      <h2 style="color: #4A5568; font-size: 1.1em;">Subscription details:</h2>
+      <ul style="list-style: none; padding: 0;">
+        <li><strong>Pair:</strong> ${pair}</li>
+        <li><strong>Period:</strong> ${period}</li>
+        <li><strong>Active until:</strong> ${expiryDate}</li>
+      </ul>
+      <p>👉 Please log in to your TradingView account and accept the invite to begin.</p>
+      <div style="margin: 32px 0;">
+        <a href="${tradingViewUrl}" style="background: #3182CE; color: #fff; padding: 12px 24px; border-radius: 6px; text-decoration: none; font-weight: bold;">Open TradingView</a>
+      </div>
+      <hr style="margin: 32px 0; border: none; border-top: 1px solid #E2E8F0;">
+      <div style="color: #4A5568; font-size: 0.95em; margin-bottom: 16px;">
+        Happy trading with AlgoMakers.Ai 🚀
+      </div>
+      <small style="color: #A0AEC0;">&copy; ${new Date().getFullYear()} AlgoMakers.Ai</small>
+    </div>
+  `;
+  return { subject, html };
+}
+
+export interface RenewalReminderEmailParams {
+  firstName: string;
+  pair: string;
+  period: string;
+  expiryDate: string;
+  renewalUrl: string;
+}
+
+export function renewalReminderEmail({ firstName, pair, period, expiryDate, renewalUrl }: RenewalReminderEmailParams) {
+  const subject = '⏳ Your subscription is expiring soon – renew today';
+  const html = `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto;">
+      <h1 style="color: #2D3748;">Don't lose your access</h1>
+      <p>Hello ${firstName},</p>
+      <p>Your subscription to <strong>${pair}</strong> – <strong>${period}</strong> will expire on <strong>${expiryDate}</strong>.</p>
+      <p>Renew now to continue uninterrupted access to backtests and live performance updates.</p>
+      <div style="margin: 32px 0;">
+        <a href="${renewalUrl}" style="background: #3182CE; color: #fff; padding: 12px 24px; border-radius: 6px; text-decoration: none; font-weight: bold;">Renew My Subscription</a>
+      </div>
+      <hr style="margin: 32px 0; border: none; border-top: 1px solid #E2E8F0;">
+      <div style="color: #4A5568; font-size: 0.95em; margin-bottom: 16px;">
+        Thank you for being part of AlgoMakers.Ai 💡
+      </div>
+      <small style="color: #A0AEC0;">&copy; ${new Date().getFullYear()} AlgoMakers.Ai</small>
+    </div>
+  `;
+  return { subject, html };
+}
+
+export interface PasswordResetEmailParams {
+  firstName: string;
+  resetUrl: string;
+  expiryTime: string;
+}
+
+export function passwordResetEmail({ firstName, resetUrl, expiryTime }: PasswordResetEmailParams) {
+  const subject = '🔐 Reset your AlgoMakers.Ai password';
+  const html = `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto;">
+      <h1 style="color: #2D3748;">Reset your password</h1>
+      <p>Hello ${firstName || 'there'},</p>
+      <p>We received a request to reset your password for your AlgoMakers.Ai account.</p>
+      <p>Click the button below to create a new password:</p>
+      <div style="margin: 32px 0; text-align: center;">
+        <a href="${resetUrl}" style="background: #3182CE; color: #fff; padding: 12px 24px; border-radius: 6px; text-decoration: none; font-weight: bold; display: inline-block;">Reset My Password</a>
+      </div>
+      <p style="color: #4A5568; font-size: 0.9em;">
+        <strong>Important:</strong> This link will expire on ${expiryTime}. If you need a new reset link, please request another password reset.
+      </p>
+      <p style="color: #4A5568; font-size: 0.9em;">
+        If you didn't request this password reset, you can safely ignore this email. Your password will remain unchanged.
+      </p>
+      <hr style="margin: 32px 0; border: none; border-top: 1px solid #E2E8F0;">
+      <div style="color: #4A5568; font-size: 0.95em; margin-bottom: 16px;">
+        Need help? <a href="mailto:support@algomakers.ai" style="color: #3182CE; text-decoration: underline;">Contact Support</a>
+      </div>
+      <small style="color: #A0AEC0;">&copy; ${new Date().getFullYear()} AlgoMakers.Ai</small>
+    </div>
+  `;
+  return { subject, html };
+}
+
+// --- EMAIL SENDING LOGIC ---
+import nodemailer from 'nodemailer';
+import { prisma } from './prisma';
+
+export type SendEmailOptions = {
+  template: 'verify_email' | 'welcome' | 'payment_receipt' | 'invite_pending' | 'invite_completed' | 'renewal_reminder' | 'password_reset' | 'custom';
+  to: string;
+  params?: any;
+  subject?: string;
+  html?: string;
+  text?: string;
+  session?: any;
 };
 
-// Email service class for easy usage
-export class EmailService {
-  private static baseUrl = getBaseUrl();
+type EmailContent = {
+  subject: string | undefined;
+  html: string | undefined;
+  text?: string | undefined;
+};
 
-  private static async sendRequest(payload: any) {
-    // For server-side calls, use regular fetch
-    const baseUrl =
-      typeof window === 'undefined'
-        ? process.env.NEXTAUTH_URL || 'http://localhost:3000'
-        : this.baseUrl;
-
-    const response = await fetch(`${baseUrl}/api/send-email`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(payload),
-    });
-
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.error || 'Failed to send email');
+function generateEmailContent(options: SendEmailOptions): EmailContent {
+  switch (options.template) {
+    case 'verify_email': {
+      const { subject, html } = verifyEmail(options.params);
+      return { subject, html };
     }
-
-    return response.json();
-  }
-
-  // Send welcome email
-  static async sendWelcomeEmail(to: string, params: WelcomeEmailParams) {
-    return this.sendRequest({
-      template: 'welcome',
-      to,
-      params,
-    });
-  }
-
-  // Send payment receipt email
-  static async sendPaymentReceiptEmail(
-    to: string,
-    params: PaymentReceiptEmailParams
-  ) {
-    return this.sendRequest({
-      template: 'payment_receipt',
-      to,
-      params,
-    });
-  }
-
-  // Send invite pending email
-  static async sendInvitePendingEmail(
-    to: string,
-    params: InvitePendingEmailParams
-  ) {
-    return this.sendRequest({
-      template: 'invite_pending',
-      to,
-      params,
-    });
-  }
-
-  // Send invite completed email
-  static async sendInviteCompletedEmail(
-    to: string,
-    params: InviteCompletedEmailParams
-  ) {
-    return this.sendRequest({
-      template: 'invite_completed',
-      to,
-      params,
-    });
-  }
-
-  // Send renewal reminder email
-  static async sendRenewalReminderEmail(
-    to: string,
-    params: RenewalReminderEmailParams
-  ) {
-    return this.sendRequest({
-      template: 'renewal_reminder',
-      to,
-      params,
-    });
-  }
-
-  // Send password reset email
-  static async sendPasswordResetEmail(
-    to: string,
-    params: PasswordResetEmailParams
-  ) {
-    return this.sendRequest({
-      template: 'password_reset',
-      to,
-      params,
-    });
-  }
-
-  // Send custom email
-  static async sendCustomEmail(
-    to: string,
-    subject: string,
-    html: string,
-    text?: string
-  ) {
-    return this.sendRequest({
-      template: 'custom',
-      to,
-      subject,
-      html,
-      text,
-    });
-  }
-
-  // Check email service health
-  static async checkHealth() {
-    const response = await fetch(`${this.baseUrl}/api/send-email`);
-    return response.json();
+    case 'welcome': {
+      const { subject, html } = welcomeEmail(options.params);
+      return { subject, html };
+    }
+    case 'payment_receipt': {
+      const { subject, html } = paymentReceiptEmail(options.params);
+      return { subject, html };
+    }
+    case 'invite_pending': {
+      const { subject, html } = invitePendingEmail(options.params);
+      return { subject, html };
+    }
+    case 'invite_completed': {
+      const { subject, html } = inviteCompletedEmail(options.params);
+      return { subject, html };
+    }
+    case 'renewal_reminder': {
+      const { subject, html } = renewalReminderEmail(options.params);
+      return { subject, html };
+    }
+    case 'password_reset': {
+      const { subject, html } = passwordResetEmail(options.params);
+      return { subject, html };
+    }
+    case 'custom':
+      return {
+        subject: options.subject,
+        html: options.html,
+        text: options.text,
+      };
+    default:
+      throw new Error(`Unknown email template: ${options.template}`);
   }
 }
 
-// Convenience functions for direct usage
-export const sendWelcomeEmail =
-  EmailService.sendWelcomeEmail.bind(EmailService);
-export const sendPaymentReceiptEmail =
-  EmailService.sendPaymentReceiptEmail.bind(EmailService);
-export const sendInvitePendingEmail =
-  EmailService.sendInvitePendingEmail.bind(EmailService);
-export const sendInviteCompletedEmail =
-  EmailService.sendInviteCompletedEmail.bind(EmailService);
-export const sendRenewalReminderEmail =
-  EmailService.sendRenewalReminderEmail.bind(EmailService);
-export const sendPasswordResetEmail =
-  EmailService.sendPasswordResetEmail.bind(EmailService);
-export const sendCustomEmail = EmailService.sendCustomEmail.bind(EmailService);
+export async function sendEmail(options: SendEmailOptions) {
+  if (!process.env.SMTP_USER || !process.env.SMTP_PASS) {
+    throw new Error('SMTP credentials not configured');
+  }
+  const { subject, html, text } = generateEmailContent(options);
+  const mailOptions = {
+    from: process.env.SMTP_FROM || process.env.SMTP_USER,
+    to: options.to,
+    subject,
+    html,
+    ...(text ? { text } : {}),
+  };
+  const transporter = nodemailer.createTransport({
+    service: 'gmail',
+    auth: {
+      user: process.env.SMTP_USER,
+      pass: process.env.SMTP_PASS,
+    },
+    tls: {
+      rejectUnauthorized: false,
+    },
+  });
+  const info = await transporter.sendMail(mailOptions);
 
-// Type exports for convenience
-export type {
-  WelcomeEmailParams,
-  PaymentReceiptEmailParams,
-  InvitePendingEmailParams,
-  InviteCompletedEmailParams,
-  RenewalReminderEmailParams,
-  PasswordResetEmailParams,
-} from './email-template';
+  return info;
+}
