@@ -4,7 +4,7 @@ import React, { useEffect, useState, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { toast } from 'sonner';
 import { Toaster } from '@/components/ui/sonner';
-import { OverviewSection, OverviewDataItem } from '@/components/dashboard/DashboardStats';
+import { OverviewSection } from '@/components/dashboard/DashboardStats';
 import { ReusableTable, Column } from '@/components/ui/reusable-table';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -13,7 +13,6 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { SearchInput } from '@/components/SearchInput';
-import { Textarea } from '@/components/ui/textarea';
 import { z } from 'zod';
 import {
   BarChart3,
@@ -27,7 +26,6 @@ import {
   SheetDescription,
   SheetHeader,
   SheetTitle,
-  SheetTrigger,
 } from '@/components/ui/sheet';
 import {
   Dialog,
@@ -41,9 +39,7 @@ import {
   Eye,
   Pencil,
   Trash2,
-  Mail,
   Calendar,
-  Shield,
   UserCheck,
   UserX,
   Activity,
@@ -61,6 +57,7 @@ interface User {
   image?: string;
   emailVerified?: Date;
   createdAt: Date;
+  status?: 'ACTIVE' | 'INACTIVE' | 'SUSPENDED' | 'DELETED' | 'UNVERIFIED';
   _count?: {
     subscriptions: number;
     payments: number;
@@ -74,6 +71,8 @@ interface UserFormData {
   role: 'USER' | 'ADMIN' | 'SUPPORT' | 'MANAGER';
   image?: string;
   password?: string;
+  status: 'ACTIVE' | 'INACTIVE' | 'SUSPENDED' | 'DELETED' | 'UNVERIFIED';
+  emailVerified: boolean;
 }
 
 // Zod validation schema
@@ -84,6 +83,8 @@ const userFormSchema = z.object({
   role: z.enum(['USER', 'ADMIN', 'SUPPORT', 'MANAGER']),
   image: z.string().url('Please enter a valid URL').optional().or(z.literal('')),
   password: z.string().min(6, 'Password must be at least 6 characters').optional(),
+  status: z.enum(['ACTIVE', 'INACTIVE', 'SUSPENDED', 'DELETED', 'UNVERIFIED']),
+  emailVerified: z.boolean(),
 });
 
 type ValidationErrors = Partial<Record<keyof UserFormData, string>>;
@@ -152,6 +153,8 @@ function UserForm({
     role: user?.role || 'USER',
     image: user?.image || '',
     password: '',
+    status: user?.status || 'ACTIVE',
+    emailVerified: !!user?.emailVerified,
   });
 
   const [errors, setErrors] = useState<ValidationErrors>({});
@@ -205,7 +208,14 @@ function UserForm({
   };
 
   const handleFieldChange = (field: keyof UserFormData, value: string) => {
-    setFormData({ ...formData, [field]: value });
+    let processedValue: any = value;
+    
+    // Handle boolean conversion for emailVerified
+    if (field === 'emailVerified') {
+      processedValue = value === 'true';
+    }
+    
+    setFormData({ ...formData, [field]: processedValue });
     
     // Clear error for this field when user starts typing
     if (errors[field]) {
@@ -288,6 +298,86 @@ function UserForm({
           </Select>
           {errors.role && (
             <p className="text-red-400 text-sm mt-1">{errors.role}</p>
+          )}
+        </div>
+
+        <div>
+          <Label htmlFor="status" className="text-white/90">Account Status *</Label>
+          <Select 
+            value={formData.status} 
+            onValueChange={(value) => handleFieldChange('status', value)}
+          >
+            <SelectTrigger className={`bg-white/10 border-white/20 text-white ${
+              errors.status ? 'border-red-500 focus:border-red-500' : ''
+            }`}>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent className="bg-slate-800 border-white/20">
+              <SelectItem value="ACTIVE">
+                <div className="flex items-center gap-2">
+                  <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                  Active
+                </div>
+              </SelectItem>
+              <SelectItem value="INACTIVE">
+                <div className="flex items-center gap-2">
+                  <div className="w-2 h-2 bg-gray-500 rounded-full"></div>
+                  Inactive
+                </div>
+              </SelectItem>
+              <SelectItem value="SUSPENDED">
+                <div className="flex items-center gap-2">
+                  <div className="w-2 h-2 bg-red-500 rounded-full"></div>
+                  Suspended
+                </div>
+              </SelectItem>
+              <SelectItem value="DELETED">
+                <div className="flex items-center gap-2">
+                  <div className="w-2 h-2 bg-red-800 rounded-full"></div>
+                  Deleted
+                </div>
+              </SelectItem>
+              <SelectItem value="UNVERIFIED">
+                <div className="flex items-center gap-2">
+                  <div className="w-2 h-2 bg-yellow-600 rounded-full"></div>
+                  Unverified
+                </div>
+              </SelectItem>
+            </SelectContent>
+          </Select>
+          {errors.status && (
+            <p className="text-red-400 text-sm mt-1">{errors.status}</p>
+          )}
+        </div>
+
+        <div>
+          <Label htmlFor="emailVerified" className="text-white/90">Email Verification Status</Label>
+          <Select 
+            value={formData.emailVerified ? 'true' : 'false'} 
+            onValueChange={(value) => handleFieldChange('emailVerified', value === 'true' ? 'true' : 'false')}
+          >
+            <SelectTrigger className={`bg-white/10 border-white/20 text-white ${
+              errors.emailVerified ? 'border-red-500 focus:border-red-500' : ''
+            }`}>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent className="bg-slate-800 border-white/20">
+              <SelectItem value="true">
+                <div className="flex items-center gap-2">
+                  <UserCheck className="w-4 h-4 text-green-500" />
+                  Verified
+                </div>
+              </SelectItem>
+              <SelectItem value="false">
+                <div className="flex items-center gap-2">
+                  <UserX className="w-4 h-4 text-orange-500" />
+                  Unverified
+                </div>
+              </SelectItem>
+            </SelectContent>
+          </Select>
+          {errors.emailVerified && (
+            <p className="text-red-400 text-sm mt-1">{errors.emailVerified}</p>
           )}
         </div>
 
@@ -495,13 +585,26 @@ const UsersPage = () => {
 
     try {
       const isUpdate = !!editingUser;
-      const url = isUpdate ? `/api/users/${editingUser.id}` : '/api/users';
+      const url = '/api/users';
       const method = isUpdate ? 'PUT' : 'POST';
+
+      // Transform form data to API format
+      const apiData = {
+        ...(isUpdate && { id: editingUser.id }),
+        email: formData.email,
+        name: formData.name,
+        tradingviewUsername: formData.tradingviewUsername,
+        role: formData.role,
+        image: formData.image,
+        password: formData.password,
+        status: formData.status,
+        emailVerified: formData.emailVerified ? new Date() : null,
+      };
 
       const response = await fetch(url, {
         method,
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData),
+        body: JSON.stringify(apiData),
       });
 
       const result = await response.json();

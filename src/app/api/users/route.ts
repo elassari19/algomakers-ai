@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth/next';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
-import { createAuditLog, AuditAction, AuditTargetType } from '@/lib/audit';
+import { createAuditLog, AuditAction, AuditTargetType, createEventLog } from '@/lib/audit';
 import { StatsType } from '@/generated/prisma';
 import { patchMetricsStats } from '@/lib/stats-service';
 import { z } from 'zod';
@@ -15,7 +15,9 @@ const userSchema = z.object({
   tradingviewUsername: z.string().optional(),
   role: z.enum(['USER', 'ADMIN', 'SUPPORT', 'MANAGER']),
   image: z.string().url().optional().or(z.literal('')),
-  password: z.string().min(6, 'Password must be at least 6 characters').optional(),
+  password: z.string().optional(),
+  status: z.enum(['ACTIVE', 'INACTIVE', 'SUSPENDED', 'DELETED', 'UNVERIFIED']).optional(),
+  emailVerified: z.union([z.date(), z.string().datetime(), z.string().optional(), z.null()]).optional().nullable(),
 });
 
 // GET /api/users - Fetch all users with optional filtering and search
@@ -127,21 +129,38 @@ export async function POST(request: NextRequest) {
     }
 
     // Hash password if provided
-    let hashedPassword = null;
+    let hashedPassword = undefined;
     if (validatedData.password) {
       hashedPassword = await bcrypt.hash(validatedData.password, 12);
     }
 
+    // Normalize emailVerified to Date or null
+    let emailVerifiedValue = null;
+    if (validatedData.emailVerified) {
+      if (validatedData.emailVerified instanceof Date) {
+        emailVerifiedValue = validatedData.emailVerified;
+      } else if (typeof validatedData.emailVerified === 'string') {
+        const parsedDate = new Date(validatedData.emailVerified);
+        if (!isNaN(parsedDate.getTime())) {
+          emailVerifiedValue = parsedDate;
+        }
+      }
+    }
     // Create new user
+    const userData: any = {
+      email: validatedData.email,
+      name: validatedData.name || null,
+      tradingviewUsername: validatedData.tradingviewUsername || null,
+      role: validatedData.role,
+      image: validatedData.image || null,
+      status: validatedData.status || 'UNVERIFIED',
+      emailVerified: emailVerifiedValue,
+    };
+    if (hashedPassword) {
+      userData.passwordHash = hashedPassword;
+    }
     const newUser = await prisma.user.create({
-      data: {
-        email: validatedData.email,
-        name: validatedData.name || null,
-        tradingviewUsername: validatedData.tradingviewUsername || null,
-        role: validatedData.role,
-        image: validatedData.image || null,
-        passwordHash: hashedPassword,
-      },
+      data: userData,
       include: {
         _count: {
           select: {
@@ -192,17 +211,14 @@ export async function POST(request: NextRequest) {
       });
     } else if (session.user.role === 'USER') {
       // Create event for USER role
-      await prisma.event.create({
-        data: {
-          userId: session.user.id,
-          eventType: 'USER_CREATED',
-          metadata: {
-            createdUserId: newUser.id,
-            createdUserEmail: newUser.email,
-            createdUserRole: newUser.role,
-            userRole: session.user.role,
-            timestamp: new Date().toISOString(),
-          },
+      await createEventLog({
+        userId: session.user.id,
+        eventType: 'USER_CREATED',
+        metadata: {
+          createdUserId: newUser.id,
+          createdUserEmail: newUser.email,
+          createdUserRole: newUser.role,
+          userRole: session.user.role,
         },
       });
     }
@@ -247,7 +263,7 @@ export async function PUT(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { id, ...updateData } = body;
+    const { id, ...rawUpdateData } = body;
 
     if (!id) {
       return NextResponse.json(
@@ -256,7 +272,7 @@ export async function PUT(request: NextRequest) {
       );
     }
 
-    const validatedData = userSchema.partial().parse(updateData);
+  const validatedData = userSchema.partial().parse(rawUpdateData);
 
     // Check if user exists
     const existingUser = await prisma.user.findUnique({
@@ -284,20 +300,38 @@ export async function PUT(request: NextRequest) {
       }
     }
 
+    // Normalize emailVerified to Date or null
+    let emailVerifiedValue = null;
+    if (validatedData.emailVerified !== undefined) {
+      if (validatedData.emailVerified instanceof Date) {
+        emailVerifiedValue = validatedData.emailVerified;
+      } else if (typeof validatedData.emailVerified === 'string') {
+        const parsedDate = new Date(validatedData.emailVerified);
+        if (!isNaN(parsedDate.getTime())) {
+          emailVerifiedValue = parsedDate;
+        }
+      } else if (validatedData.emailVerified === null) {
+        emailVerifiedValue = null;
+      }
+    }
     // Prepare update data
-    const updateDataWithHashedPassword = { ...validatedData };
-    
-    // Hash password if provided
+    const updateUserData: any = {
+      email: validatedData.email,
+      name: validatedData.name,
+      tradingviewUsername: validatedData.tradingviewUsername,
+      role: validatedData.role,
+      image: validatedData.image,
+      status: validatedData.status,
+      emailVerified: emailVerifiedValue,
+    };
+    // Hash password if provided, else ignore
     if (validatedData.password) {
-      updateDataWithHashedPassword.password = await bcrypt.hash(validatedData.password, 12);
-    } else {
-      // Remove password from update data if not provided (don't update it)
-      delete updateDataWithHashedPassword.password;
+      updateUserData.passwordHash = await bcrypt.hash(validatedData.password, 12);
     }
 
     const updatedUser = await prisma.user.update({
       where: { id },
-      data: updateDataWithHashedPassword,
+      data: updateUserData,
       include: {
         _count: {
           select: {
@@ -356,17 +390,14 @@ export async function PUT(request: NextRequest) {
       });
     } else if (session.user.role === 'USER') {
       // Create event for USER role
-      await prisma.event.create({
-        data: {
-          userId: session.user.id,
-          eventType: 'USER_UPDATED',
-          metadata: {
-            targetUserId: updatedUser.id,
-            targetUserEmail: updatedUser.email,
-            updatedFields: Object.keys(validatedData),
-            userRole: session.user.role,
-            timestamp: new Date().toISOString(),
-          },
+      await createEventLog({
+        userId: session.user.id,
+        eventType: 'USER_UPDATED',
+        metadata: {
+          targetUserId: updatedUser.id,
+          targetUserEmail: updatedUser.email,
+          updatedFields: Object.keys(validatedData),
+          userRole: session.user.role,
         },
       });
     }
@@ -498,17 +529,14 @@ export async function DELETE(request: NextRequest) {
       });
     } else if (session.user.role === 'USER') {
       // Create event for USER role
-      await prisma.event.create({
-        data: {
-          userId: session.user.id,
-          eventType: 'USER_DELETED',
-          metadata: {
-            deletedUserId: id,
-            deletedUserEmail: existingUser.email,
-            deletedUserRole: existingUser.role,
-            userRole: session.user.role,
-            timestamp: new Date().toISOString(),
-          },
+      await createEventLog({
+        userId: session.user.id,
+        eventType: 'USER_DELETED',
+        metadata: {
+          deletedUserId: id,
+          deletedUserEmail: existingUser.email,
+          deletedUserRole: existingUser.role,
+          userRole: session.user.role,
         },
       });
     }
