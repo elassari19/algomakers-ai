@@ -25,7 +25,6 @@ model User {
   accounts            Account[]
   affiliate           Affiliate?
   auditLogs           AuditLog[]     @relation("UserAuditLogs")
-  events              Event[]
   adminNotifications  Notification[] @relation("AdminNotifications")
   notifications       Notification[]
   payments            Payment[]
@@ -171,24 +170,18 @@ model Commission {
   subscription   Subscription     @relation(fields: [subscriptionId], references: [id])
 }
 
-model Event {
-  id        String   @id @default(uuid())
-  userId    String
-  eventType String
-  timestamp DateTime @default(now())
-  metadata  Json?
-  user      User     @relation(fields: [userId], references: [id])
-}
-
 model AuditLog {
-  id         String   @id @default(uuid())
-  adminId    String
-  action     String
-  targetId   String?
-  targetType String?
-  timestamp  DateTime @default(now())
-  details    Json?
-  admin      User     @relation("UserAuditLogs", fields: [adminId], references: [id])
+  id             String   @id @default(uuid())
+  actorId        String?  // user or admin who performed the action
+  actorRole      Role?    // USER, ADMIN, etc.
+  action         String
+  targetId       String?
+  targetType     String?
+  responseStatus String?  // e.g., "SUCCESS", "FAILURE"
+  details        Json?
+  timestamp      DateTime @default(now())
+  // Relations (optional, for easy joins)
+  user        User?    @relation("UserAuditLogs", fields: [actorId], references: [id])
 }
 
 model Notification {
