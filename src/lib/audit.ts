@@ -146,7 +146,7 @@ export async function createAuditLog({
   responseStatus,
   details,
 }: {
-  actorId: string;
+  actorId?: string; // Make optional
   actorRole: Role;
   action: AuditAction | string;
   targetId?: string;
@@ -157,8 +157,8 @@ export async function createAuditLog({
   try {
     await prisma.auditLog.create({
       data: {
-        actorId,
-        actorRole,
+        actorId: actorId || null, // Use null if not provided
+        actorRole: actorRole || Role.USER,
         action: action.toString(),
         targetId: targetId,
         targetType: targetType?.toString(),

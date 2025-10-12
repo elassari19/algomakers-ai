@@ -27,6 +27,7 @@ export async function POST(request: NextRequest) {
         id: true,
         name: true,
         email: true,
+        role: true,
       },
     });
 
@@ -91,8 +92,8 @@ export async function POST(request: NextRequest) {
     // Send password reset email using sendEmail
     try {
       await sendEmail({
-        userId: user.id,
-        role: 'USER',
+        userId: user?.id || undefined,
+        role: user?.role || Role.USER,
         template: 'password_reset',
         to: user.email,
         params: {

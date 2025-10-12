@@ -6,6 +6,7 @@ import { getServerSession } from 'next-auth/next';
 import { authOptions } from '@/lib/auth';
 import { sendEmail } from '@/lib/email-service';
 import { randomBytes } from 'crypto';
+import { Role } from '@/generated/prisma';
 
 const verifySchema = z.object({
   code: z.string().min(6, 'Verification code is required').optional(),
@@ -14,8 +15,8 @@ const verifySchema = z.object({
 });
 
 export async function POST(request: NextRequest) {
+  const session = await getServerSession(authOptions);
   try {
-    const session = await getServerSession(authOptions);
     const body = await request.json();
     const { email } = verifySchema.parse(body);
 
@@ -24,8 +25,8 @@ export async function POST(request: NextRequest) {
       if (!userEmail && session?.user?.email) userEmail = session.user.email;
       if (!userEmail) {
         await createAuditLog({
-          actorId: 'unknown',
-          actorRole: 'USER',
+          actorId: session?.user?.id || undefined,
+          actorRole: session?.user?.role as Role || Role.USER,
           action: AuditAction.SEND_EMAIL,
           targetType: AuditTargetType.USER,
           responseStatus: 'FAILURE',
@@ -36,8 +37,8 @@ export async function POST(request: NextRequest) {
       const user = await prisma.user.findUnique({ where: { email: userEmail } });
       if (!user) {
         await createAuditLog({
-          actorId: 'unknown',
-          actorRole: 'USER',
+          actorId: undefined,
+          actorRole: Role.USER,
           action: AuditAction.SEND_EMAIL,
           targetType: AuditTargetType.USER,
           responseStatus: 'FAILURE',
@@ -48,7 +49,7 @@ export async function POST(request: NextRequest) {
       if (user.emailVerified) {
         await createAuditLog({
           actorId: user.id,
-          actorRole: user.role || 'USER',
+          actorRole: user.role || Role.USER,
           action: AuditAction.SEND_EMAIL,
           targetType: AuditTargetType.USER,
           targetId: user.id,
@@ -89,6 +90,8 @@ export async function POST(request: NextRequest) {
     // Send verification email using shared utility
     try {
       await sendEmail({
+        userId: user?.id || undefined,
+        role: user?.role as Role || Role.USER,
         template: 'verify_email',
         to: user.email,
         params: {

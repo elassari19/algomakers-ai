@@ -378,7 +378,7 @@ export async function sendEmail(options: SendEmailOptions) {
         template: options.template,
         to: options.to,
         subject: options.subject,
-        error: error instanceof Error ? error.message : String(error),
+        reason: error instanceof Error ? error.stack : undefined,
       },
     });
   }
