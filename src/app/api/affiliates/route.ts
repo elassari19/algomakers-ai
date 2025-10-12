@@ -3,7 +3,8 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { patchMetricsStats } from '@/lib/stats-service';
-import { StatsType } from '@/generated/prisma';
+import { Role, StatsType } from '@/generated/prisma';
+import { AuditAction, AuditTargetType, createAuditLog } from '@/lib/audit';
 
 export async function GET(request: NextRequest) {
   try {
@@ -22,9 +23,6 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ message: 'Forbidden' }, { status: 403 });
     }
 
-    const { searchParams } = new URL(request.url);
-    const includeStats = searchParams.get('includeStats') === 'true';
-
     // Fetch all affiliates with related data
     const affiliates = await prisma.affiliate.findMany({
       include: {
@@ -40,7 +38,7 @@ export async function GET(request: NextRequest) {
                 name: true,
                 email: true,
                 createdAt: true,
-                isActive: true,
+                status: true,
               },
             },
           },
@@ -79,8 +77,8 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
+  const session = await getServerSession(authOptions);
   try {
-    const session = await getServerSession(authOptions);
 
     if (!session?.user?.email) {
       return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
@@ -91,8 +89,19 @@ export async function POST(request: NextRequest) {
       where: { email: session.user.email },
     });
 
-    if (!user || user.role !== 'ADMIN') {
-      return NextResponse.json({ message: 'Forbidden' }, { status: 403 });
+    if (!user) {
+      await createAuditLog({
+        actorId: 'unknown',
+        actorRole: Role.USER,
+        action: AuditAction.CREATE_AFFILIATE,
+        targetType: AuditTargetType.AFFILIATE,
+        responseStatus: 'FAILURE',
+        details: {
+          email: session.user.email,
+          reason: 'user_not_found',
+        },
+      });
+      return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
     }
 
     const { userId, commissionRate, walletAddress } = await request.json();
@@ -103,6 +112,18 @@ export async function POST(request: NextRequest) {
     });
 
     if (existingAffiliate) {
+      await createAuditLog({
+        actorId: user.id,
+        actorRole: user.role,
+        action: AuditAction.CREATE_AFFILIATE,
+        targetType: AuditTargetType.AFFILIATE,
+        targetId: existingAffiliate.id,
+        responseStatus: 'FAILURE',
+        details: {
+          email: user.email,
+          reason: 'affiliate_account_exists',
+        },
+      });
       return NextResponse.json(
         { message: 'User already has an affiliate account' },
         { status: 400 }
@@ -153,22 +174,19 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    // Track affiliate creation stats
-    try {
-      await patchMetricsStats(StatsType.AFFILIATE_METRICS, {
-        id: affiliate.id,
-        userId: affiliate.userId,
-        userName: affiliate.user.name || 'Unknown',
-        userEmail: affiliate.user.email,
+    await createAuditLog({
+      actorId: user.id,
+      actorRole: user.role,
+      action: AuditAction.CREATE_AFFILIATE,
+      targetType: AuditTargetType.AFFILIATE,
+      targetId: affiliate.id,
+      responseStatus: 'SUCCESS',
+      details: {
+        email: user.email,
+        affiliateId: affiliate.id,
         referralCode: affiliate.referralCode,
-        commissionRate: Number(affiliate.commissionRate),
-        createdAt: new Date().toISOString(),
-        createdBy: user.id,
-        type: 'AFFILIATE_CREATION'
-      });
-    } catch (statsError) {
-      console.error('Failed to update affiliate creation stats:', statsError);
-    }
+      },
+    });
 
     return NextResponse.json({
       message: 'Affiliate account created successfully',
@@ -176,6 +194,17 @@ export async function POST(request: NextRequest) {
     });
   } catch (error) {
     console.error('Error creating affiliate:', error);
+    await createAuditLog({
+      actorId: session?.user?.id || 'unknown',
+      actorRole: (session?.user?.role as Role) || Role.USER,
+      action: AuditAction.CREATE_AFFILIATE,
+      targetType: AuditTargetType.AFFILIATE,
+      responseStatus: 'FAILURE',
+      details: {
+        email: session?.user.email,
+        reason: 'internal_server_error',
+      },
+    });
     return NextResponse.json(
       { message: 'Internal server error' },
       { status: 500 }
@@ -184,8 +213,8 @@ export async function POST(request: NextRequest) {
 }
 
 export async function PATCH(request: NextRequest) {
+  const session = await getServerSession(authOptions);
   try {
-    const session = await getServerSession(authOptions);
 
     if (!session?.user?.email) {
       return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
@@ -196,7 +225,18 @@ export async function PATCH(request: NextRequest) {
       where: { email: session.user.email },
     });
 
-    if (!user || user.role !== 'ADMIN') {
+    if (!user) {
+      await createAuditLog({
+        actorId: session?.user?.id || 'unknown',
+        actorRole: (session?.user?.role as Role) || Role.USER,
+        action: AuditAction.UPDATE_AFFILIATE,
+        targetType: AuditTargetType.AFFILIATE,
+        responseStatus: 'FAILURE',
+        details: {
+          email: session?.user?.email,
+          reason: 'forbidden',
+        },
+      });
       return NextResponse.json({ message: 'Forbidden' }, { status: 403 });
     }
 
@@ -210,7 +250,7 @@ export async function PATCH(request: NextRequest) {
       );
     }
 
-    const { commissionRate, walletAddress, isActive } = await request.json();
+    const { commissionRate, walletAddress, status } = await request.json();
 
     // Check if affiliate exists
     const existingAffiliate = await prisma.affiliate.findUnique({
@@ -218,6 +258,17 @@ export async function PATCH(request: NextRequest) {
     });
 
     if (!existingAffiliate) {
+      await createAuditLog({
+        actorId: session?.user?.id || 'unknown',
+        actorRole: (session?.user?.role as Role) || Role.USER,
+        action: AuditAction.UPDATE_AFFILIATE,
+        targetType: AuditTargetType.AFFILIATE,
+        responseStatus: 'FAILURE',
+        details: {
+          email: session?.user?.email,
+          reason: 'not_found',
+        },
+      });
       return NextResponse.json(
         { message: 'Affiliate not found' },
         { status: 404 }
@@ -228,7 +279,7 @@ export async function PATCH(request: NextRequest) {
     const updateData: any = {};
     if (commissionRate !== undefined) updateData.commissionRate = commissionRate;
     if (walletAddress !== undefined) updateData.walletAddress = walletAddress;
-    if (isActive !== undefined) updateData.isActive = isActive;
+    if (status !== undefined) updateData.status = status;
 
     // Update affiliate
     const updatedAffiliate = await prisma.affiliate.update({
@@ -257,21 +308,20 @@ export async function PATCH(request: NextRequest) {
         },
       },
     });
-
-    // Track affiliate update stats
-    try {
-      await patchMetricsStats(StatsType.AFFILIATE_METRICS, {
-        id: affiliateId,
-        updatedFields: Object.keys(updateData),
-        oldCommissionRate: existingAffiliate.commissionRate ? Number(existingAffiliate.commissionRate) : null,
-        newCommissionRate: commissionRate ? Number(commissionRate) : null,
-        updatedAt: new Date().toISOString(),
-        updatedBy: user.id,
-        type: 'AFFILIATE_UPDATE'
-      });
-    } catch (statsError) {
-      console.error('Failed to update affiliate update stats:', statsError);
-    }
+    
+    await createAuditLog({
+      actorId: user.id,
+      actorRole: user.role,
+      action: AuditAction.UPDATE_AFFILIATE,
+      targetType: AuditTargetType.AFFILIATE,
+      targetId: updatedAffiliate.id,
+      responseStatus: 'SUCCESS',
+      details: {
+        email: user.email,
+        affiliateId: updatedAffiliate.id,
+        changes: updateData,
+      },
+    });
 
     return NextResponse.json({
       message: 'Affiliate updated successfully',
@@ -279,6 +329,17 @@ export async function PATCH(request: NextRequest) {
     });
   } catch (error) {
     console.error('Error updating affiliate:', error);
+    await createAuditLog({
+      actorId: session?.user?.id || 'unknown',
+      actorRole: (session?.user?.role as Role) || Role.USER,
+      action: AuditAction.UPDATE_AFFILIATE,
+      targetType: AuditTargetType.AFFILIATE,
+      responseStatus: 'FAILURE',
+      details: {
+        email: session?.user?.email,
+        reason: 'internal_error',
+      },
+    });
     return NextResponse.json(
       { message: 'Internal server error' },
       { status: 500 }
@@ -287,10 +348,21 @@ export async function PATCH(request: NextRequest) {
 }
 
 export async function DELETE(request: NextRequest) {
+  const session = await getServerSession(authOptions);
   try {
-    const session = await getServerSession(authOptions);
 
     if (!session?.user?.email) {
+      await createAuditLog({
+        actorId: session?.user?.id || 'unknown',
+        actorRole: (session?.user?.role as Role) || Role.USER,
+        action: AuditAction.DELETE_AFFILIATE,
+        targetType: AuditTargetType.AFFILIATE,
+        responseStatus: 'FAILURE',
+        details: {
+          email: session?.user?.email,
+          reason: 'unauthorized',
+        },
+      });
       return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
     }
 
@@ -300,6 +372,17 @@ export async function DELETE(request: NextRequest) {
     });
 
     if (!user || user.role !== 'ADMIN') {
+      await createAuditLog({
+        actorId: session?.user?.id || 'unknown',
+        actorRole: (session?.user?.role as Role) || Role.USER,
+        action: AuditAction.DELETE_AFFILIATE,
+        targetType: AuditTargetType.AFFILIATE,
+        responseStatus: 'FAILURE',
+        details: {
+          email: session?.user?.email,
+          reason: 'forbidden',
+        },
+      });
       return NextResponse.json({ message: 'Forbidden' }, { status: 403 });
     }
 
@@ -308,6 +391,17 @@ export async function DELETE(request: NextRequest) {
     const force = searchParams.get('force') === 'true';
 
     if (!affiliateId) {
+      await createAuditLog({
+        actorId: session?.user?.id || 'unknown',
+        actorRole: (session?.user?.role as Role) || Role.USER,
+        action: AuditAction.DELETE_AFFILIATE,
+        targetType: AuditTargetType.AFFILIATE,
+        responseStatus: 'FAILURE',
+        details: {
+          email: session?.user?.email,
+          reason: 'bad_request',
+        },
+      });
       return NextResponse.json(
         { message: 'Affiliate ID is required. Use ?id=AFFILIATE_ID' },
         { status: 400 }
@@ -323,6 +417,17 @@ export async function DELETE(request: NextRequest) {
     });
 
     if (!existingAffiliate) {
+      await createAuditLog({
+        actorId: session?.user?.id || 'unknown',
+        actorRole: (session?.user?.role as Role) || Role.USER,
+        action: AuditAction.DELETE_AFFILIATE,
+        targetType: AuditTargetType.AFFILIATE,
+        responseStatus: 'FAILURE',
+        details: {
+          email: session?.user?.email,
+          reason: 'not_found',
+        },
+      });
       return NextResponse.json(
         { message: 'Affiliate not found' },
         { status: 404 }
@@ -331,6 +436,19 @@ export async function DELETE(request: NextRequest) {
 
     // Check if affiliate has commissions (prevent accidental deletion)
     if (existingAffiliate.commissions.length > 0 && !force) {
+      await createAuditLog({
+        actorId: user.id,
+        actorRole: user.role,
+        action: AuditAction.DELETE_AFFILIATE,
+        targetType: AuditTargetType.AFFILIATE,
+        targetId: existingAffiliate.id,
+        responseStatus: 'FAILURE',
+        details: {
+          email: user.email,
+          reason: 'has_commissions',
+          commissionsCount: existingAffiliate.commissions.length,
+        },
+      });
       return NextResponse.json({
         message: 'Affiliate has commission records. Use ?force=true to delete anyway.',
         commissionsCount: existingAffiliate.commissions.length,
@@ -347,28 +465,39 @@ export async function DELETE(request: NextRequest) {
       await prisma.commission.deleteMany({
         where: { affiliateId },
       });
+      await createAuditLog({
+        actorId: user.id,
+        actorRole: user.role,
+        action: AuditAction.DELETE_AFFILIATE,
+        targetType: AuditTargetType.AFFILIATE,
+        targetId: existingAffiliate.id,
+        responseStatus: 'SUCCESS',
+        details: {
+          email: user.email,
+          affiliateId: existingAffiliate.id,
+          commissionsDeleted: existingAffiliate.commissions.length,
+          forceDelete: true,
+        },
+      });
     }
 
     // Delete the affiliate
     await prisma.affiliate.delete({
       where: { id: affiliateId },
     });
-
-    // Track affiliate deletion stats
-    try {
-      await patchMetricsStats(StatsType.AFFILIATE_METRICS, {
-        id: affiliateId,
-        referralCode: existingAffiliate.referralCode,
-        commissionsCount: existingAffiliate.commissions.length,
-        commissionsTotal: existingAffiliate.commissions.reduce((sum, c) => sum + Number(c.amount), 0),
+    await createAuditLog({
+      actorId: user.id,
+      actorRole: user.role,
+      action: AuditAction.DELETE_AFFILIATE,
+      targetType: AuditTargetType.AFFILIATE,
+      targetId: existingAffiliate.id,
+      responseStatus: 'SUCCESS',
+      details: {
+        email: user.email,
+        affiliateId: existingAffiliate.id,
         forceDelete: force,
-        deletedAt: new Date().toISOString(),
-        deletedBy: user.id,
-        type: 'AFFILIATE_DELETION'
-      });
-    } catch (statsError) {
-      console.error('Failed to update affiliate deletion stats:', statsError);
-    }
+      },
+    });
 
     return NextResponse.json({
       message: 'Affiliate deleted successfully',
@@ -380,6 +509,17 @@ export async function DELETE(request: NextRequest) {
     });
   } catch (error) {
     console.error('Error deleting affiliate:', error);
+      await createAuditLog({
+        actorId: session?.user.id || 'unknown',
+        actorRole: session?.user.role as Role || Role.USER,
+        action: AuditAction.DELETE_AFFILIATE,
+        targetType: AuditTargetType.AFFILIATE,
+        responseStatus: 'FAILURE',
+        details: {
+          email: session?.user.email,
+          reason: 'internal_error',
+        },
+      });
     return NextResponse.json(
       { message: 'Internal server error' },
       { status: 500 }

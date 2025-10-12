@@ -2,14 +2,25 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
-import { patchMetricsStats } from '@/lib/stats-service';
-import { StatsType } from '@/generated/prisma';
+import { AuditAction, AuditTargetType, createAuditLog } from '@/lib/audit';
+import { Role } from '@/generated/prisma';
 
 export async function POST(request: NextRequest) {
+  const session = await getServerSession(authOptions);
   try {
-    const session = await getServerSession(authOptions);
 
     if (!session?.user?.email) {
+      await createAuditLog({
+        actorId: 'unknown',
+        actorRole: Role.USER,
+        action: AuditAction.INITIATE_PAYOUT,
+        targetType: AuditTargetType.PAYOUT,
+        responseStatus: 'FAILURE',
+        details: {
+          email: session?.user.email || 'unknown',
+          reason: 'user_not_found',
+        },
+      });
       return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
     }
 
@@ -19,12 +30,34 @@ export async function POST(request: NextRequest) {
     });
 
     if (!user || user.role !== 'ADMIN') {
+      await createAuditLog({
+        actorId: user?.id || 'unknown',
+        actorRole: user?.role || Role.USER,
+        action: AuditAction.INITIATE_PAYOUT,
+        targetType: AuditTargetType.PAYOUT,
+        responseStatus: 'FAILURE',
+        details: {
+          email: session.user.email || 'unknown',
+          reason: 'forbidden_not_admin',
+        },
+      });
       return NextResponse.json({ message: 'Forbidden' }, { status: 403 });
     }
 
     const { affiliateId, amount } = await request.json();
 
     if (!affiliateId || !amount || amount <= 0) {
+      await createAuditLog({
+        actorId: user?.id || 'unknown',
+        actorRole: user?.role || Role.USER,
+        action: AuditAction.INITIATE_PAYOUT,
+        targetType: AuditTargetType.PAYOUT,
+        responseStatus: 'FAILURE',
+        details: {
+          email: session.user.email || 'unknown',
+          reason: 'invalid_request',
+        },
+      });
       return NextResponse.json(
         { message: 'Invalid affiliate ID or amount' },
         { status: 400 }
@@ -48,6 +81,17 @@ export async function POST(request: NextRequest) {
     });
 
     if (!affiliate) {
+      await createAuditLog({
+        actorId: user?.id || 'unknown',
+        actorRole: user?.role || Role.USER,
+        action: AuditAction.INITIATE_PAYOUT,
+        targetType: AuditTargetType.PAYOUT,
+        responseStatus: 'FAILURE',
+        details: {
+          email: session.user.email || 'unknown',
+          reason: 'affiliate_not_found',
+        },
+      });
       return NextResponse.json(
         { message: 'Affiliate not found' },
         { status: 404 }
@@ -60,28 +104,23 @@ export async function POST(request: NextRequest) {
     );
 
     if (amount > totalPending) {
+      await createAuditLog({
+        actorId: user?.id || 'unknown',
+        actorRole: user?.role || Role.USER,
+        action: AuditAction.CREATE_PAYOUT,
+        targetType: AuditTargetType.PAYOUT,
+        responseStatus: 'FAILURE',
+        details: {
+          email: session.user.email || 'unknown',
+          reason: 'amount_exceeds_pending',
+          requestedAmount: amount,
+          totalPending,
+        },
+      });
       return NextResponse.json(
         { message: 'Payout amount exceeds pending commissions' },
         { status: 400 }
       );
-    }
-
-    // Track payout request stats
-    try {
-      await patchMetricsStats(StatsType.PAYOUT_METRICS, {
-        id: affiliateId,
-        affiliateName: affiliate.user.name || 'Unknown',
-        affiliateEmail: affiliate.user.email,
-        requestedAmount: Number(amount),
-        totalPendingCommissions: Number(totalPending),
-        pendingCommissionsCount: affiliate.commissions.length,
-        requestedAt: new Date().toISOString(),
-        requestedBy: user.id,
-        status: 'PROCESSING',
-        type: 'PAYOUT_REQUEST'
-      });
-    } catch (statsError) {
-      console.error('Failed to track payout request stats:', statsError);
     }
 
     // Process payout by updating commission statuses
@@ -123,6 +162,20 @@ export async function POST(request: NextRequest) {
             type: commission.type || 'REFERRAL',
           },
         });
+        await createAuditLog({
+          actorId: user?.id || 'unknown',
+          actorRole: user?.role || Role.USER,
+          action: AuditAction.CREATE_PAYOUT,
+          targetType: AuditTargetType.PAYOUT,
+          responseStatus: 'SUCCESS',
+          details: {
+            email: session.user.email || 'unknown',
+            message: 'Partial commission payment processed',
+            originalCommissionId: commission.id,
+            paidAmount: remainingAmount,
+            newPendingAmount: commissionAmount - remainingAmount,
+          },
+        });
 
         // Update the paid commission amount
         await prisma.commission.update({
@@ -131,6 +184,19 @@ export async function POST(request: NextRequest) {
             amount: remainingAmount,
             status: 'PAID',
             paidAt: new Date(),
+          },
+        });
+        await createAuditLog({
+          actorId: user?.id || 'unknown',
+          actorRole: user?.role || Role.USER,
+          action: AuditAction.UPDATE_PAYOUT,
+          targetType: AuditTargetType.PAYOUT,
+          responseStatus: 'SUCCESS',
+          details: {
+            email: session.user.email || 'unknown',
+            message: 'Commission fully paid with partial payment',
+            commissionId: commission.id,
+            paidAmount: remainingAmount,
           },
         });
 
@@ -152,43 +218,21 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Create payout record (you might want to add a Payout model to track this)
     // For now, we'll create an audit log entry
-    await prisma.auditLog.create({
-      data: {
-        adminId: user.id,
-        action: 'AFFILIATE_PAYOUT',
-        details: {
-          affiliateId,
-          affiliateName: affiliate.user.name,
-          affiliateEmail: affiliate.user.email,
-          amount,
-          processedAt: new Date(),
-          commissionsUpdated: commissionsToUpdate.length,
-        },
+    await createAuditLog({
+      actorId: user?.id || 'unknown',
+      actorRole: user?.role || Role.USER,
+      action: AuditAction.CREATE_PAYOUT,
+      targetType: AuditTargetType.PAYOUT,
+      responseStatus: 'SUCCESS',
+      details: {
+        email: session.user.email || 'unknown',
+        affiliateId: affiliate.id,
+        affiliateEmail: affiliate.user.email,
+        amount,
+        commissionsPaid: commissionsToUpdate.map(c => c.id),
       },
     });
-
-    // Track successful payout completion stats
-    try {
-      await patchMetricsStats(StatsType.PAYOUT_METRICS, {
-        id: affiliateId,
-        affiliateName: affiliate.user.name || 'Unknown',
-        affiliateEmail: affiliate.user.email,
-        payoutAmount: Number(amount),
-        commissionsProcessed: commissionsToUpdate.length,
-        totalPendingBefore: Number(totalPending),
-        remainingPending: Number(totalPending - amount),
-        processedAt: new Date().toISOString(),
-        processedBy: user.id,
-        processedByName: user.name || user.email,
-        status: 'COMPLETED',
-        type: 'PAYOUT_COMPLETION'
-      });
-      
-    } catch (statsError) {
-      console.error('Failed to update payout completion stats:', statsError);
-    }
 
     return NextResponse.json({
       message: 'Payout processed successfully',
@@ -197,6 +241,17 @@ export async function POST(request: NextRequest) {
     });
   } catch (error) {
     console.error('Error processing payout:', error);
+    await createAuditLog({
+      actorId: session?.user.id || 'unknown',
+      actorRole: session?.user.role as Role || Role.USER,
+      action: AuditAction.INITIATE_PAYOUT,
+      targetType: AuditTargetType.PAYOUT,
+      responseStatus: 'FAILURE',
+      details: {
+        reason: 'internal_server_error',
+        error: (error as Error).message,
+      },
+    });
     return NextResponse.json(
       { message: 'Internal server error' },
       { status: 500 }

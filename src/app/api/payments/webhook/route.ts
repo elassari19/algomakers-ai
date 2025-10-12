@@ -3,12 +3,10 @@ import crypto from 'crypto';
 import { prisma } from '@/lib/prisma';
 import {
   PaymentStatus,
-  SubscriptionPeriod,
   SubscriptionStatus,
   InviteStatus,
-  StatsType,
 } from '@/generated/prisma';
-import { patchMetricsStats } from '@/lib/stats-service';
+import type { Role } from '@/generated/prisma';
 import { createAuditLog, AuditAction, AuditTargetType } from '@/lib/audit';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
@@ -32,9 +30,20 @@ interface NOWPaymentsWebhook {
 }
 
 export async function POST(request: NextRequest) {
+  const session = await getServerSession(authOptions);
+  if (!session?.user?.id) {
+    await createAuditLog({
+      actorId: 'unknown',
+      actorRole: 'USER',
+      action: AuditAction.UPDATE_PAYMENT,
+      targetType: AuditTargetType.PAYMENT,
+      responseStatus: 'FAILURE',
+      details: { reason: 'unauthorized' },
+    });
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
   try {
     const body: NOWPaymentsWebhook = await request.json();
-    const session = await getServerSession(authOptions);
 
     // Verify webhook signature from NOWPayments
     const signature = request.headers.get('x-nowpayments-sig');
@@ -52,8 +61,6 @@ export async function POST(request: NextRequest) {
         );
       }
     }
-
-    console.log('Received NOWPayments webhook:', body);
 
     // Process different payment statuses
     switch (body.payment_status) {
@@ -73,60 +80,44 @@ export async function POST(request: NextRequest) {
         await handlePartialPayment(body);
         break;
       default:
-        console.log('Unhandled payment status:', body.payment_status);
     }
 
-    // Track webhook processing stats (non-blocking)
-    patchMetricsStats(StatsType.BILLING_METRICS, {
-      id: 'nowpayments-webhook',
-      event: 'webhook_received',
-      webhookProcessed: 1,
-      [`${body.payment_status}Status`]: 1,
-    }).catch(console.error);
-
-    // Log based on user role: non-USER -> audit, USER -> event
-    if (session?.user?.role !== 'USER') {
-      // Create audit log for admin roles
-      await createAuditLog({
-        adminId: session?.user?.id || 'system',
-        action: AuditAction.UPDATE_PAYMENT,
-        targetType: AuditTargetType.PAYMENT,
-        targetId: body.payment_id,
-        details: {
-          webhookProcessed: {
-            paymentId: body.payment_id,
-            paymentStatus: body.payment_status,
-            orderId: body.order_id,
-            amount: body.pay_amount,
-            currency: body.pay_currency,
-            processedAt: new Date().toISOString(),
-          },
-          adminEmail: session?.user?.email,
-          adminName: session?.user?.name,
+    // Audit log for webhook processing
+    await createAuditLog({
+      actorId: session?.user?.id || 'system',
+      actorRole: (session?.user?.role as Role) || 'USER',
+      action: AuditAction.UPDATE_PAYMENT,
+      targetType: AuditTargetType.PAYMENT,
+      targetId: body.payment_id,
+      responseStatus: 'SUCCESS',
+      details: {
+        webhookProcessed: {
+          paymentId: body.payment_id,
+          paymentStatus: body.payment_status,
+          orderId: body.order_id,
+          amount: body.pay_amount,
+          currency: body.pay_currency,
+          processedAt: new Date().toISOString(),
         },
-      });
-    } else if (session?.user?.role === 'USER') {
-      // Create event for USER role
-      await prisma.event.create({
-        data: {
-          userId: session.user.id,
-          eventType: 'PAYMENT_WEBHOOK',
-          metadata: {
-            paymentId: body.payment_id,
-            paymentStatus: body.payment_status,
-            orderId: body.order_id,
-            amount: body.pay_amount,
-            currency: body.pay_currency,
-            userRole: session.user.role,
-            timestamp: new Date().toISOString(),
-          },
-        },
-      });
-    }
+        actorEmail: session?.user?.email,
+        actorName: session?.user?.name,
+      },
+    });
 
-    return NextResponse.json({ success: true });
+  return NextResponse.json({ success: true });
   } catch (error) {
     console.error('Error processing webhook:', error);
+    // Audit log for webhook failure
+    await createAuditLog({
+      actorId: 'system',
+      actorRole: 'USER',
+      action: AuditAction.UPDATE_PAYMENT,
+      targetType: AuditTargetType.PAYMENT,
+      responseStatus: 'FAILURE',
+      details: {
+        error: error instanceof Error ? error.message : 'Unknown error',
+      },
+    });
     return NextResponse.json(
       { error: 'Webhook processing failed' },
       { status: 500 }
@@ -152,8 +143,7 @@ function verifySignature(
 }
 
 async function handlePaymentSuccess(webhook: NOWPaymentsWebhook) {
-  console.log('Payment successful:', webhook.payment_id);
-
+  const session = await getServerSession(authOptions);
   try {
     // Update payment status in database
     const updatedPayments = await prisma.payment.updateMany({
@@ -227,18 +217,22 @@ async function handlePaymentSuccess(webhook: NOWPaymentsWebhook) {
     await sendPaymentConfirmationEmail(webhook);
   } catch (error) {
     console.error('Error handling payment success:', error);
+    await createAuditLog({
+      actorId: session?.user?.id || 'system',
+      actorRole: (session?.user?.role as Role) || 'USER',
+      action: AuditAction.UPDATE_PAYMENT,
+      targetType: AuditTargetType.PAYMENT,
+      responseStatus: 'FAILURE',
+      details: { reason: 'payment_success_handling_failed', error },
+    });
   }
 }
 
 async function handlePaymentConfirmed(webhook: NOWPaymentsWebhook) {
-  console.log('Payment confirmed:', webhook.payment_id);
-  // Similar to success but might need different handling
   await handlePaymentSuccess(webhook);
 }
 
 async function handlePaymentExpired(webhook: NOWPaymentsWebhook) {
-  console.log('Payment expired:', webhook.payment_id);
-
   try {
     // Update payment status in database
     await prisma.payment.updateMany({
@@ -260,8 +254,6 @@ async function handlePaymentExpired(webhook: NOWPaymentsWebhook) {
 }
 
 async function handlePaymentFailed(webhook: NOWPaymentsWebhook) {
-  console.log('Payment failed:', webhook.payment_id);
-
   try {
     // Update payment status in database
     await prisma.payment.updateMany({
@@ -284,7 +276,6 @@ async function handlePaymentFailed(webhook: NOWPaymentsWebhook) {
 
 async function handlePartialPayment(webhook: NOWPaymentsWebhook) {
   console.log('Partial payment received:', webhook.payment_id);
-
   try {
     // Update payment status in database
     await prisma.payment.updateMany({

@@ -82,6 +82,22 @@ export async function GET(request: NextRequest) {
       prisma.notification.count({ where: whereClause })
     ]);
 
+    await createAuditLog({
+      actorId: user.id,
+      actorRole: user.role as Role || 'USER',
+      action: AuditAction.GET_NOTIFICATION,
+      targetType: AuditTargetType.NOTIFICATION,
+      responseStatus: 'SUCCESS',
+      details: {
+        count: notifications.length,
+        page,
+        limit,
+        type: type || null,
+        isRead: isRead ?? null,
+        adminView,
+        timestamp: new Date().toISOString(),
+      },
+    });
     return NextResponse.json({
       notifications,
       pagination: {
@@ -94,6 +110,17 @@ export async function GET(request: NextRequest) {
 
   } catch (error) {
     console.error("Error fetching notifications:", error);
+    await createAuditLog({
+      actorId: 'unknown',
+      actorRole: 'USER',
+      action: AuditAction.GET_NOTIFICATION,
+      targetType: AuditTargetType.NOTIFICATION,
+      responseStatus: 'FAILURE',
+      details: {
+        reason: error instanceof Error ? error.message : String(error),
+        timestamp: new Date().toISOString(),
+      },
+    });
     return NextResponse.json(
       { error: "Failed to fetch notifications" },
       { status: 500 }
@@ -150,73 +177,136 @@ export async function POST(request: NextRequest) {
       }
     });
 
-    // Log based on user role: non-USER -> audit, USER -> event
-    if (user.role !== Role.USER) {
-      // Create audit log for non-USER roles
-      await createAuditLog({
-        adminId: user.id,
-        action: AuditAction.CREATE_NOTIFICATION,
-        targetType: AuditTargetType.NOTIFICATION,
-        targetId: notification.id,
-        details: {
-          notificationId: notification.id,
-          notificationType: type,
-          notificationTitle: title,
-          targetUserId: userId || null,
-          targetUserEmail: notification.user?.email || null,
-          creatorRole: user.role,
-          creatorEmail: user.email,
-          isSystemWide: !userId,
-          hasData: !!data,
-          messageLength: message.length,
-          actionType: 'NOTIFICATION_CREATION'
-        },
-      });
-    } else {
-      // Create user event for USER role
-      await prisma.event.create({
-        data: {
-          userId: user.id,
-          eventType: 'NOTIFICATION_CREATED',
-          metadata: {
-            notificationId: notification.id,
-            notificationType: type,
-            targetUserId: userId || null,
-            isSystemWide: !userId,
-            creatorRole: user.role,
-            hasData: !!data,
-            timestamp: new Date().toISOString(),
-          },
-        },
-      });
-    }
-
-    // Track notification creation stats
-    try {
-      await patchMetricsStats(StatsType.NOTIFICATION_METRICS, {
-        id: notification.id,
-        creatorUserId: user.id,
-        creatorEmail: user.email,
-        creatorRole: user.role,
-        targetUserId: userId || null,
-        targetUserEmail: notification.user?.email || null,
+    // Unified audit log for all roles
+    await createAuditLog({
+      actorId: user.id,
+      actorRole: user.role as Role || 'USER',
+      action: AuditAction.CREATE_NOTIFICATION,
+      targetType: AuditTargetType.NOTIFICATION,
+      targetId: notification.id,
+      responseStatus: 'SUCCESS',
+      details: {
+        notificationId: notification.id,
         notificationType: type,
         notificationTitle: title,
-        hasData: !!data,
+        targetUserId: userId || null,
+        targetUserEmail: notification.user?.email || null,
+        creatorRole: user.role,
+        creatorEmail: user.email,
         isSystemWide: !userId,
-        createdAt: new Date().toISOString(),
-        type: 'NOTIFICATION_CREATED'
-      });
-    } catch (statsError) {
-      console.error('Failed to track notification creation stats:', statsError);
-    }
-
+        hasData: !!data,
+        messageLength: message.length,
+        actionType: 'NOTIFICATION_CREATION',
+        timestamp: new Date().toISOString(),
+      },
+    });
     return NextResponse.json(notification, { status: 201 });
 
   } catch (error) {
     console.error("Error creating notification:", error);
+    await createAuditLog({
+      actorId: 'unknown',
+      actorRole: 'USER',
+      action: AuditAction.CREATE_NOTIFICATION,
+      targetType: AuditTargetType.NOTIFICATION,
+      responseStatus: 'FAILURE',
+      details: {
+        reason: error instanceof Error ? error.message : String(error),
+        timestamp: new Date().toISOString(),
+      },
+    });
     return NextResponse.json(
       { error: "Failed to create notification" },
+      { status: 500 }
+    );
+  }
+}
+
+// PATCH /api/notifications/:id - Update a notification (admin/manager only)
+export async function PATCH(request: NextRequest) {
+  const session = await getServerSession(authOptions);
+  if (!session?.user?.role || (session.user.role !== Role.ADMIN && session.user.role !== Role.MANAGER)) {
+    await createAuditLog({
+      actorId: session?.user.id || 'unknown',
+      actorRole: session?.user.role as Role || 'USER',
+      action: AuditAction.UPDATE_NOTIFICATION,
+      targetType: AuditTargetType.NOTIFICATION,
+      responseStatus: 'FAILURE',
+      details: {
+        reason: 'unauthorized_access_attempt',
+        timestamp: new Date().toISOString(),
+      },
+    });
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+  try {
+
+    const { searchParams } = new URL(request.url);
+    const id = searchParams.get("id");
+    if (!id) {
+      return NextResponse.json({ error: "Notification ID is required" }, { status: 400 });
+    }
+
+    const body = await request.json();
+    const { title, message, data, isRead, type } = body;
+
+    // Only allow updating certain fields
+    const updateData: any = {};
+    if (title !== undefined) updateData.title = title;
+    if (message !== undefined) updateData.message = message;
+    if (data !== undefined) updateData.data = data;
+    if (isRead !== undefined) updateData.isRead = isRead;
+    if (type !== undefined) {
+      if (!Object.values(NotificationType).includes(type)) {
+        return NextResponse.json({ error: "Invalid notification type" }, { status: 400 });
+      }
+      updateData.type = type;
+    }
+
+    if (Object.keys(updateData).length === 0) {
+      return NextResponse.json({ error: "No valid fields to update" }, { status: 400 });
+    }
+
+    const notification = await prisma.notification.update({
+      where: { id },
+      data: updateData,
+      include: {
+        user: { select: { id: true, name: true, email: true } },
+        admin: { select: { id: true, name: true, email: true } }
+      }
+    });
+
+    await createAuditLog({
+      actorId: session.user.id,
+      actorRole: session.user.role as Role,
+      action: AuditAction.UPDATE_NOTIFICATION,
+      targetType: AuditTargetType.NOTIFICATION,
+      targetId: notification.id,
+      responseStatus: 'SUCCESS',
+      details: {
+        updatedFields: Object.keys(updateData),
+        notificationId: notification.id,
+        timestamp: new Date().toISOString(),
+      },
+    });
+
+    return NextResponse.json(notification);
+
+  } catch (error) {
+    console.error("Error updating notification:", error);
+    await createAuditLog({
+      actorId: session.user.id || 'unknown',
+      actorRole: session.user.role as Role || 'USER',
+      action: AuditAction.UPDATE_NOTIFICATION,
+      targetType: AuditTargetType.NOTIFICATION,
+      responseStatus: 'FAILURE',
+      details: {
+        reason: error instanceof Error ? error.message : String(error),
+        timestamp: new Date().toISOString(),
+      },
+    });
+    return NextResponse.json(
+      { error: "Failed to update notification" },
       { status: 500 }
     );
   }

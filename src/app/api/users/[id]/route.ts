@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { StatsType } from '@/generated/prisma';
-import { patchMetricsStats } from '@/lib/stats-service';
+import type { Role } from '@/generated/prisma';
 import { createAuditLog, AuditAction, AuditTargetType } from '@/lib/audit';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
@@ -89,10 +88,10 @@ export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const session = await getServerSession(authOptions);
   try {
     const { id } = await params;
     const body = await request.json();
-    const session = await getServerSession(authOptions);
 
     if (!session?.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -165,15 +164,15 @@ export async function PUT(
       },
     });
 
-    // Track user update stats
-    try {
-      await patchMetricsStats(StatsType.USER_METRICS, {
-        id: updatedUser.id,
-        userId: updatedUser.id,
-        updaterUserId: session.user.id,
-        updaterEmail: session.user.email,
-        updaterRole: session.user.role,
-        targetUserEmail: updatedUser.email,
+    // Audit log for user update
+    await createAuditLog({
+      actorId: session.user.id,
+      actorRole: session.user.role as Role,
+      action: AuditAction.UPDATE_USER,
+      targetType: AuditTargetType.USER,
+      targetId: updatedUser.id,
+      responseStatus: 'SUCCESS',
+      details: {
         updatedFields: Object.keys(validatedData),
         previousValues: {
           email: existingUser.email,
@@ -182,50 +181,10 @@ export async function PUT(
           tradingviewUsername: existingUser.tradingviewUsername,
         },
         newValues: validatedData,
-        updatedAt: new Date().toISOString(),
-        type: 'USER_UPDATED'
-      });
-    } catch (statsError) {
-      console.error('Failed to track user update stats:', statsError);
-    }
-
-    // Log based on user role: non-USER -> audit, USER -> event
-    if (session.user.role !== 'USER') {
-      // Create audit log for admin roles
-      await createAuditLog({
-        adminId: session.user.id,
-        action: AuditAction.UPDATE_USER,
-        targetType: AuditTargetType.USER,
-        targetId: updatedUser.id,
-        details: {
-          updatedFields: Object.keys(validatedData),
-          previousValues: {
-            email: existingUser.email,
-            name: existingUser.name,
-            role: existingUser.role,
-            tradingviewUsername: existingUser.tradingviewUsername,
-          },
-          newValues: validatedData,
-          adminEmail: session.user.email,
-          adminName: session.user.name,
-        },
-      });
-    } else if (session.user.role === 'USER') {
-      // Create event for USER role
-      await prisma.event.create({
-        data: {
-          userId: session.user.id,
-          eventType: 'USER_UPDATED',
-          metadata: {
-            targetUserId: updatedUser.id,
-            targetUserEmail: updatedUser.email,
-            updatedFields: Object.keys(validatedData),
-            userRole: session.user.role,
-            timestamp: new Date().toISOString(),
-          },
-        },
-      });
-    }
+        actorEmail: session.user.email,
+        actorName: session.user.name,
+      },
+    });
 
     return NextResponse.json({
       success: true,
@@ -234,7 +193,15 @@ export async function PUT(
     });
   } catch (error) {
     console.error('Error updating user:', error);
-    
+    await createAuditLog({
+      actorId: session?.user.id || 'unknown',
+      actorRole: session?.user.role as Role,
+      action: AuditAction.UPDATE_USER,
+      targetType: AuditTargetType.USER,
+      responseStatus: 'FAILURE',
+      details: { reason: 'exception', error: error instanceof Error ? error.message : 'Unknown error' },
+    });
+
     if (error instanceof z.ZodError) {
       return NextResponse.json(
         {
@@ -262,24 +229,24 @@ export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  try {
-    const { id } = await params;
-    const session = await getServerSession(authOptions);
+  const { id } = await params;
+  const session = await getServerSession(authOptions);
+  
+      if (!session?.user?.id) {
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      }
+  
+      if (!id) {
+        return NextResponse.json(
+          {
+            success: false,
+            message: 'User ID is required',
+          },
+          { status: 400 }
+        );
+      }
 
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    if (!id) {
-      return NextResponse.json(
-        {
-          success: false,
-          message: 'User ID is required',
-        },
-        { status: 400 }
-      );
-    }
-
+  try {  
     // Check if user exists
     const existingUser = await prisma.user.findUnique({
       where: { id },
@@ -319,15 +286,16 @@ export async function DELETE(
       where: { id },
     });
 
-    // Track user deletion stats
-    try {
-      await patchMetricsStats(StatsType.USER_METRICS, {
-        id: id,
-        userId: id,
-        deleterUserId: session.user.id,
-        deleterEmail: session.user.email,
-        deleterRole: session.user.role,
-        deletedUserInfo: {
+    // Audit log for user deletion
+    await createAuditLog({
+      actorId: session.user.id,
+      actorRole: session.user.role as Role,
+      action: AuditAction.DELETE_USER,
+      targetType: AuditTargetType.USER,
+      targetId: id,
+      responseStatus: 'SUCCESS',
+      details: {
+        deletedUser: {
           email: existingUser.email,
           name: existingUser.name,
           role: existingUser.role,
@@ -335,50 +303,10 @@ export async function DELETE(
           subscriptionCount: existingUser._count.subscriptions,
           paymentCount: existingUser._count.payments,
         },
-        deletedAt: new Date().toISOString(),
-        type: 'USER_DELETED'
-      });
-    } catch (statsError) {
-      console.error('Failed to track user deletion stats:', statsError);
-    }
-
-    // Log based on user role: non-USER -> audit, USER -> event
-    if (session.user.role !== 'USER') {
-      // Create audit log for admin roles
-      await createAuditLog({
-        adminId: session.user.id,
-        action: AuditAction.DELETE_USER,
-        targetType: AuditTargetType.USER,
-        targetId: id,
-        details: {
-          deletedUser: {
-            email: existingUser.email,
-            name: existingUser.name,
-            role: existingUser.role,
-            tradingviewUsername: existingUser.tradingviewUsername,
-            subscriptionCount: existingUser._count.subscriptions,
-            paymentCount: existingUser._count.payments,
-          },
-          adminEmail: session.user.email,
-          adminName: session.user.name,
-        },
-      });
-    } else if (session.user.role === 'USER') {
-      // Create event for USER role
-      await prisma.event.create({
-        data: {
-          userId: session.user.id,
-          eventType: 'USER_DELETED',
-          metadata: {
-            deletedUserId: id,
-            deletedUserEmail: existingUser.email,
-            deletedUserRole: existingUser.role,
-            userRole: session.user.role,
-            timestamp: new Date().toISOString(),
-          },
-        },
-      });
-    }
+        actorEmail: session.user.email,
+        actorName: session.user.name,
+      },
+    });
 
     return NextResponse.json({
       success: true,
@@ -386,6 +314,15 @@ export async function DELETE(
     });
   } catch (error) {
     console.error('Error deleting user:', error);
+    await createAuditLog({
+      actorId: session?.user?.id || 'unknown',
+      actorRole: session?.user?.role as Role || 'USER',
+      action: AuditAction.DELETE_USER,
+      targetType: AuditTargetType.USER,
+      responseStatus: 'FAILURE',
+      details: { reason: 'exception', error: error instanceof Error ? error.message : 'Unknown error' },
+    });
+
     return NextResponse.json(
       {
         success: false,

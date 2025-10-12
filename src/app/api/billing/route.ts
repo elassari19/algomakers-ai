@@ -4,15 +4,15 @@ import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { createAuditLog, AuditAction, AuditTargetType } from '@/lib/audit';
 import { patchMetricsStats } from '@/lib/stats-service';
-import { StatsType } from '@/generated/prisma';
+import { Role, StatsType } from '@/generated/prisma';
 
 export async function GET(request: NextRequest) {
-  try {
-    const session = await getServerSession(authOptions);
+  const session = await getServerSession(authOptions);
 
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+  if (!session?.user?.id) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+  try {
 
     // Get query parameters for filtering
     const { searchParams } = new URL(request.url);
@@ -147,13 +147,36 @@ export async function GET(request: NextRequest) {
           ]
         : [],
     }));
-    
+    await createAuditLog({
+      actorId: session.user.id,
+      actorRole: session.user.role as Role || 'USER',
+      action: AuditAction.GET_PAYMENT,
+      targetType: AuditTargetType.PAYMENT,
+      responseStatus: 'SUCCESS',
+      details: {
+        userEmail: session.user.email,
+        user: session.user.name,
+        timestamp: new Date().toISOString(),
+      },
+    });
     return NextResponse.json({
       payments: transformedPayments,
       stats,
     });
   } catch (error) {
     console.error('Error fetching billing data:', error);
+    await createAuditLog({
+      actorId: session.user.id,
+      actorRole: session.user.role as Role || 'USER',
+      action: AuditAction.GET_PAYMENT,
+      targetType: AuditTargetType.PAYMENT,
+      responseStatus: 'FAILURE',
+      details: {
+        userEmail: session.user.email,
+        user: session.user.name,
+        timestamp: new Date().toISOString(),
+      },
+    });
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }
@@ -163,12 +186,24 @@ export async function GET(request: NextRequest) {
 
 // POST /api/billing - Create payment record
 export async function POST(request: NextRequest) {
-  try {
-    const session = await getServerSession(authOptions);
+  const session = await getServerSession(authOptions);
 
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+  if (!session?.user?.id) {
+    await createAuditLog({
+      actorId: session?.user.id!,
+      actorRole: session?.user.role as Role || 'USER',
+      action: AuditAction.GET_PAYMENT,
+      targetType: AuditTargetType.PAYMENT,
+      responseStatus: 'FAILURE',
+      details: {
+        userEmail: session?.user.email,
+        user: session?.user.name,
+        timestamp: new Date().toISOString(),
+      },
+    });
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+  try {
 
     const body = await request.json();
     const { paymentData, subscriptionData } = body;
@@ -181,56 +216,38 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    // Log based on user role: USER -> audit, non-USER -> event
-    if (session.user.role !== 'USER') {
-      // Create audit log for USER role
-      await createAuditLog({
-        adminId: session.user.id,
-        action: AuditAction.PROCESS_PAYMENT,
-        targetType: AuditTargetType.SUBSCRIPTION,
-        targetId: payment.id,
-        details: {
-          paymentId: payment.id,
-          amount: payment.totalAmount,
-          userEmail: session.user.email,
-        },
-      });
-    } else {
-      // Create event for non-USER roles
-      await prisma.event.create({
-        data: {
-          userId: session.user.id,
-          eventType: 'PAYMENT_CREATED',
-          metadata: {
-            paymentId: payment.id,
-            amount: payment.totalAmount,
-            userRole: session.user.role,
-          },
-        },
-      });
-    }
-
-    // Track payment creation stats
-    try {
-      await patchMetricsStats(StatsType.BILLING_METRICS, {
-        id: payment.id,
-        userId: session.user.id,
+    // Unified audit log for all roles
+    await createAuditLog({
+      actorId: session.user.id,
+      actorRole: session.user.role as Role || 'USER',
+      action: AuditAction.CREATE_PAYMENT,
+      targetType: AuditTargetType.PAYMENT,
+      targetId: payment.id,
+      responseStatus: 'SUCCESS',
+      details: {
+        paymentId: payment.id,
+        amount: payment.totalAmount,
         userEmail: session.user.email,
-        userRole: session.user.role,
-        paymentAmount: Number(payment.totalAmount),
-        paymentStatus: payment.status,
-        network: payment.network,
-        hasSubscription: !!subscriptionData,
-        createdAt: new Date().toISOString(),
-        type: 'PAYMENT_CREATED'
-      });
-    } catch (statsError) {
-      console.error('Failed to track payment creation stats:', statsError);
-    }
-
+        user: session.user.name,
+        timestamp: new Date().toISOString(),
+      },
+    });
+    
     return NextResponse.json({ success: true, payment });
   } catch (error) {
     console.error('Error creating payment:', error);
+    await createAuditLog({
+      actorId: session.user.id,
+      actorRole: session.user.role as Role || 'USER',
+      action: AuditAction.CREATE_PAYMENT,
+      targetType: AuditTargetType.PAYMENT,
+      responseStatus: 'FAILURE',
+      details: {
+        userEmail: session.user.email,
+        user: session.user.name,
+        timestamp: new Date().toISOString(),
+      },
+    });
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }
@@ -240,13 +257,25 @@ export async function POST(request: NextRequest) {
 
 // PATCH /api/billing - Update payment status
 export async function PATCH(request: NextRequest) {
+  const session = await getServerSession(authOptions);
+
+  if (!session?.user?.id) {
+    await createAuditLog({
+      actorId: session?.user.id!,
+      actorRole: session?.user.role as Role || 'USER',
+      action: AuditAction.GET_PAYMENT,
+      targetType: AuditTargetType.PAYMENT,
+      responseStatus: 'FAILURE',
+      details: {
+        userEmail: session?.user.email,
+        user: session?.user.name,
+        timestamp: new Date().toISOString(),
+      },
+    });
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
   try {
-    const session = await getServerSession(authOptions);
-
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
     const body = await request.json();
     const { paymentId, status, txHash } = body;
 
@@ -264,58 +293,39 @@ export async function PATCH(request: NextRequest) {
       },
     });
 
-    // Log based on user role: USER -> audit, non-USER -> event
-    if (session.user.role !== 'USER') {
-      // Create audit log for USER role
-      await createAuditLog({
-        adminId: session.user.id,
-        action: AuditAction.PROCESS_PAYMENT,
-        targetType: AuditTargetType.SUBSCRIPTION,
-        targetId: payment.id,
-        details: {
-          paymentId: payment.id,
-          newStatus: status,
-          txHash: txHash,
-          userEmail: session.user.email,
-        },
-      });
-    } else {
-      // Create event for non-USER roles
-      await prisma.event.create({
-        data: {
-          userId: session.user.id,
-          eventType: 'PAYMENT_UPDATED',
-          metadata: {
-            paymentId: payment.id,
-            newStatus: status,
-            txHash: txHash,
-            userRole: session.user.role,
-          },
-        },
-      });
-    }
-
-    // Track payment update stats
-    try {
-      await patchMetricsStats(StatsType.BILLING_METRICS, {
-        id: payment.id,
-        userId: session.user.id,
-        userEmail: session.user.email,
-        userRole: session.user.role,
-        previousStatus: payment.status, // Note: this will be the new status since we already updated
+    // Unified audit log for all roles
+    await createAuditLog({
+      actorId: session.user.id,
+      actorRole: session?.user.role as Role || 'USER',
+      action: AuditAction.UPDATE_PAYMENT,
+      targetType: AuditTargetType.PAYMENT,
+      targetId: payment.id,
+      responseStatus: 'SUCCESS',
+      details: {
+        paymentId: payment.id,
         newStatus: status,
         txHash: txHash,
-        paymentAmount: Number(payment.totalAmount),
-        updatedAt: new Date().toISOString(),
-        type: 'PAYMENT_UPDATED'
-      });
-    } catch (statsError) {
-      console.error('Failed to track payment update stats:', statsError);
-    }
+        userEmail: session.user.email,
+        user: session.user.name,
+        timestamp: new Date().toISOString(),
+      },
+    });
 
     return NextResponse.json({ success: true, payment });
   } catch (error) {
     console.error('Error updating payment:', error);
+    await createAuditLog({
+      actorId: session.user.id,
+      actorRole: session?.user.role as Role || 'USER',
+      action: AuditAction.UPDATE_PAYMENT,
+      targetType: AuditTargetType.PAYMENT,
+      responseStatus: 'FAILURE',
+      details: {
+        userEmail: session.user.email,
+        user: session.user.name,
+        timestamp: new Date().toISOString(),
+      },
+    });
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }

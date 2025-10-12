@@ -2,17 +2,19 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth/next';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
+import { AuditAction, AuditTargetType, createAuditLog } from '@/lib/audit';
+import { Role } from '@/generated/prisma/edge';
 
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ paymentId: string }> }
 ) {
-  try {
-    const session = await getServerSession(authOptions);
+  const session = await getServerSession(authOptions);
 
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+  if (!session?.user?.id) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+  try {
 
     const { paymentId } = await params;
 
@@ -50,6 +52,17 @@ export async function GET(
     });
 
     if (!payment) {
+      await createAuditLog({
+        actorId: session.user.id,
+        actorRole: session?.user.role as Role || 'USER',
+        action: AuditAction.GET_PAYMENT,
+        targetType: AuditTargetType.PAYMENT,
+        targetId: paymentId,
+        responseStatus: 'FAILURE',
+        details: {
+          reason: 'Payment not found or access denied',
+        },
+      });
       return NextResponse.json({ error: 'Payment not found' }, { status: 404 });
     }
 
@@ -78,6 +91,19 @@ export async function GET(
       subscriptions: payment.subscription,
     };
 
+    await createAuditLog({
+      actorId: session.user.id,
+      actorRole: session?.user.role as Role || 'USER',
+      action: AuditAction.GET_PAYMENT,
+      targetType: AuditTargetType.PAYMENT,
+      targetId: payment.id,
+      responseStatus: 'SUCCESS',
+      details: {
+        userEmail: session.user.email,
+        user: session.user.name,
+        timestamp: new Date().toISOString(),
+      },
+    });
     // For now, return invoice data as JSON
     // In production, this would generate and return a PDF
     return NextResponse.json({
@@ -86,6 +112,19 @@ export async function GET(
     });
   } catch (error) {
     console.error('Error generating invoice:', error);
+    await createAuditLog({
+      actorId: session.user.id,
+      actorRole: session?.user.role as Role || 'USER',
+      action: AuditAction.GET_PAYMENT,
+      targetType: AuditTargetType.PAYMENT,
+      responseStatus: 'FAILURE',
+      details: {
+        userEmail: session.user.email,
+        user: session.user.name,
+        reason: error instanceof Error ? error.message : 'Unknown error',
+        timestamp: new Date().toISOString(),
+      },
+    });
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }

@@ -153,13 +153,10 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { type, data, statsType, metadata, id } = body;
+    const { id, data, statsType } = body;
 
-    // Support both new format (type + data) and legacy format (statsType + metadata)
-    const finalStatsType = type || statsType;
-    let finalMetadata;
 
-    if (type && data) {
+    if (statsType && data) {
       // New format: single data object
       if (!data.id) {
         return NextResponse.json(
@@ -167,16 +164,14 @@ export async function POST(request: NextRequest) {
           { status: 400 }
         );
       }
-      finalMetadata = [data];
-    } else if (statsType && metadata) {
+    } else if (statsType && data) {
       // Legacy format: metadata array
-      if (!Array.isArray(metadata)) {
+      if (!Array.isArray(data)) {
         return NextResponse.json(
           { message: 'metadata must be an array of objects' },
           { status: 400 }
         );
       }
-      finalMetadata = metadata;
     } else {
       return NextResponse.json(
         { message: 'Either (type and data) or (statsType and metadata) are required' },
@@ -185,7 +180,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Validate statsType
-    if (!Object.values(StatsType).includes(finalStatsType)) {
+    if (!Object.values(StatsType).includes(statsType)) {
       return NextResponse.json(
         { message: `Invalid statsType. Valid types: ${Object.values(StatsType).join(', ')}` },
         { status: 400 }
@@ -199,14 +194,14 @@ export async function POST(request: NextRequest) {
     const savedStats = await prisma.stats.upsert({
       where: { id },
       update: {
-        type: finalStatsType,
-        metadata: finalMetadata,
+        type: statsType,
+        metadata: data,
         updatedAt: now
       },
       create: {
         id,
-        type: finalStatsType,
-        metadata: finalMetadata
+        type: statsType,
+        metadata: data
       }
     });
 

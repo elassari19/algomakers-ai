@@ -2,14 +2,15 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth/next';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
+
+import type { Role } from '@/generated/prisma';
 import { createAuditLog, AuditAction, AuditTargetType } from '@/lib/audit';
-import { patchMetricsStats } from '@/lib/stats-service';
-import { StatsType } from '@/generated/prisma';
+
 import { z } from 'zod';
 
 // Validation schema for payment update
 const paymentUpdateSchema = z.object({
-  network: z.enum(['USDT', 'BTC', 'ETH', 'USDT_TRC20', 'USDT_ERC20', 'USDT_BEP20']).optional(),
+  network: z.enum(['USDT_TRC20', 'USDT_ERC20', 'USDT_BEP20']).optional(),
   status: z.enum(['PENDING', 'PAID', 'UNDERPAID', 'EXPIRED', 'FAILED']).optional(),
   txHash: z.string().optional().nullable(),
   invoiceId: z.string().optional().nullable(),
@@ -117,6 +118,16 @@ export async function GET(
     });
   } catch (error) {
     console.error('Error fetching payment:', error);
+    await createAuditLog({
+      actorId: 'system',
+      actorRole: 'USER',
+      action: AuditAction.GET_PAYMENT,
+      targetType: AuditTargetType.PAYMENT,
+      responseStatus: 'FAILURE',
+      details: {
+        error: error instanceof Error ? error.message : 'Unknown error',
+      },
+    });
     return NextResponse.json(
       {
         success: false,
@@ -133,15 +144,39 @@ export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const session = await getServerSession(authOptions);
+
+  if (!session?.user?.id) {
+    await createAuditLog({
+      actorId: session?.user.id!,
+      actorRole: session?.user.role as Role || 'USER',
+      action: AuditAction.UPDATE_PAYMENT,
+      targetType: AuditTargetType.PAYMENT,
+      responseStatus: 'FAILURE',
+      details: {
+        userEmail: session?.user.email,
+        user: session?.user.name,
+        timestamp: new Date().toISOString(),
+      },
+    });
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
   try {
-    const session = await getServerSession(authOptions);
-
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
     // Only allow admin roles to update payments
     if (!['ADMIN', 'MANAGER'].includes(session.user.role)) {
+      await createAuditLog({
+        actorId: session?.user.id!,
+        actorRole: session?.user.role as Role || 'USER',
+        action: AuditAction.UPDATE_PAYMENT,
+        targetType: AuditTargetType.PAYMENT,
+        responseStatus: 'FAILURE',
+        details: {
+          userEmail: session?.user.email,
+          user: session?.user.name,
+          timestamp: new Date().toISOString(),
+        },
+      });
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
@@ -171,6 +206,18 @@ export async function PUT(
     });
 
     if (!existingPayment) {
+      await createAuditLog({
+        actorId: session?.user.id!,
+        actorRole: session?.user.role as Role || 'USER',
+        action: AuditAction.UPDATE_PAYMENT,
+        targetType: AuditTargetType.PAYMENT,
+        responseStatus: 'FAILURE',
+        details: {
+          userEmail: session?.user.email,
+          user: session?.user.name,
+          timestamp: new Date().toISOString(),
+        },
+      });
       return NextResponse.json(
         { error: 'Payment not found' },
         { status: 404 }
@@ -224,73 +271,29 @@ export async function PUT(
       },
     });
 
-    // Log based on user role: non-USER -> audit, USER -> event
-    if (session.user.role !== 'USER') {
-      // Create audit log for admin roles
-      await createAuditLog({
-        adminId: session.user.id,
-        action: AuditAction.UPDATE_PAYMENT,
-        targetType: AuditTargetType.PAYMENT,
-        targetId: updatedPayment.id,
-        details: {
-          updatedFields: Object.keys(validatedData),
-          previousValues: {
-            status: existingPayment.status,
-            network: existingPayment.network,
-            totalAmount: existingPayment.totalAmount,
-            txHash: existingPayment.txHash,
-            actuallyPaid: existingPayment.actuallyPaid,
-          },
-          newValues: validatedData,
-          userEmail: existingPayment.user.email,
-          adminEmail: session.user.email,
-          adminName: session.user.name,
-        },
-      });
-    } else {
-      // Create event for USER role
-      await prisma.event.create({
-        data: {
-          userId: session.user.id,
-          eventType: 'PAYMENT_UPDATED',
-          metadata: {
-            paymentId: updatedPayment.id,
-            targetUserId: updatedPayment.userId,
-            updatedFields: Object.keys(validatedData),
-            previousStatus: existingPayment.status,
-            newStatus: validatedData.status,
-            userRole: session.user.role,
-            timestamp: new Date().toISOString(),
-          },
-        },
-      });
-    }
-
-    // Track payment update stats
-    try {
-      await patchMetricsStats(StatsType.BILLING_METRICS, {
-        id: updatedPayment.id,
-        paymentId: updatedPayment.id,
-        updaterUserId: session.user.id,
-        updaterEmail: session.user.email,
-        updaterRole: session.user.role,
-        targetUserId: updatedPayment.userId,
-        targetUserEmail: updatedPayment.user.email,
+    // Audit log for all roles
+    await createAuditLog({
+      actorId: session.user.id,
+      actorRole: session.user.role as Role,
+      action: AuditAction.UPDATE_PAYMENT,
+      targetType: AuditTargetType.PAYMENT,
+      targetId: updatedPayment.id,
+      responseStatus: 'SUCCESS',
+      details: {
         updatedFields: Object.keys(validatedData),
         previousValues: {
           status: existingPayment.status,
           network: existingPayment.network,
-          totalAmount: Number(existingPayment.totalAmount),
+          totalAmount: existingPayment.totalAmount,
           txHash: existingPayment.txHash,
-          actuallyPaid: existingPayment.actuallyPaid ? Number(existingPayment.actuallyPaid) : null
+          actuallyPaid: existingPayment.actuallyPaid,
         },
         newValues: validatedData,
-        updatedAt: new Date().toISOString(),
-        type: 'PAYMENT_UPDATED_BY_ID'
-      });
-    } catch (statsError) {
-      console.error('Failed to track payment update stats:', statsError);
-    }
+        userEmail: existingPayment.user.email,
+        actorEmail: session.user.email,
+        actorName: session.user.name,
+      },
+    });
 
     return NextResponse.json({
       success: true,
@@ -299,7 +302,18 @@ export async function PUT(
     });
   } catch (error) {
     console.error('Error updating payment:', error);
-    
+    await createAuditLog({
+      actorId: session?.user.id!,
+      actorRole: session?.user.role as Role || 'USER',
+      action: AuditAction.UPDATE_PAYMENT,
+      targetType: AuditTargetType.PAYMENT,
+      responseStatus: 'FAILURE',
+      details: {
+        userEmail: session?.user.email,
+        user: session?.user.name,
+        timestamp: new Date().toISOString(),
+      },
+    });
     if (error instanceof z.ZodError) {
       return NextResponse.json(
         {
@@ -310,7 +324,6 @@ export async function PUT(
         { status: 400 }
       );
     }
-
     return NextResponse.json(
       {
         success: false,
@@ -327,17 +340,29 @@ export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const session = await getServerSession(authOptions);
+
+  if (!session?.user?.id) {
+    await createAuditLog({
+      actorId: session?.user.id!,
+      actorRole: session?.user.role as Role || 'USER',
+      action: AuditAction.DELETE_PAYMENT,
+      targetType: AuditTargetType.PAYMENT,
+      responseStatus: 'FAILURE',
+      details: {
+        userEmail: session?.user.email,
+        user: session?.user.name,
+        timestamp: new Date().toISOString(),
+      },
+    });
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
   try {
-    const session = await getServerSession(authOptions);
-
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    // Only allow admin roles to delete payments
-    if (!['ADMIN'].includes(session.user.role)) {
-      return NextResponse.json({ error: 'Forbidden - Only admins can delete payments' }, { status: 403 });
-    }
+    
+      // Only allow admin roles to delete payments
+      if (!['ADMIN'].includes(session.user.role)) {
+        return NextResponse.json({ error: 'Forbidden - Only admins can delete payments' }, { status: 403 });
+      }
 
     const { id } = await params;
 
@@ -378,6 +403,18 @@ export async function DELETE(
     });
 
     if (!existingPayment) {
+      await createAuditLog({
+        actorId: session?.user.id!,
+        actorRole: session?.user.role as Role || 'USER',
+        action: AuditAction.DELETE_PAYMENT,
+        targetType: AuditTargetType.PAYMENT,
+        responseStatus: 'FAILURE',
+        details: {
+          userEmail: session?.user.email,
+          user: session?.user.name,
+          timestamp: new Date().toISOString(),
+        },
+      });
       return NextResponse.json(
         { error: 'Payment not found' },
         { status: 404 }
@@ -397,76 +434,30 @@ export async function DELETE(
       where: { id },
     });
 
-    // Log based on user role: non-USER -> audit, USER -> event
-    if (session.user.role !== 'USER') {
-      // Create audit log for admin roles
-      await createAuditLog({
-        adminId: session.user.id,
-        action: AuditAction.DELETE_PAYMENT,
-        targetType: AuditTargetType.PAYMENT,
-        targetId: id,
-        details: {
-          deletedPayment: {
-            id: existingPayment.id,
-            userId: existingPayment.userId,
-            network: existingPayment.network,
-            status: existingPayment.status,
-            totalAmount: existingPayment.totalAmount,
-            userEmail: existingPayment.user.email,
-            userName: existingPayment.user.name,
-            paymentItemsCount: existingPayment.paymentItems.length,
-            hasSubscription: !!existingPayment.subscription,
-          },
-          adminEmail: session.user.email,
-          adminName: session.user.name,
-        },
-      });
-    } else {
-      // Create event for USER role
-      await prisma.event.create({
-        data: {
-          userId: session.user.id,
-          eventType: 'PAYMENT_DELETED',
-          metadata: {
-            paymentId: id,
-            targetUserId: existingPayment.userId,
-            deletedPaymentInfo: {
-              network: existingPayment.network,
-              status: existingPayment.status,
-              totalAmount: existingPayment.totalAmount,
-              paymentItemsCount: existingPayment.paymentItems.length,
-              hasSubscription: !!existingPayment.subscription,
-            },
-            userRole: session.user.role,
-            timestamp: new Date().toISOString(),
-          },
-        },
-      });
-    }
-
-    // Track payment deletion stats
-    try {
-      await patchMetricsStats(StatsType.BILLING_METRICS, {
-        id: id,
-        paymentId: id,
-        deleterUserId: session.user.id,
-        deleterEmail: session.user.email,
-        deleterRole: session.user.role,
-        targetUserId: existingPayment.userId,
-        targetUserEmail: existingPayment.user.email,
-        deletedPaymentInfo: {
+    // Audit log for all roles
+    await createAuditLog({
+      actorId: session.user.id,
+      actorRole: session.user.role as Role,
+      action: AuditAction.DELETE_PAYMENT,
+      targetType: AuditTargetType.PAYMENT,
+      targetId: id,
+      responseStatus: 'SUCCESS',
+      details: {
+        deletedPayment: {
+          id: existingPayment.id,
+          userId: existingPayment.userId,
           network: existingPayment.network,
           status: existingPayment.status,
-          totalAmount: Number(existingPayment.totalAmount),
+          totalAmount: existingPayment.totalAmount,
+          userEmail: existingPayment.user.email,
+          userName: existingPayment.user.name,
           paymentItemsCount: existingPayment.paymentItems.length,
-          hasSubscription: !!existingPayment.subscription
+          hasSubscription: !!existingPayment.subscription,
         },
-        deletedAt: new Date().toISOString(),
-        type: 'PAYMENT_DELETED_BY_ID'
-      });
-    } catch (statsError) {
-      console.error('Failed to track payment deletion stats:', statsError);
-    }
+        actorEmail: session.user.email,
+        actorName: session.user.name,
+      },
+    });
 
     return NextResponse.json({
       success: true,
@@ -474,6 +465,18 @@ export async function DELETE(
     });
   } catch (error) {
     console.error('Error deleting payment:', error);
+    await createAuditLog({
+      actorId: session?.user.id!,
+      actorRole: session?.user.role as Role || 'USER',
+      action: AuditAction.DELETE_PAYMENT,
+      targetType: AuditTargetType.PAYMENT,
+      responseStatus: 'FAILURE',
+      details: {
+        userEmail: session?.user.email,
+        user: session?.user.name,
+        timestamp: new Date().toISOString(),
+      },
+    });
     return NextResponse.json(
       {
         success: false,

@@ -2,18 +2,17 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { Role, StatsType } from "@/generated/prisma";
-import { patchMetricsStats } from "@/lib/stats-service";
+import { Role } from "@/generated/prisma";
 import { createAuditLog, AuditAction, AuditTargetType } from "@/lib/audit";
 
 // PATCH /api/notifications/bulk - Bulk update notifications
 export async function PATCH(request: NextRequest) {
-  try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+  const session = await getServerSession(authOptions);
+  if (!session?.user?.id) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
 
+  try {
     const user = session.user;
     const body = await request.json();
     const { action, ids, isRead } = body;
@@ -47,61 +46,25 @@ export async function PATCH(request: NextRequest) {
         }
       });
 
-            // Log based on user role: ADMIN/MANAGER -> audit, other roles -> event
-      if (user.role === Role.ADMIN || user.role === Role.MANAGER) {
-        // Create audit log for ADMIN/MANAGER roles
-        await createAuditLog({
-          adminId: user.id,
-          action: AuditAction.CREATE_NOTIFICATION,
-          targetType: AuditTargetType.NOTIFICATION,
-          targetId: ids[0] || 'bulk-operation',
-          details: {
-            action: 'markAsRead',
-            targetIds: ids,
-            affectedCount: updated.count,
-            requestedCount: ids.length,
-            newReadStatus: isRead,
-            adminRole: user.role,
-            adminEmail: user.email,
-            bulkOperationType: 'UPDATE_READ_STATUS',
-            actionType: 'BULK_NOTIFICATION_UPDATE'
-          },
-        });
-      } else {
-        // Create user event for other roles
-        await prisma.event.create({
-          data: {
-            userId: user.id,
-            eventType: 'BULK_NOTIFICATIONS_UPDATED',
-            metadata: {
-              action: 'markAsRead',
-              targetIds: ids,
-              affectedCount: updated.count,
-              newReadStatus: isRead,
-              userRole: user.role,
-              timestamp: new Date().toISOString(),
-            },
-          },
-        });
-      }
-
-      // Track bulk notification update stats
-      try {
-        await patchMetricsStats(StatsType.NOTIFICATION_METRICS, {
-          id: user.id,
-          adminEmail: user.email,
-          adminRole: user.role,
+      // Log based on user role: ADMIN/MANAGER -> audit, other roles -> event
+      await createAuditLog({
+        actorId: user.id,
+        actorRole: user.role as Role,
+        action: AuditAction.UPDATE_NOTIFICATION,
+        targetType: AuditTargetType.NOTIFICATION,
+        targetId: ids[0] || 'bulk-operation',
+        responseStatus: 'SUCCESS',
+        details: {
           action: 'markAsRead',
           targetIds: ids,
           affectedCount: updated.count,
           newReadStatus: isRead,
+          adminRole: user.role,
+          adminEmail: user.email,
           bulkOperationType: 'UPDATE_READ_STATUS',
-          executedAt: new Date().toISOString(),
-          type: 'BULK_NOTIFICATION_UPDATE'
-        });
-      } catch (statsError) {
-        console.error('Failed to track bulk notification update stats:', statsError);
-      }
+          actionType: 'BULK_NOTIFICATION_UPDATE'
+        }
+      });
 
       return NextResponse.json({
         message: `${updated.count} notifications updated`,
@@ -116,6 +79,18 @@ export async function PATCH(request: NextRequest) {
 
   } catch (error) {
     console.error("Error in bulk notification update:", error);
+    await createAuditLog({
+      actorId: session?.user?.id || 'unknown',
+      actorRole: session?.user?.role as Role || 'USER',
+      action: AuditAction.UPDATE_NOTIFICATION,
+      targetType: AuditTargetType.NOTIFICATION,
+      responseStatus: 'FAILURE',
+      details: {
+        reason: error instanceof Error ? error.message : 'Unknown error during bulk update',
+        action: 'bulkUpdateAttempt',
+        timestamp: new Date().toISOString(),
+      }
+    });
     return NextResponse.json(
       { error: "Failed to update notifications" },
       { status: 500 }
@@ -125,12 +100,12 @@ export async function PATCH(request: NextRequest) {
 
 // DELETE /api/notifications/bulk - Bulk delete notifications
 export async function DELETE(request: NextRequest) {
-  try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+  const session = await getServerSession(authOptions);
+  if (!session?.user?.id) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
 
+  try {
     const user = session.user;
     const body = await request.json();
     const { ids } = body;
@@ -154,60 +129,24 @@ export async function DELETE(request: NextRequest) {
     });
 
     // Log based on user role: ADMIN/MANAGER -> audit, other roles -> event
-    if (user.role === Role.ADMIN || user.role === Role.MANAGER) {
-      // Create audit log for ADMIN/MANAGER roles
-      await createAuditLog({
-        adminId: user.id,
-        action: AuditAction.DELETE_NOTIFICATION,
-        targetType: AuditTargetType.NOTIFICATION,
-        targetId: ids[0] || 'bulk-operation',
-        details: {
-          action: 'bulkDelete',
-          targetIds: ids,
-          deletedCount: deleted.count,
-          requestedCount: ids.length,
-          adminRole: user.role,
-          adminEmail: user.email,
-          bulkOperationType: 'DELETE_NOTIFICATIONS',
-          actionType: 'BULK_NOTIFICATION_DELETE'
-        },
-      });
-    } else {
-      // Create user event for other roles
-      await prisma.event.create({
-        data: {
-          userId: user.id,
-          eventType: 'BULK_NOTIFICATIONS_DELETED',
-          metadata: {
-            action: 'bulkDelete',
-            targetIds: ids,
-            deletedCount: deleted.count,
-            requestedCount: ids.length,
-            userRole: user.role,
-            timestamp: new Date().toISOString(),
-          },
-        },
-      });
-    }
-
-    // Track bulk notification deletion stats
-    try {
-      await patchMetricsStats(StatsType.NOTIFICATION_METRICS, {
-        id: `bulk-delete-${user.id}-${Date.now()}`,
-        adminUserId: user.id,
-        adminEmail: user.email,
-        adminRole: user.role,
+    await createAuditLog({
+      actorId: user.id,
+      actorRole: user.role as Role,
+      action: AuditAction.DELETE_NOTIFICATION,
+      targetType: AuditTargetType.NOTIFICATION,
+      targetId: ids[0] || 'bulk-operation',
+      responseStatus: 'SUCCESS',
+      details: {
         action: 'bulkDelete',
         targetIds: ids,
         deletedCount: deleted.count,
         requestedCount: ids.length,
+        adminRole: user.role,
+        adminEmail: user.email,
         bulkOperationType: 'DELETE_NOTIFICATIONS',
-        executedAt: new Date().toISOString(),
-        type: 'BULK_NOTIFICATION_DELETE'
-      });
-    } catch (statsError) {
-      console.error('Failed to track bulk notification deletion stats:', statsError);
-    }
+        actionType: 'BULK_NOTIFICATION_DELETE'
+      }
+    });
 
     return NextResponse.json({
       message: `${deleted.count} notifications deleted`,
@@ -216,6 +155,18 @@ export async function DELETE(request: NextRequest) {
 
   } catch (error) {
     console.error("Error in bulk notification deletion:", error);
+    await createAuditLog({
+      actorId: session?.user?.id || 'unknown',
+      actorRole: session?.user?.role as Role || 'USER',
+      action: AuditAction.DELETE_NOTIFICATION,
+      targetType: AuditTargetType.NOTIFICATION,
+      responseStatus: 'FAILURE',
+      details: {
+        reason: error instanceof Error ? error.message : 'Unknown error during bulk delete',
+        action: 'bulkDeleteAttempt',
+        timestamp: new Date().toISOString(),
+      }
+    });
     return NextResponse.json(
       { error: "Failed to delete notifications" },
       { status: 500 }

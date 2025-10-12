@@ -2,9 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth/next';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
-import { createAuditLog, AuditAction, AuditTargetType, createEventLog } from '@/lib/audit';
-import { StatsType } from '@/generated/prisma';
-import { patchMetricsStats } from '@/lib/stats-service';
+import type { Role } from '@/generated/prisma';
+import { createAuditLog, AuditAction, AuditTargetType } from '@/lib/audit';
 import { z } from 'zod';
 import bcrypt from 'bcryptjs';
 
@@ -101,8 +100,8 @@ export async function GET(request: NextRequest) {
 
 // POST /api/users - Create a new user
 export async function POST(request: NextRequest) {
+  const session = await getServerSession(authOptions);
   try {
-    const session = await getServerSession(authOptions);
 
     if (!session?.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -171,57 +170,26 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    // Track user creation stats
-    try {
-      await patchMetricsStats(StatsType.USER_METRICS, {
-        id: newUser.id,
-        userId: newUser.id,
-        creatorUserId: session.user.id,
-        creatorEmail: session.user.email,
-        creatorRole: session.user.role,
-        createdUserEmail: newUser.email,
-        createdUserRole: newUser.role,
-        hasPassword: !!hashedPassword,
-        hasTradingViewUsername: !!newUser.tradingviewUsername,
-        createdAt: new Date().toISOString(),
-        type: 'USER_CREATED'
-      });
-    } catch (statsError) {
-      console.error('Failed to track user creation stats:', statsError);
-    }
 
-    // Log based on user role: non-USER -> audit, USER -> event
-    if (session.user.role !== 'USER') {
-      // Create audit log for admin roles
-      await createAuditLog({
-        adminId: session.user.id,
-        action: AuditAction.CREATE_USER,
-        targetType: AuditTargetType.USER,
-        targetId: newUser.id,
-        details: {
-          createdUser: {
-            email: newUser.email,
-            name: newUser.name,
-            role: newUser.role,
-            tradingviewUsername: newUser.tradingviewUsername,
-          },
-          adminEmail: session.user.email,
-          adminName: session.user.name,
+    // Audit log for user creation
+    await createAuditLog({
+      actorId: session.user.id,
+      actorRole: session.user.role as Role,
+      action: AuditAction.CREATE_USER,
+      targetType: AuditTargetType.USER,
+      targetId: newUser.id,
+      responseStatus: 'SUCCESS',
+      details: {
+        createdUser: {
+          email: newUser.email,
+          name: newUser.name,
+          role: newUser.role,
+          tradingviewUsername: newUser.tradingviewUsername,
         },
-      });
-    } else if (session.user.role === 'USER') {
-      // Create event for USER role
-      await createEventLog({
-        userId: session.user.id,
-        eventType: 'USER_CREATED',
-        metadata: {
-          createdUserId: newUser.id,
-          createdUserEmail: newUser.email,
-          createdUserRole: newUser.role,
-          userRole: session.user.role,
-        },
-      });
-    }
+        actorEmail: session.user.email,
+        actorName: session.user.name,
+      },
+    });
 
     return NextResponse.json({
       success: true,
@@ -230,6 +198,14 @@ export async function POST(request: NextRequest) {
     });
   } catch (error) {
     console.error('Error creating user:', error);
+    await createAuditLog({
+      actorId: session?.user?.id || 'unknown',
+      actorRole: session?.user?.role as Role || 'USER',
+      action: AuditAction.CREATE_USER,
+      targetType: AuditTargetType.USER,
+      responseStatus: 'FAILURE',
+      details: { reason: 'exception', error: error instanceof Error ? error.message : 'Unknown error' },
+    });
     
     if (error instanceof z.ZodError) {
       return NextResponse.json(
@@ -255,8 +231,8 @@ export async function POST(request: NextRequest) {
 
 // PUT /api/users - Update an existing user
 export async function PUT(request: NextRequest) {
+  const session = await getServerSession(authOptions);
   try {
-    const session = await getServerSession(authOptions);
 
     if (!session?.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -342,15 +318,16 @@ export async function PUT(request: NextRequest) {
       },
     });
 
-    // Track user update stats
-    try {
-      await patchMetricsStats(StatsType.USER_METRICS, {
-        id: updatedUser.id,
-        userId: updatedUser.id,
-        updaterUserId: session.user.id,
-        updaterEmail: session.user.email,
-        updaterRole: session.user.role,
-        targetUserEmail: updatedUser.email,
+
+    // Audit log for user update
+    await createAuditLog({
+      actorId: session.user.id,
+      actorRole: session.user.role as Role,
+      action: AuditAction.UPDATE_USER,
+      targetType: AuditTargetType.USER,
+      targetId: updatedUser.id,
+      responseStatus: 'SUCCESS',
+      details: {
         updatedFields: Object.keys(validatedData),
         previousValues: {
           email: existingUser.email,
@@ -359,48 +336,10 @@ export async function PUT(request: NextRequest) {
           tradingviewUsername: existingUser.tradingviewUsername,
         },
         newValues: validatedData,
-        passwordUpdated: !!validatedData.password,
-        updatedAt: new Date().toISOString(),
-        type: 'USER_UPDATED'
-      });
-    } catch (statsError) {
-      console.error('Failed to track user update stats:', statsError);
-    }
-
-    // Log based on user role: non-USER -> audit, USER -> event
-    if (session.user.role !== 'USER') {
-      // Create audit log for admin roles
-      await createAuditLog({
-        adminId: session.user.id,
-        action: AuditAction.UPDATE_USER,
-        targetType: AuditTargetType.USER,
-        targetId: updatedUser.id,
-        details: {
-          updatedFields: Object.keys(validatedData),
-          previousValues: {
-            email: existingUser.email,
-            name: existingUser.name,
-            role: existingUser.role,
-            tradingviewUsername: existingUser.tradingviewUsername,
-          },
-          newValues: validatedData,
-          adminEmail: session.user.email,
-          adminName: session.user.name,
-        },
-      });
-    } else if (session.user.role === 'USER') {
-      // Create event for USER role
-      await createEventLog({
-        userId: session.user.id,
-        eventType: 'USER_UPDATED',
-        metadata: {
-          targetUserId: updatedUser.id,
-          targetUserEmail: updatedUser.email,
-          updatedFields: Object.keys(validatedData),
-          userRole: session.user.role,
-        },
-      });
-    }
+        actorEmail: session.user.email,
+        actorName: session.user.name,
+      },
+    });
 
     return NextResponse.json({
       success: true,
@@ -409,7 +348,15 @@ export async function PUT(request: NextRequest) {
     });
   } catch (error) {
     console.error('Error updating user:', error);
-    
+    await createAuditLog({
+      actorId: session?.user?.id || 'unknown',
+      actorRole: session?.user?.role as Role || 'USER',
+      action: AuditAction.UPDATE_USER,
+      targetType: AuditTargetType.USER,
+      responseStatus: 'FAILURE',
+      details: { reason: 'exception', error: error instanceof Error ? error.message : 'Unknown error' },
+    });
+
     if (error instanceof z.ZodError) {
       return NextResponse.json(
         {
@@ -434,8 +381,8 @@ export async function PUT(request: NextRequest) {
 
 // DELETE /api/users - Delete a user
 export async function DELETE(request: NextRequest) {
+  const session = await getServerSession(authOptions);
   try {
-    const session = await getServerSession(authOptions);
 
     if (!session?.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -483,15 +430,17 @@ export async function DELETE(request: NextRequest) {
       where: { id },
     });
 
-    // Track user deletion stats
-    try {
-      await patchMetricsStats(StatsType.USER_METRICS, {
-        id: id,
-        userId: id,
-        deleterUserId: session.user.id,
-        deleterEmail: session.user.email,
-        deleterRole: session.user.role,
-        deletedUserInfo: {
+
+    // Audit log for user deletion
+    await createAuditLog({
+      actorId: session.user.id,
+      actorRole: session.user.role as Role,
+      action: AuditAction.DELETE_USER,
+      targetType: AuditTargetType.USER,
+      targetId: id,
+      responseStatus: 'SUCCESS',
+      details: {
+        deletedUser: {
           email: existingUser.email,
           name: existingUser.name,
           role: existingUser.role,
@@ -499,47 +448,10 @@ export async function DELETE(request: NextRequest) {
           subscriptionCount: existingUser._count.subscriptions,
           paymentCount: existingUser._count.payments,
         },
-        deletedAt: new Date().toISOString(),
-        type: 'USER_DELETED'
-      });
-    } catch (statsError) {
-      console.error('Failed to track user deletion stats:', statsError);
-    }
-
-    // Log based on user role: non-USER -> audit, USER -> event
-    if (session.user.role !== 'USER') {
-      // Create audit log for admin roles
-      await createAuditLog({
-        adminId: session.user.id,
-        action: AuditAction.DELETE_USER,
-        targetType: AuditTargetType.USER,
-        targetId: id,
-        details: {
-          deletedUser: {
-            email: existingUser.email,
-            name: existingUser.name,
-            role: existingUser.role,
-            tradingviewUsername: existingUser.tradingviewUsername,
-            subscriptionCount: existingUser._count.subscriptions,
-            paymentCount: existingUser._count.payments,
-          },
-          adminEmail: session.user.email,
-          adminName: session.user.name,
-        },
-      });
-    } else if (session.user.role === 'USER') {
-      // Create event for USER role
-      await createEventLog({
-        userId: session.user.id,
-        eventType: 'USER_DELETED',
-        metadata: {
-          deletedUserId: id,
-          deletedUserEmail: existingUser.email,
-          deletedUserRole: existingUser.role,
-          userRole: session.user.role,
-        },
-      });
-    }
+        actorEmail: session.user.email,
+        actorName: session.user.name,
+      },
+    });
 
     return NextResponse.json({
       success: true,
@@ -547,6 +459,14 @@ export async function DELETE(request: NextRequest) {
     });
   } catch (error) {
     console.error('Error deleting user:', error);
+    await createAuditLog({
+      actorId: session?.user?.id || 'unknown',
+      actorRole: session?.user?.role as Role || 'USER',
+      action: AuditAction.DELETE_USER,
+      targetType: AuditTargetType.USER,
+      responseStatus: 'FAILURE',
+      details: { reason: 'exception', error: error instanceof Error ? error.message : 'Unknown error' },
+    });
     return NextResponse.json(
       {
         success: false,

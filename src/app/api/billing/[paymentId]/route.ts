@@ -2,8 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth/next';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
-import { patchMetricsStats } from '@/lib/stats-service';
-import { StatsType } from '@/generated/prisma';
+import { Role } from '@/generated/prisma';
 import { createAuditLog, AuditAction, AuditTargetType } from '@/lib/audit';
 
 export async function GET(
@@ -63,6 +62,19 @@ export async function GET(
     });
 
     if (!payment) {
+      await createAuditLog({
+        actorId: session.user.id,
+        actorRole: session?.user.role as Role || 'USER',
+        action: AuditAction.GET_PAYMENT,
+        targetType: AuditTargetType.PAYMENT,
+        responseStatus: 'FAILURE',
+        details: {
+          userEmail: session.user.email,
+          user: session.user.name,
+          reason: 'Payment not found or access denied',
+          timestamp: new Date().toISOString(),
+        },
+      });
       return NextResponse.json(
         { 
           success: false, 
@@ -94,15 +106,28 @@ export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ paymentId: string }> }
 ) {
+  const session = await getServerSession(authOptions);
+
+  if (!session?.user?.id) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
   try {
-    const session = await getServerSession(authOptions);
-
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
     // Only allow admin users to update payments
     if (!['ADMIN', 'MANAGER'].includes(session.user.role)) {
+      await createAuditLog({
+        actorId: session.user.id,
+        actorRole: session?.user.role as Role || 'USER',
+        action: AuditAction.UPDATE_PAYMENT,
+        targetType: AuditTargetType.PAYMENT,
+        responseStatus: 'FAILURE',
+        details: {
+          userEmail: session.user.email,
+          user: session.user.name,
+          reason: 'Unauthorized access attempt',
+          timestamp: new Date().toISOString(),
+        },
+      });
       return NextResponse.json(
         { error: 'Forbidden - Admin access required' },
         { status: 403 }
@@ -168,9 +193,10 @@ export async function PUT(
 
     // Create audit log for admin payment update
     await createAuditLog({
-      adminId: session.user.id,
-      action: AuditAction.PROCESS_PAYMENT,
-      targetType: AuditTargetType.SUBSCRIPTION,
+      actorId: session?.user.id!,
+      actorRole: session?.user.role as Role || 'USER',
+      action: AuditAction.UPDATE_PAYMENT,
+      targetType: AuditTargetType.PAYMENT,
       targetId: payment.id,
       details: {
         paymentId: payment.id,
@@ -184,35 +210,10 @@ export async function PUT(
         newActuallyPaid: updateData.actuallyPaid,
         newNetwork: updateData.network,
         paymentAmount: Number(payment.totalAmount),
-        updateReason: body.reason || 'Administrative update',
+        reason: body.reason || 'Administrative update',
         actionType: 'ADMIN_PAYMENT_UPDATE'
       },
     });
-
-    // Track admin payment update stats
-    try {
-      await patchMetricsStats(StatsType.BILLING_METRICS, {
-        id: paymentId,
-        adminUserId: session.user.id,
-        adminEmail: session.user.email,
-        adminRole: session.user.role,
-        paymentUserId: payment.user.id,
-        paymentUserEmail: payment.user.email,
-        updatedFields: Object.keys(updateData).filter(key => key !== 'updatedAt'),
-        newStatus: updateData.status,
-        newTxHash: updateData.txHash,
-        newActuallyPaid: updateData.actuallyPaid,
-        newNetwork: updateData.network,
-        paymentAmount: Number(payment.totalAmount),
-        hasSubscription: !!payment.subscription,
-        subscriptionStatus: payment.subscription?.status,
-        itemsCount: payment.paymentItems.length,
-        updatedAt: new Date().toISOString(),
-        type: 'ADMIN_PAYMENT_UPDATE'
-      });
-    } catch (statsError) {
-      console.error('Failed to track admin payment update stats:', statsError);
-    }
 
     return NextResponse.json({
       success: true,
@@ -222,6 +223,19 @@ export async function PUT(
 
   } catch (error) {
     console.error('Error updating payment:', error);
+    await createAuditLog({
+      actorId: session.user.id,
+      actorRole: session?.user.role as Role || 'USER',
+      action: AuditAction.UPDATE_PAYMENT,
+      targetType: AuditTargetType.PAYMENT,
+      responseStatus: 'FAILURE',
+      details: {
+        userEmail: session.user.email,
+        user: session.user.name,
+        reason: error instanceof Error ? error.message : 'Unknown error',
+        timestamp: new Date().toISOString(),
+      },
+    });
     return NextResponse.json(
       { 
         success: false, 

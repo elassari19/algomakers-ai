@@ -3,10 +3,23 @@ import { getServerSession } from 'next-auth/next';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { createAuditLog, AuditAction, AuditTargetType } from '@/lib/audit';
-import { upsertFileMetricsStats, deleteFileMetricsStats } from '../../../lib/stats-service';
+import { upsertFileMetricsStats, deleteFileMetricsStats } from '@/lib/stats-service';
+import { Role } from '@/generated/prisma/wasm';
 
 // Helper function to create file metrics stats using shared service
 const createFileMetricsStats = async (pairId: string, pairData: any) => {
+  const session = await getServerSession(authOptions);
+  if (session?.user.role === 'USER') {
+    await createAuditLog({
+      actorId: session.user.id,
+      actorRole: session.user.role || 'USER',
+      action: AuditAction.CREATE_BACKTEST,
+      targetType: AuditTargetType.BACKTEST,
+      details: { reason: 'unauthorized_role' },
+    })
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
   try {
     // Extract basic metrics from the pair data
     let initialCapital = 0;
@@ -34,18 +47,44 @@ const createFileMetricsStats = async (pairId: string, pairData: any) => {
       timeframe: pairData.timeframe,
       version: pairData.version,
     };
-    
-    console.log('Creating/updating file metrics stats:', statsData);
-    
-    // Use shared service instead of HTTP call
+        
     const result = await upsertFileMetricsStats(statsData);
+    await createAuditLog({
+      actorId: session?.user.id!,
+      actorRole: session?.user.role as Role || 'USER',
+      action: AuditAction.CREATE_BACKTEST,
+      targetType: AuditTargetType.BACKTEST,
+      details: { 
+        symbol: pairData.symbol,
+        timeframe: pairData.timeframe,
+        version: pairData.version,
+        userEmail: session?.user.email,
+        user: session?.user.name,
+        timestamp: new Date().toISOString(),
+      },
+    });
     return result;
   } catch (error) {
     console.error('Error creating file metrics stats:', {
       message: error instanceof Error ? error.message : String(error),
       error: error
     });
-    // Don't throw - let the main operation continue
+    await createAuditLog({
+      actorId: session?.user.id!,
+      actorRole: session?.user.role as Role || 'USER',
+      action: AuditAction.CREATE_BACKTEST,
+      targetType: AuditTargetType.BACKTEST,
+      responseStatus: 'FAILURE',
+      details: {
+        reason: error instanceof Error ? error.message : String(error),
+        symbol: pairData.symbol,
+        timeframe: pairData.timeframe,
+        version: pairData.version,
+        userEmail: session?.user.email,
+        user: session?.user.name,
+        timestamp: new Date().toISOString(),
+      },
+    });
   }
 };
 
@@ -120,13 +159,21 @@ export async function GET(request: Request) {
 
 // POST /api/backtest
 export async function POST(request: NextRequest) {
+  const session = await getServerSession(authOptions);
+
+  if (session?.user?.role === 'USER') {
+    await createAuditLog({
+      actorId: session.user.id,
+      actorRole: session.user.role || 'USER',
+      action: AuditAction.CREATE_BACKTEST,
+      targetType: AuditTargetType.BACKTEST,
+      responseStatus: 'FAILURE',
+      details: { reason: 'unauthorized_role' },
+    });
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
   try {
-    const session = await getServerSession(authOptions);
-
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
     const body = await request.json();
     const {
       symbol,
@@ -179,40 +226,23 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    // Log based on user role: USER -> audit, non-USER -> event
-    if (session.user.role && pair) {
-      // Create audit log for USER role
-      await createAuditLog({
-        adminId: session.user.id,
-        action: AuditAction.CREATE_PAIR,
-        targetType: AuditTargetType.PAIR,
-        targetId: pair.id,
-        details: {
-          symbol: pair.symbol,
-          timeframe: pair.timeframe,
-          version: pair.version,
-          userEmail: session.user.email,
-          user: session.user.name
-        },
-      });
-    } else {
-      // Create event for non-USER roles
-      await prisma.event.create({
-        data: {
-          userId: session.user.id,
-          eventType: 'BACKTEST_CREATED',
-          metadata: {
-            pairId: pair.id,
-            symbol: pair.symbol,
-            timeframe: pair.timeframe,
-            version: pair.version,
-            userRole: session.user.role,
-            user: session.user.name,
-            userEmail: session.user.email
-          },
-        },
-      });
-    }
+    // Unified audit log for all roles
+    await createAuditLog({
+      actorId: session?.user.id!,
+      actorRole: session?.user.role as Role || 'USER',
+      action: AuditAction.CREATE_BACKTEST,
+      targetType: AuditTargetType.BACKTEST,
+      targetId: pair.id,
+      responseStatus: 'SUCCESS',
+      details: {
+        symbol: pair.symbol,
+        timeframe: pair.timeframe,
+        version: pair.version,
+        userEmail: session?.user.email,
+        user: session?.user.name,
+        timestamp: new Date().toISOString(),
+      },
+    });
 
     // Create/update file metrics stats entry
     await createFileMetricsStats(pair.id, pair);
@@ -223,18 +253,34 @@ export async function POST(request: NextRequest) {
       typeof error === 'object' && error !== null && 'message' in error
         ? (error as any).message
         : String(error);
+    await createAuditLog({
+      actorId: session?.user.id!,
+      actorRole: session?.user.role as Role || 'USER',
+      action: AuditAction.CREATE_BACKTEST,
+      targetType: AuditTargetType.BACKTEST,
+      responseStatus: 'FAILURE',
+      details: { reason: message },
+    });
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }
 
 // PATCH /api/backtest
 export async function PATCH(request: NextRequest) {
-  try {
-    const session = await getServerSession(authOptions);
+  const session = await getServerSession(authOptions);
 
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+  if (session?.user?.role === 'USER') {
+    await createAuditLog({
+      actorId: session.user.id,
+      actorRole: session.user.role || 'USER',
+      action: AuditAction.UPDATE_BACKTEST,
+      targetType: AuditTargetType.BACKTEST,
+      responseStatus: 'FAILURE',
+      details: { reason: 'unauthorized_role' },
+    });
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+  try {
 
     const body = await request.json();
     console.log('Body received in PATCH /api/backtest:', body);
@@ -280,6 +326,19 @@ export async function PATCH(request: NextRequest) {
     });
 
     if (!existingPair) {
+      await createAuditLog({
+        actorId: session?.user.id!,
+        actorRole: session?.user.role as Role || 'USER',
+        action: AuditAction.UPDATE_BACKTEST,
+        targetType: AuditTargetType.BACKTEST,
+        responseStatus: 'FAILURE',
+        details: {
+          symbol: whereClause.symbol,
+          timeframe: whereClause.timeframe,
+          version: whereClause.version,
+          reason: 'pair_not_found'
+        },
+      });
       return NextResponse.json({ error: 'Pair not found' }, { status: 404 });
     }
 
@@ -305,38 +364,22 @@ export async function PATCH(request: NextRequest) {
       },
     });
 
-    // Log based on user role: USER -> audit, non-USER -> event
-    if (session.user.role) {
-      // Create audit log for USER role
-      await createAuditLog({
-        adminId: session.user.id,
-        action: AuditAction.UPDATE_PAIR,
-        targetType: AuditTargetType.PAIR,
-        targetId: pair.id,
-        details: {
-          symbol: pair.symbol,
-          timeframe: pair.timeframe,
-          userEmail: session.user.email,
-          user: session.user.name,
-        },
-      });
-    } else {
-      // Create event for non-USER roles
-      await prisma.event.create({
-        data: {
-          userId: session.user.id,
-          eventType: 'BACKTEST_UPDATED',
-          metadata: {
-            pairId: pair.id,
-            symbol: pair.symbol,
-            timeframe: pair.timeframe,
-            userRole: session.user.role,
-            user: session.user.name,
-            userEmail: session.user.email
-          },
-        },
-      });
-    }
+    // Unified audit log for all roles
+    await createAuditLog({
+      actorId: session?.user.id!,
+      actorRole: session?.user.role as Role || 'USER',
+      action: AuditAction.UPDATE_BACKTEST,
+      targetType: AuditTargetType.BACKTEST,
+      targetId: pair.id,
+      responseStatus: 'SUCCESS',
+      details: {
+        symbol: pair.symbol,
+        timeframe: pair.timeframe,
+        userEmail: session?.user.email,
+        user: session?.user.name,
+        timestamp: new Date().toISOString(),
+      },
+    });
 
     // Update file metrics stats entry
     await createFileMetricsStats(pair.id, pair);
@@ -347,19 +390,35 @@ export async function PATCH(request: NextRequest) {
       typeof error === 'object' && error !== null && 'message' in error
         ? (error as any).message
         : String(error);
+    await createAuditLog({
+      actorId: session?.user.id!,
+      actorRole: session?.user.role as Role || 'USER',
+      action: AuditAction.UPDATE_BACKTEST,
+      targetType: AuditTargetType.BACKTEST,
+      responseStatus: 'FAILURE',
+      details: { reason: message },
+    });
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }
 
 // DELETE /api/backtest?id=...
 export async function DELETE(request: NextRequest) {
+  const session = await getServerSession(authOptions);
+
+  if (session?.user?.role === 'USER') {
+    await createAuditLog({
+      actorId: session.user.id,
+      actorRole: session.user.role || 'USER',
+      action: AuditAction.DELETE_BACKTEST,
+      targetType: AuditTargetType.BACKTEST,
+      responseStatus: 'FAILURE',
+      details: { reason: 'unauthorized_role' },
+    });
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
   try {
-    const session = await getServerSession(authOptions);
-
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
     const { searchParams } = new URL(request.url);
     const id = searchParams.get('id');
     if (!id) {
@@ -373,10 +432,48 @@ export async function DELETE(request: NextRequest) {
     });
 
     if (!pairToDelete) {
+      await createAuditLog({
+        actorId: session?.user.id!,
+        actorRole: session?.user.role as Role || 'USER',
+        action: AuditAction.DELETE_BACKTEST,
+        targetType: AuditTargetType.BACKTEST,
+        responseStatus: 'FAILURE',
+        details: {
+          pairId: id,
+          reason: 'pair_not_found'
+        },
+      });
       return NextResponse.json({ error: 'Pair not found' }, { status: 404 });
     }
 
-    await prisma.pair.delete({ where: { id } });
+    try {
+      await prisma.pair.delete({ where: { id } });
+      await createAuditLog({
+      actorId: session?.user.id!,
+      actorRole: session?.user.role as Role || 'USER',
+      action: AuditAction.DELETE_BACKTEST,
+      targetType: AuditTargetType.BACKTEST,
+      targetId: pairToDelete.id,
+      responseStatus: 'SUCCESS',
+      details: {
+        symbol: pairToDelete.symbol,
+        timeframe: pairToDelete.timeframe,
+        userEmail: session?.user.email,
+        user: session?.user.name,
+        timestamp: new Date().toISOString(),
+      },
+    });
+  } catch (error) {
+    await createAuditLog({
+      actorId: session?.user.id!,
+      actorRole: session?.user.role as Role || 'USER',
+      action: AuditAction.DELETE_BACKTEST,
+      targetType: AuditTargetType.BACKTEST,
+      targetId: pairToDelete.id,
+      responseStatus: 'FAILURE',
+      details: { reason: String(error) },
+    });
+  }
 
     // Delete associated file metrics stats using shared service
     try {
@@ -386,45 +483,20 @@ export async function DELETE(request: NextRequest) {
       // Don't fail the main operation if stats deletion fails
     }
 
-    // Log based on user role: USER -> audit, non-USER -> event
-    if (session.user.role) {
-      // Create audit log for USER role
-      await createAuditLog({
-        adminId: session.user.id,
-        action: AuditAction.DELETE_PAIR,
-        targetType: AuditTargetType.PAIR,
-        targetId: pairToDelete.id,
-        details: {
-          symbol: pairToDelete.symbol,
-          timeframe: pairToDelete.timeframe,
-          userEmail: session.user.email,
-          user: session.user.name
-        },
-      });
-    } else {
-      // Create event for non-USER roles
-      await prisma.event.create({
-        data: {
-          userId: session.user.id,
-          eventType: 'BACKTEST_DELETED',
-          metadata: {
-            pairId: pairToDelete.id,
-            symbol: pairToDelete.symbol,
-            timeframe: pairToDelete.timeframe,
-            userRole: session.user.role,
-            user: session.user.name,
-            userEmail: session.user.email
-          },
-        },
-      });
-    }
-
     return NextResponse.json({ success: true });
   } catch (error) {
     const message =
       typeof error === 'object' && error !== null && 'message' in error
         ? (error as any).message
         : String(error);
+    await createAuditLog({
+      actorId: session?.user.id!,
+      actorRole: session?.user.role as Role || 'USER',
+      action: AuditAction.DELETE_BACKTEST,
+      targetType: AuditTargetType.BACKTEST,
+      responseStatus: 'FAILURE',
+      details: { reason: message },
+    });
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }

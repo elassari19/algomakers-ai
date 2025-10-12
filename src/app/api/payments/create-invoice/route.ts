@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { PaymentNetwork, PaymentStatus, StatsType } from '@/generated/prisma';
-import { patchMetricsStats } from '@/lib/stats-service';
+import { PaymentNetwork, PaymentStatus } from '@/generated/prisma';
+import type { Role } from '@/generated/prisma';
 import { createAuditLog, AuditAction, AuditTargetType } from '@/lib/audit';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
@@ -27,7 +27,19 @@ interface CreateInvoiceRequest {
 }
 
 export async function POST(request: NextRequest) {
-  try {
+    const session = await getServerSession(authOptions);
+    if(!session?.user?.id) {
+      await createAuditLog({
+        actorId: 'unknown',
+        actorRole: 'USER',
+        action: AuditAction.CREATE_PAYMENT,
+        targetType: AuditTargetType.PAYMENT,
+        responseStatus: 'FAILURE',
+        details: { reason: 'unauthorized' },
+      });
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    try {
     const body: CreateInvoiceRequest = await request.json();
 
     // Validate request
@@ -61,6 +73,14 @@ export async function POST(request: NextRequest) {
 
     // Validate environment variables
     if (!process.env.NOWPAYMENTS_API_KEY) {
+      await createAuditLog({
+        actorId: session?.user?.id || 'system',
+        actorRole: (session?.user?.role as Role) || 'USER',
+        action: AuditAction.CREATE_PAYMENT,
+        targetType: AuditTargetType.PAYMENT,
+        responseStatus: 'FAILURE',
+        details: { reason: 'nowpayments_api_key_missing' },
+      });
       return NextResponse.json(
         { error: 'NOWPayments API key not configured' },
         { status: 500 }
@@ -115,8 +135,6 @@ export async function POST(request: NextRequest) {
       cancel_url: `${process.env.NEXTAUTH_URL}/dashboard?payment=cancelled`,
     };
 
-    console.log('Creating NOWPayments invoice with data:', paymentData);
-
     // First, create an invoice to get the hosted checkout URL
     const invoiceResponse = await fetch(`${nowPaymentsUrl}/v1/invoice`, {
       method: 'POST',
@@ -129,13 +147,22 @@ export async function POST(request: NextRequest) {
 
     if (!invoiceResponse.ok) {
       const errorData = await invoiceResponse.text();
+      await createAuditLog({
+        actorId: session?.user?.id || 'system',
+        actorRole: (session?.user?.role as Role) || 'USER',
+        action: AuditAction.CREATE_PAYMENT,
+        targetType: AuditTargetType.PAYMENT,
+        responseStatus: 'FAILURE',
+        details: { reason: 'nowpayments_invoice_creation_failed', error: errorData },
+      });
       console.error(
         'NOWPayments invoice API error:',
         invoiceResponse.status,
         errorData
       );
-      throw new Error(
-        `NOWPayments invoice API error: ${invoiceResponse.status} ${errorData}`
+      return NextResponse.json(
+        { error: 'Failed to create invoice' },
+        { status: 500 }
       );
     }
 
@@ -154,12 +181,23 @@ export async function POST(request: NextRequest) {
 
     if (!paymentResponse.ok) {
       const errorData = await paymentResponse.text();
+      await createAuditLog({
+        actorId: session?.user?.id || 'system',
+        actorRole: (session?.user?.role as Role) || 'USER',
+        action: AuditAction.CREATE_PAYMENT,
+        targetType: AuditTargetType.PAYMENT,
+        responseStatus: 'FAILURE',
+        details: { reason: 'nowpayments_payment_creation_failed', error: errorData },
+      });
       console.error(
         'NOWPayments payment API error:',
         paymentResponse.status,
         errorData
       );
-      // If payment fails, still use invoice data but without address
+      return NextResponse.json(
+        { error: 'Failed to create payment' },
+        { status: 500 }
+      );
     }
 
     let payment = null;
@@ -168,6 +206,14 @@ export async function POST(request: NextRequest) {
       console.log('NOWPayments payment created:', payment);
     } catch (error) {
       console.log('Payment creation failed, using invoice only');
+      await createAuditLog({
+        actorId: session?.user?.id || 'system',
+        actorRole: (session?.user?.role as Role) || 'USER',
+        action: AuditAction.CREATE_PAYMENT,
+        targetType: AuditTargetType.PAYMENT,
+        responseStatus: 'FAILURE',
+        details: { reason: 'nowpayments_payment_response_parse_failed', error },
+      });
     }
 
     // Combine invoice and payment data
@@ -255,77 +301,44 @@ export async function POST(request: NextRequest) {
           `Failed to create payment item record for ${pairSymbol}:`,
           error
         );
-        // Continue with other pairs, don't fail the entire request
+        await createAuditLog({
+          actorId: session?.user?.id || userId,
+          actorRole: (session?.user?.role as Role) || 'USER',
+          action: AuditAction.CREATE_PAYMENT,
+          targetType: AuditTargetType.PAYMENT,
+          targetId: paymentRecord.id,
+          responseStatus: 'FAILURE',
+          details: {
+            reason: `failed_to_create_payment_item_for_${pairSymbol}`,
+            error: error instanceof Error ? error.message : 'Unknown error',
+          },
+        });
       }
     }
 
-    // Track invoice creation stats
-    try {
-      await patchMetricsStats(StatsType.BILLING_METRICS, {
-        id: paymentRecord.id,
-        paymentId: paymentRecord.id,
-        invoiceId: transformedInvoice.nowPaymentsId,
-        orderId: orderId,
-        amount: body.amount,
-        currency: body.currency,
-        network: body.network,
-        pairIds: pairIds,
-        pairCount: pairIds.length,
-        paymentItemsCreated: paymentItems.length,
-        hasOrderData: !!body.orderData,
-        orderData: body.orderData,
-        expiresAt: transformedInvoice.expiresAt,
-        invoiceUrl: transformedInvoice.invoiceUrl,
-        createdAt: new Date().toISOString(),
-        type: 'INVOICE_CREATED'
-      });
-    } catch (statsError) {
-      console.error('Failed to track invoice creation stats:', statsError);
-    }
-
-    // Log based on user role: non-USER -> audit, USER -> event
-    if (session?.user?.role !== 'USER') {
-      // Create audit log for admin roles
-      await createAuditLog({
-        adminId: session?.user?.id || 'system',
-        action: AuditAction.CREATE_PAYMENT,
-        targetType: AuditTargetType.PAYMENT,
-        targetId: paymentRecord.id,
-        details: {
-          createdInvoice: {
-            id: paymentRecord.id,
-            invoiceId: transformedInvoice.id,
-            amount: body.amount,
-            currency: body.currency,
-            network: body.network,
-            pairIds: pairIds,
-            orderId: transformedInvoice.orderId,
-            expiresAt: transformedInvoice.expiresAt,
-          },
-          adminEmail: session?.user?.email,
-          adminName: session?.user?.name,
+    // Audit log for all roles
+    await createAuditLog({
+      actorId: session?.user?.id || userId,
+      actorRole: (session?.user?.role as Role) || 'USER',
+      action: AuditAction.CREATE_PAYMENT,
+      targetType: AuditTargetType.PAYMENT,
+      targetId: paymentRecord.id,
+      responseStatus: 'SUCCESS',
+      details: {
+        createdInvoice: {
+          id: paymentRecord.id,
+          invoiceId: transformedInvoice.id,
+          amount: body.amount,
+          currency: body.currency,
+          network: body.network,
+          pairIds: pairIds,
+          orderId: transformedInvoice.orderId,
+          expiresAt: transformedInvoice.expiresAt,
         },
-      });
-    } else if (session?.user?.role === 'USER') {
-      // Create event for USER role
-      await prisma.event.create({
-        data: {
-          userId: session.user.id,
-          eventType: 'INVOICE_CREATED',
-          metadata: {
-            paymentId: paymentRecord.id,
-            invoiceId: transformedInvoice.id,
-            amount: body.amount,
-            currency: body.currency,
-            network: body.network,
-            pairIds: pairIds,
-            orderId: transformedInvoice.orderId,
-            userRole: session.user.role,
-            timestamp: new Date().toISOString(),
-          },
-        },
-      });
-    }
+        actorEmail: session?.user?.email,
+        actorName: session?.user?.name,
+      },
+    });
 
     return NextResponse.json({
       ...transformedInvoice,
@@ -343,11 +356,17 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error('Error creating NOWPayments invoice:', error);
 
-    // Log more details about the error
-    if (error instanceof Error) {
-      console.error('Error message:', error.message);
-      console.error('Error stack:', error.stack);
-    }
+    // Audit log for failure
+    await createAuditLog({
+      actorId: session?.user?.id || 'system',
+      actorRole: (session?.user?.role as Role) || 'USER',
+      action: AuditAction.CREATE_PAYMENT,
+      targetType: AuditTargetType.PAYMENT,
+      responseStatus: 'FAILURE',
+      details: {
+        error: error instanceof Error ? error.message : 'Unknown error',
+      },
+    });
 
     return NextResponse.json(
       {

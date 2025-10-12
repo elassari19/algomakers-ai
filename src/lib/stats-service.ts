@@ -1,20 +1,87 @@
-import { prisma } from '@/lib/prisma';
-import { StatsPeriod, StatsType } from '@/generated/prisma';
+import { StatsType } from '@/generated/prisma';
+import { prisma } from './prisma';
 
-export async function patchMetricsStats(statsType: string, newMetrics: Record<string, any>) {
+export async function patchMetricsStats(statsType: StatsType, newMetrics: Record<string, any>) {
   try {
-    await fetch('/api/affiliates/stats', {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        type: 'FILE_METRICS',
-        data: { statsType, ...newMetrics }
-      })
+    if (!statsType) throw new Error('statsType is required');
+    if (!newMetrics) throw new Error('newMetrics is required');
+
+    // If newMetrics is an array, treat as legacy metadata array
+    if (Array.isArray(newMetrics)) {
+      // Upsert by type, replace metadata array
+      const now = new Date();
+      // Find existing stats record by type to get its id
+      const existingStats = await prisma.stats.findFirst({
+        where: { type: statsType },
+        orderBy: { updatedAt: 'desc' },
+      });
+
+      if (existingStats) {
+        await prisma.stats.update({
+          where: { id: existingStats.id },
+          data: { metadata: newMetrics, updatedAt: now },
+        });
+      } else {
+        await prisma.stats.create({
+          data: { type: statsType, metadata: newMetrics, createdAt: now, updatedAt: now },
+        });
+      }
+      return;
+    }
+
+    // If newMetrics is an object with id, treat as single object upsert/update
+    const { id, ...data } = newMetrics;
+    if (!id) throw new Error('newMetrics must contain an id field');
+
+    // Find existing stats record by type
+    const existingStats = await prisma.stats.findFirst({
+      where: { type: statsType },
+      orderBy: { updatedAt: 'desc' },
+    });
+    const now = new Date();
+
+    if (!existingStats) {
+      // Create new stats record with metadata as array
+      await prisma.stats.create({
+        data: {
+          type: statsType,
+          metadata: [newMetrics],
+          createdAt: now,
+          updatedAt: now,
+        },
+      });
+      return;
+    }
+
+    // If metadata is array, update or add item by id
+    let updatedMetadata;
+    if (Array.isArray(existingStats.metadata)) {
+      const idx = existingStats.metadata.findIndex((item: any) => item.id === id);
+      if (idx >= 0) {
+        // Update existing item
+        updatedMetadata = [...existingStats.metadata];
+        updatedMetadata[idx] = { ...(updatedMetadata[idx] as {}), ...newMetrics };
+      } else {
+        // Add new item
+        updatedMetadata = [...existingStats.metadata, newMetrics];
+      }
+    } else {
+      // If not array, replace with new array
+      updatedMetadata = [newMetrics];
+    }
+
+    await prisma.stats.update({
+      where: { id: existingStats.id },
+      data: {
+        metadata: updatedMetadata,
+        updatedAt: now,
+      },
     });
   } catch (error) {
     console.error('Error updating file metrics:', error);
+    throw error;
   }
-};
+}
 
 export async function upsertFileMetricsStats(data: Record<string, any>) {
   try {

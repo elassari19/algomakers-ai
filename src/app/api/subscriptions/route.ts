@@ -3,8 +3,7 @@ import { getServerSession } from 'next-auth/next';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { createAuditLog, AuditAction, AuditTargetType } from '@/lib/audit';
-import { StatsType } from '@/generated/prisma';
-import { patchMetricsStats } from '@/lib/stats-service';
+import type { Role } from '@/generated/prisma';
 
 export async function GET(request: NextRequest) {
   try {
@@ -234,9 +233,20 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
+  const session = await getServerSession(authOptions);
+  if (!session?.user?.id) {
+    await createAuditLog({
+      actorId: 'unknown',
+      actorRole: 'USER',
+      action: AuditAction.CREATE_SUBSCRIPTION,
+      targetType: AuditTargetType.SUBSCRIPTION,
+      responseStatus: 'FAILURE',
+      details: { reason: 'unauthorized' },
+    });
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
   try {
     const body = await request.json();
-    const session = await getServerSession(authOptions);
     
     // Check if it's the new multi-pair format or legacy single pair format
     const isMultiPair = body.pairs && Array.isArray(body.pairs);
@@ -340,72 +350,33 @@ export async function POST(request: NextRequest) {
         return createdSubscriptions;
       });
 
-      // Track multi-subscription creation stats
-      try {
-        await patchMetricsStats(StatsType.USER_METRICS, {
-          id: subscriptions[0].id,
-          subscriptionId: subscriptions[0].id,
-          userId: userId,
-          subscriptionCount: subscriptions.length,
-          creatorUserId: session?.user?.id,
-          creatorEmail: session?.user?.email,
-          creatorRole: session?.user?.role,
-          targetUserEmail: user.email,
-          pairIds: subscriptions.map(s => s.pairId),
-          pairSymbols: subscriptions.map(s => s.pair.symbol),
-          periods: subscriptions.map(s => s.period),
-          createdAt: new Date().toISOString(),
-          type: 'MULTI_SUBSCRIPTION_CREATED'
-        });
-      } catch (statsError) {
-        console.error('Failed to track multi-subscription creation stats:', statsError);
-      }
 
-      // Create audit log for multi-pair subscription creation
+
+      // Audit log for all roles
       if (session?.user?.id) {
-        if (session.user.role !== 'USER') {
-          // Create audit log for admin roles
-          await createAuditLog({
-            adminId: session.user.id,
-            action: AuditAction.CREATE_SUBSCRIPTION,
-            targetType: AuditTargetType.SUBSCRIPTION,
-            targetId: subscriptions[0].id, // Use first subscription as primary target
-            details: {
-              subscriptionCount: subscriptions.length,
-              targetUser: {
-                id: user.id,
-                email: user.email,
-                name: user.name,
-              },
-              pairs: subscriptions.map(s => ({
-                symbol: s.pair.symbol,
-                timeframe: s.pair.timeframe,
-                period: s.period,
-              })),
-              adminEmail: session.user.email,
-              adminName: session.user.name,
+        await createAuditLog({
+          actorId: session.user.id,
+          actorRole: session.user.role as Role,
+          action: AuditAction.CREATE_SUBSCRIPTION,
+          targetType: AuditTargetType.SUBSCRIPTION,
+          targetId: subscriptions[0].id,
+          responseStatus: 'SUCCESS',
+          details: {
+            subscriptionCount: subscriptions.length,
+            targetUser: {
+              id: user.id,
+              email: user.email,
+              name: user.name,
             },
-          });
-        } else if (session.user.role === 'USER') {
-          // Create event for USER role
-          await prisma.event.create({
-            data: {
-              userId: session.user.id,
-              eventType: 'MULTI_SUBSCRIPTION_CREATED',
-              metadata: {
-                subscriptionCount: subscriptions.length,
-                targetUserId: userId,
-                pairs: subscriptions.map(s => ({
-                  pairId: s.pairId,
-                  symbol: s.pair.symbol,
-                  period: s.period,
-                })),
-                userRole: session.user.role,
-                timestamp: new Date().toISOString(),
-              },
-            },
-          });
-        }
+            pairs: subscriptions.map(s => ({
+              symbol: s.pair.symbol,
+              timeframe: s.pair.timeframe,
+              period: s.period,
+            })),
+            actorEmail: session.user.email,
+            actorName: session.user.name,
+          },
+        });
       }
 
       return NextResponse.json({
@@ -505,73 +476,35 @@ export async function POST(request: NextRequest) {
         }
       });
 
-      // Track single subscription creation stats
-      try {
-        await patchMetricsStats(StatsType.USER_METRICS, {
-          id: subscription.id,
-          subscriptionId: subscription.id,
-          userId: userId,
-          creatorUserId: session?.user?.id,
-          creatorEmail: session?.user?.email,
-          creatorRole: session?.user?.role,
-          targetUserEmail: user.email,
-          pairId: pairId,
-          pairSymbol: pair.symbol,
-          period: subscription.period,
-          basePrice: subscription.basePrice,
-          discountRate: subscription.discountRate,
-          createdAt: new Date().toISOString(),
-          type: 'SUBSCRIPTION_CREATED'
-        });
-      } catch (statsError) {
-        console.error('Failed to track subscription creation stats:', statsError);
-      }
 
-      // Create audit log for single subscription creation
+
+      // Audit log for all roles
       if (session?.user?.id) {
-        if (session.user.role !== 'USER') {
-          // Create audit log for admin roles
-          await createAuditLog({
-            adminId: session.user.id,
-            action: AuditAction.CREATE_SUBSCRIPTION,
-            targetType: AuditTargetType.SUBSCRIPTION,
-            targetId: subscription.id,
-            details: {
-              targetUser: {
-                id: user.id,
-                email: user.email,
-                name: user.name,
-              },
-              pair: {
-                symbol: pair.symbol,
-                timeframe: pair.timeframe,
-                version: pair.version,
-              },
-              period: subscription.period,
-              basePrice: subscription.basePrice,
-              discountRate: subscription.discountRate,
-              adminEmail: session.user.email,
-              adminName: session.user.name,
+        await createAuditLog({
+          actorId: session.user.id,
+          actorRole: session.user.role as Role,
+          action: AuditAction.CREATE_SUBSCRIPTION,
+          targetType: AuditTargetType.SUBSCRIPTION,
+          targetId: subscription.id,
+          responseStatus: 'SUCCESS',
+          details: {
+            targetUser: {
+              id: user.id,
+              email: user.email,
+              name: user.name,
             },
-          });
-        } else if (session.user.role === 'USER') {
-          // Create event for USER role
-          await prisma.event.create({
-            data: {
-              userId: session.user.id,
-              eventType: 'SUBSCRIPTION_CREATED',
-              metadata: {
-                subscriptionId: subscription.id,
-                targetUserId: userId,
-                pairId: pairId,
-                symbol: pair.symbol,
-                period: subscription.period,
-                userRole: session.user.role,
-                timestamp: new Date().toISOString(),
-              },
+            pair: {
+              symbol: pair.symbol,
+              timeframe: pair.timeframe,
+              version: pair.version,
             },
-          });
-        }
+            period: subscription.period,
+            basePrice: subscription.basePrice,
+            discountRate: subscription.discountRate,
+            actorEmail: session.user.email,
+            actorName: session.user.name,
+          },
+        });
       }
 
       return NextResponse.json({
@@ -582,6 +515,14 @@ export async function POST(request: NextRequest) {
 
   } catch (error) {
     console.error('Error creating subscription:', error);
+    await createAuditLog({
+      actorId: session.user.id,
+      actorRole: session.user.role as Role,
+      action: AuditAction.CREATE_SUBSCRIPTION,
+      targetType: AuditTargetType.SUBSCRIPTION,
+      responseStatus: 'FAILURE',
+      details: { reason: 'exception', error: (error as Error).message },
+    });
     return NextResponse.json(
       { error: 'Failed to create subscription' },
       { status: 500 }
@@ -590,10 +531,18 @@ export async function POST(request: NextRequest) {
 }
 
 export async function PATCH(request: NextRequest) {
+  const session = await getServerSession(authOptions);
   try {
-    const session = await getServerSession(authOptions);
 
     if (!session?.user?.id) {
+      await createAuditLog({
+        actorId: 'unknown',
+        actorRole: 'USER',
+        action: AuditAction.UPDATE_SUBSCRIPTION,
+        targetType: AuditTargetType.SUBSCRIPTION,
+        responseStatus: 'FAILURE',
+        details: { reason: 'unauthorized' },
+      });
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -688,74 +637,36 @@ export async function PATCH(request: NextRequest) {
       }
     });
 
-    // Track subscription update stats
-    try {
-      await patchMetricsStats(StatsType.USER_METRICS, {
-        id: subscription.id,
-        subscriptionId: subscription.id,
-        updaterUserId: session.user.id,
-        updaterEmail: session.user.email,
-        updaterRole: session.user.role,
-        targetUserId: existingSubscription.user.id,
-        targetUserEmail: existingSubscription.user.email,
+
+
+    // Audit log for all roles
+    await createAuditLog({
+      actorId: session.user.id,
+      actorRole: session.user.role as Role,
+      action: AuditAction.UPDATE_SUBSCRIPTION,
+      targetType: AuditTargetType.SUBSCRIPTION,
+      targetId: subscription.id,
+      responseStatus: 'SUCCESS',
+      details: {
         updatedFields: Object.keys(dataToUpdate),
+        targetUser: {
+          id: existingSubscription.user.id,
+          email: existingSubscription.user.email,
+          name: existingSubscription.user.name,
+        },
+        pair: {
+          symbol: existingSubscription.pair.symbol,
+          timeframe: existingSubscription.pair.timeframe,
+        },
         previousValues: {
           status: existingSubscription.status,
           inviteStatus: existingSubscription.inviteStatus,
         },
         newValues: dataToUpdate,
-        pairSymbol: existingSubscription.pair.symbol,
-        updatedAt: new Date().toISOString(),
-        type: 'SUBSCRIPTION_UPDATED'
-      });
-    } catch (statsError) {
-      console.error('Failed to track subscription update stats:', statsError);
-    }
-
-    // Create audit log for subscription update
-    if (session.user.role !== 'USER') {
-      // Create audit log for admin roles
-      await createAuditLog({
-        adminId: session.user.id,
-        action: AuditAction.UPDATE_SUBSCRIPTION,
-        targetType: AuditTargetType.SUBSCRIPTION,
-        targetId: subscription.id,
-        details: {
-          updatedFields: Object.keys(dataToUpdate),
-          targetUser: {
-            id: existingSubscription.user.id,
-            email: existingSubscription.user.email,
-            name: existingSubscription.user.name,
-          },
-          pair: {
-            symbol: existingSubscription.pair.symbol,
-            timeframe: existingSubscription.pair.timeframe,
-          },
-          previousValues: {
-            status: existingSubscription.status,
-            inviteStatus: existingSubscription.inviteStatus,
-          },
-          newValues: dataToUpdate,
-          adminEmail: session.user.email,
-          adminName: session.user.name,
-        },
-      });
-    } else if (session.user.role === 'USER') {
-      // Create event for USER role
-      await prisma.event.create({
-        data: {
-          userId: session.user.id,
-          eventType: 'SUBSCRIPTION_UPDATED',
-          metadata: {
-            subscriptionId: subscription.id,
-            targetUserId: existingSubscription.user.id,
-            updatedFields: Object.keys(dataToUpdate),
-            userRole: session.user.role,
-            timestamp: new Date().toISOString(),
-          },
-        },
-      });
-    }
+        actorEmail: session.user.email,
+        actorName: session.user.name,
+      },
+    });
 
     return NextResponse.json({
       message: 'Subscription updated successfully',
@@ -764,6 +675,15 @@ export async function PATCH(request: NextRequest) {
 
   } catch (error) {
     console.error('Error updating subscription:', error);
+    await createAuditLog({
+      actorId: session?.user?.id || 'unknown',
+      actorRole: session?.user?.role as Role || 'USER',
+      action: AuditAction.UPDATE_SUBSCRIPTION,
+      targetType: AuditTargetType.SUBSCRIPTION,
+      responseStatus: 'FAILURE',
+      details: { reason: 'exception', error: (error as Error).message },
+    });
+
     return NextResponse.json(
       { error: 'Failed to update subscription' },
       { status: 500 }
@@ -772,10 +692,18 @@ export async function PATCH(request: NextRequest) {
 }
 
 export async function DELETE(request: NextRequest) {
+  const session = await getServerSession(authOptions);
   try {
-    const session = await getServerSession(authOptions);
 
     if (!session?.user?.id) {
+      await createAuditLog({
+        actorId: 'unknown',
+        actorRole: 'USER',
+        action: AuditAction.CANCEL_SUBSCRIPTION,
+        targetType: AuditTargetType.SUBSCRIPTION,
+        responseStatus: 'FAILURE',
+        details: { reason: 'unauthorized' },
+      });
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -823,74 +751,36 @@ export async function DELETE(request: NextRequest) {
       where: { id }
     });
 
-    // Track subscription deletion stats
-    try {
-      await patchMetricsStats(StatsType.USER_METRICS, {
-        id: id,
-        subscriptionId: id,
-        deleterUserId: session.user.id,
-        deleterEmail: session.user.email,
-        deleterRole: session.user.role,
-        targetUserId: existingSubscription.user.id,
-        targetUserEmail: existingSubscription.user.email,
-        deletedSubscriptionInfo: {
-          pairSymbol: existingSubscription.pair.symbol,
+
+
+    // Audit log for all roles
+    await createAuditLog({
+      actorId: session.user.id,
+      actorRole: session.user.role as Role,
+      action: AuditAction.CANCEL_SUBSCRIPTION,
+      targetType: AuditTargetType.SUBSCRIPTION,
+      targetId: id,
+      responseStatus: 'SUCCESS',
+      details: {
+        deletedSubscription: {
+          targetUser: {
+            id: existingSubscription.user.id,
+            email: existingSubscription.user.email,
+            name: existingSubscription.user.name,
+          },
+          pair: {
+            symbol: existingSubscription.pair.symbol,
+            timeframe: existingSubscription.pair.timeframe,
+            version: existingSubscription.pair.version,
+          },
           period: existingSubscription.period,
           status: existingSubscription.status,
           inviteStatus: existingSubscription.inviteStatus,
         },
-        deletedAt: new Date().toISOString(),
-        type: 'SUBSCRIPTION_DELETED'
-      });
-    } catch (statsError) {
-      console.error('Failed to track subscription deletion stats:', statsError);
-    }
-
-    // Create audit log for subscription deletion
-    if (session.user.role !== 'USER') {
-      // Create audit log for admin roles
-      await createAuditLog({
-        adminId: session.user.id,
-        action: AuditAction.CANCEL_SUBSCRIPTION,
-        targetType: AuditTargetType.SUBSCRIPTION,
-        targetId: id,
-        details: {
-          deletedSubscription: {
-            targetUser: {
-              id: existingSubscription.user.id,
-              email: existingSubscription.user.email,
-              name: existingSubscription.user.name,
-            },
-            pair: {
-              symbol: existingSubscription.pair.symbol,
-              timeframe: existingSubscription.pair.timeframe,
-              version: existingSubscription.pair.version,
-            },
-            period: existingSubscription.period,
-            status: existingSubscription.status,
-            inviteStatus: existingSubscription.inviteStatus,
-          },
-          adminEmail: session.user.email,
-          adminName: session.user.name,
-        },
-      });
-    } else if (session.user.role === 'USER') {
-      // Create event for USER role
-      await prisma.event.create({
-        data: {
-          userId: session.user.id,
-          eventType: 'SUBSCRIPTION_DELETED',
-          metadata: {
-            subscriptionId: id,
-            targetUserId: existingSubscription.user.id,
-            symbol: existingSubscription.pair.symbol,
-            period: existingSubscription.period,
-            userRole: session.user.role,
-            timestamp: new Date().toISOString(),
-          },
-        },
-      });
-    }
+        actorEmail: session.user.email,
+        actorName: session.user.name,
+      },
+    });
 
     return NextResponse.json({
       message: 'Subscription deleted successfully',
@@ -898,6 +788,15 @@ export async function DELETE(request: NextRequest) {
 
   } catch (error) {
     console.error('Error deleting subscription:', error);
+    await createAuditLog({
+      actorId: session?.user?.id || 'unknown',
+      actorRole: session?.user?.role as Role || 'USER',
+      action: AuditAction.CANCEL_SUBSCRIPTION,
+      targetType: AuditTargetType.SUBSCRIPTION,
+      responseStatus: 'FAILURE',
+      details: { reason: 'exception', error: (error as Error).message },
+    });
+
     return NextResponse.json(
       { error: 'Failed to delete subscription' },
       { status: 500 }
