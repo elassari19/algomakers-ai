@@ -18,27 +18,13 @@ export async function GET(request: NextRequest) {
     // Build where clause for filtering
     const where: any = {};
 
-    // Search filter (by admin name, email, or action)
+    // Search filter (by actor name, email, or action)
     if (search && search.trim()) {
       const searchTerm = search.trim();
       where.OR = [
         {
-          admin: {
-            name: {
-              contains: searchTerm,
-              mode: 'insensitive',
-            },
-          },
-        },
-        {
-          admin: {
-            email: {
-              contains: searchTerm,
-              mode: 'insensitive',
-            },
-          },
-        },
-        {
+          // If you want to search by actor name/email, you must join User table manually after fetching
+          // Here, only search by action for now
           action: {
             contains: searchTerm,
             mode: 'insensitive',
@@ -47,12 +33,13 @@ export async function GET(request: NextRequest) {
       ];
     }
 
-    // Role filter
-    if (role && role !== 'all') {
-      where.admin = {
-        ...where.admin,
-        role: role.toUpperCase(),
-      };
+    // Role filter (filter by actorRole field)
+    if (role) {
+      if (role === 'USER') {
+        where.actorRole = 'USER';
+      } else if (role === 'NOTUSER') {
+        where.actorRole = { not: 'USER' };
+      } // else ALL: do not filter by actorRole
     }
 
     // Action filter
@@ -60,27 +47,20 @@ export async function GET(request: NextRequest) {
       where.action = action.toUpperCase();
     }
 
-    // Fetch audit logs with admin details
+    // Fetch audit logs with user relation for actor details
     const auditLogs = await prisma.auditLog.findMany({
       where,
-      include: {
-        admin: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-            role: true,
-          },
-        },
-      },
       orderBy: { timestamp: 'desc' },
       take: limit,
       skip,
+      include: {
+        user: true,
+      },
     });
 
-    // Get total count for pagination
-    const totalCount = await prisma.auditLog.count({ where });
-    const hasMore = skip + limit < totalCount;
+  // Get total count for pagination
+  const totalCount = await prisma.auditLog.count({ where });
+  const hasMore = skip + limit < totalCount;
 
     return NextResponse.json({
       success: true,
@@ -97,95 +77,6 @@ export async function GET(request: NextRequest) {
       {
         success: false,
         message: 'Failed to fetch audit logs',
-        error: error instanceof Error ? error.message : 'Unknown error',
-      },
-      { status: 500 }
-    );
-  }
-}
-
-// POST /api/audit-logs - Create a new audit log entry (for system use)
-export async function POST(request: NextRequest) {
-  try {
-    const body = await request.json();
-    const { adminId, action, targetId, targetType, details } = body;
-
-    if (!adminId || !action) {
-      return NextResponse.json(
-        {
-          success: false,
-          message: 'Admin ID and action are required',
-        },
-        { status: 400 }
-      );
-    }
-
-    // Verify admin exists
-    const admin = await prisma.user.findUnique({
-      where: { id: adminId },
-    });
-
-    if (!admin) {
-      return NextResponse.json(
-        {
-          success: false,
-          message: 'Admin user not found',
-        },
-        { status: 404 }
-      );
-    }
-
-    // Create audit log entry
-    const auditLog = await prisma.auditLog.create({
-      data: {
-        adminId,
-        action: action.toUpperCase(),
-        targetId: targetId || null,
-        targetType: targetType || null,
-        details: details || null,
-      },
-      include: {
-        admin: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-            role: true,
-          },
-        },
-      },
-    });
-
-    // Track audit log creation stats
-    try {
-      await patchMetricsStats(StatsType.AUDIT_METRICS, {
-        id: auditLog.id,
-        adminId: auditLog.adminId,
-        adminName: auditLog.admin.name || 'Unknown',
-        adminEmail: auditLog.admin.email,
-        adminRole: auditLog.admin.role,
-        action: auditLog.action,
-        targetId: auditLog.targetId,
-        targetType: auditLog.targetType,
-        createdAt: new Date().toISOString(),
-        hasDetails: !!auditLog.details,
-        type: 'AUDIT_LOG_CREATION'
-      });
-    } catch (statsError) {
-      console.error('Failed to track audit log creation stats:', statsError);
-    }
-
-    return NextResponse.json({
-      success: true,
-      auditLog,
-      message: 'Audit log created successfully',
-    });
-  } catch (error) {
-    console.error('Error creating audit log:', error);
-    return NextResponse.json(
-      {
-        success: false,
-        message: 'Failed to create audit log',
         error: error instanceof Error ? error.message : 'Unknown error',
       },
       { status: 500 }

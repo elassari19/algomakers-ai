@@ -45,26 +45,30 @@ import {
 } from 'lucide-react';
 import { AuditAction } from '@/lib/audit';
 
-// Types
-interface EventUser {
+// Types based on AuditLog
+interface AuditLog {
   id: string;
-  name: string | null;
-  email: string;
-}
-
-interface Event {
-  id: string;
-  eventType: string;
+  user?: {
+    id: string;
+    name?: string;
+    email: string;
+    role: 'USER' | 'ADMIN' | 'SUPPORT' | 'MANAGER';
+  };
+  actorId?: string;
+  actorRole?: 'USER' | 'ADMIN' | 'SUPPORT' | 'MANAGER';
+  action: string;
+  targetId?: string;
+  targetType?: string;
+  responseStatus?: string;
+  details?: any;
   timestamp: string;
-  metadata: any;
-  user: EventUser;
 }
 
-interface EventStats {
-  totalEvents: number;
-  eventsThisMonth: number;
-  eventsThisWeek: number;
-  eventsToday: number;
+interface AuditStats {
+  totalAudits: number;
+  auditsThisMonth: number;
+  auditsThisWeek: number;
+  auditsToday: number;
 }
 
 // Helper function to format enum values for display
@@ -149,12 +153,12 @@ const getEventTypeOptions = (availableTypes: string[]) => {
 };
 
 const EventsPage = () => {
-  const [events, setEvents] = useState<Event[]>([]);
-  const [stats, setStats] = useState<EventStats>({
-    totalEvents: 0,
-    eventsThisMonth: 0,
-    eventsThisWeek: 0,
-    eventsToday: 0,
+  const [events, setEvents] = useState<AuditLog[]>([]);
+  const [stats, setStats] = useState<AuditStats>({
+    totalAudits: 0,
+    auditsThisMonth: 0,
+    auditsThisWeek: 0,
+    auditsToday: 0,
   });
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -162,11 +166,11 @@ const EventsPage = () => {
   const [page, setPage] = useState(1);
   const [filterEventType, setFilterEventType] = useState<string>('all');
   const [availableEventTypes, setAvailableEventTypes] = useState<string[]>([]);
-  
+
   const searchParams = useSearchParams();
   const searchQuery = searchParams.get('q') || '';
 
-  // Fetch events
+  // Fetch audit logs (USER role only)
   const fetchEvents = async (pageNum: number = 1, reset: boolean = false) => {
     try {
       if (pageNum === 1) {
@@ -179,21 +183,18 @@ const EventsPage = () => {
         page: pageNum.toString(),
         limit: '20',
         ...(searchQuery && { search: searchQuery }),
-        ...(filterEventType !== 'all' && { eventType: filterEventType }),
+        ...(filterEventType !== 'all' && { action: filterEventType }),
+        role: 'USER',
       });
 
-      console.log('Fetching events with params:', Object.fromEntries(params.entries()));
-      
-      const response = await fetch(`/api/events?${params}`);
+      const response = await fetch(`/api/audit-logs?${params}`);
       const data = await response.json();
-      
-      console.log('API Response:', data);
 
       if (response.ok) {
         if (reset || pageNum === 1) {
-          setEvents(data.events);
+          setEvents(data.auditLogs || data.events || []);
         } else {
-          setEvents(prev => [...prev, ...data.events]);
+          setEvents(prev => [...prev, ...(data.auditLogs || data.events || [])]);
         }
         setHasMore(data.hasMore);
         setPage(pageNum);
@@ -213,29 +214,32 @@ const EventsPage = () => {
     }
   };
 
-  // Fetch statistics
+  // Fetch statistics (audit logs stats for USER role)
   const fetchStats = async () => {
     try {
-      const response = await fetch('/api/events/stats');
+      const response = await fetch('/api/audit-logs/stats?role=USER');
       const data = await response.json();
 
       if (response.ok) {
-        setStats(data.stats);
+        setStats({
+          totalAudits: data.stats?.totalAudits || 0,
+          auditsThisMonth: data.stats?.auditsThisMonth || 0,
+          auditsThisWeek: data.stats?.auditsThisWeek || 0,
+          auditsToday: data.stats?.auditsToday || 0,
+        });
       }
     } catch (error) {
-      console.error('Error fetching event stats:', error);
+      console.error('Error fetching audit stats:', error);
     }
   };
 
   useEffect(() => {
     fetchStats();
     fetchEvents(1, true);
-    
-    // Debug: Check what event types exist in the database
-    fetch('/api/events/types')
+    // Optionally fetch available event types from audit logs
+    fetch('/api/audit-logs/types?role=USER')
       .then(res => res.json())
       .then(data => {
-        console.log('Existing event types in database:', data);
         if (data.success && data.uniqueEventTypes) {
           setAvailableEventTypes(data.uniqueEventTypes);
         }
@@ -243,7 +247,6 @@ const EventsPage = () => {
       .catch(err => console.error('Error fetching event types:', err));
   }, []);
 
-  // Refetch when filters change
   useEffect(() => {
     fetchEvents(1, true);
   }, [searchQuery, filterEventType]);
@@ -323,7 +326,7 @@ const EventsPage = () => {
   const overviewData: OverviewDataItem[] = [
     {
       title: 'Total Events',
-      currentValue: stats.totalEvents,
+      currentValue: stats.totalAudits,
       icon: FileText,
       description: 'All your activity',
       pastValue: 'Account lifetime',
@@ -332,7 +335,7 @@ const EventsPage = () => {
     },
     {
       title: 'This Month',
-      currentValue: stats.eventsThisMonth,
+      currentValue: stats.auditsThisMonth,
       icon: Calendar,
       description: 'Monthly activity',
       pastValue: 'Current month',
@@ -341,7 +344,7 @@ const EventsPage = () => {
     },
     {
       title: 'This Week',
-      currentValue: stats.eventsThisWeek,
+      currentValue: stats.auditsThisWeek,
       icon: Activity,
       description: 'Weekly activity',
       pastValue: 'Last 7 days',
@@ -350,7 +353,7 @@ const EventsPage = () => {
     },
     {
       title: 'Today',
-      currentValue: stats.eventsToday,
+      currentValue: stats.auditsToday,
       icon: Clock,
       description: 'Today\'s activity',
       pastValue: 'Current day',
@@ -419,7 +422,7 @@ const EventsPage = () => {
             </Select>
 
             <div className="text-sm text-white/60">
-              {events.length} results
+              {events?.length} results
             </div>
           </div>
         </div>
@@ -441,8 +444,10 @@ const EventsPage = () => {
             <div className="space-y-4">
               <Accordion type="single" collapsible className="space-y-2">
                 {events.map((event) => {
-                  const EventIcon = getEventIcon(event.eventType);
-                  
+                  const EventIcon = getEventIcon(event.action);
+                  // Prefer details/metadata for description, fallback to action/eventType
+                  const description = event.details?.description || event.details?.message || event.details?.info || event.action;
+                  const detailsText = event.details?.details || event.details?.info || 'User activity event';
                   return (
                     <AccordionItem
                       key={event.id}
@@ -453,18 +458,18 @@ const EventsPage = () => {
                         <div className="flex items-center justify-between w-full">
                           <div className="flex items-center gap-4">
                             {/* Event Type Badge */}
-                            <Badge className={`${getEventTypeColors(event.eventType)} flex items-center gap-1`}>
+                            <Badge className={`${getEventTypeColors(event.action)} flex items-center gap-1`}>
                               <EventIcon size={12} />
-                              {formatEventType(event.eventType)}
+                              {formatEventType(event.action)}
                             </Badge>
 
                             {/* Event Description */}
                             <div className="text-left">
                               <div className="font-medium text-white">
-                                {event.metadata?.description || formatEventType(event.eventType)}
+                                {description}
                               </div>
                               <div className="text-sm text-white/60">
-                                {event.metadata?.details || 'User activity event'}
+                                {detailsText}
                               </div>
                             </div>
                           </div>
@@ -489,7 +494,7 @@ const EventsPage = () => {
                             <div>
                               <span className="text-white/70">Event Type:</span>
                               <span className="ml-2 text-white font-medium">
-                                {formatEventType(event.eventType)}
+                                {formatEventType(event.action)}
                               </span>
                             </div>
                             <div>
@@ -498,31 +503,53 @@ const EventsPage = () => {
                                 {new Date(event.timestamp).toLocaleString()}
                               </span>
                             </div>
-                            {event.metadata?.ip && (
+                            {/* Actor ID removed */}
+                            {event.actorRole && (
                               <div>
-                                <span className="text-white/70">IP Address:</span>
-                                <span className="ml-2 text-white font-mono text-xs">
-                                  {event.metadata.ip}
-                                </span>
+                                <span className="text-white/70">Actor Role:</span>
+                                <span className="ml-2 text-white">{event.actorRole}</span>
                               </div>
                             )}
-                            {event.metadata?.userAgent && (
+                            {event.user && (
+                              <div>
+                                <span className="text-white/70">User:</span>
+                                <span className="ml-2 text-white">{event.user.name || event.user.email}</span>
+                              </div>
+                            )}
+                            {/* Target ID removed */}
+                            {event.targetType && (
+                              <div>
+                                <span className="text-white/70">Target Type:</span>
+                                <span className="ml-2 text-white">{event.targetType}</span>
+                              </div>
+                            )}
+                            {event.responseStatus && (
+                              <div>
+                                <span className="text-white/70">Response Status:</span>
+                                <span className="ml-2 text-white">{event.responseStatus}</span>
+                              </div>
+                            )}
+                            {event.details?.ip && (
+                              <div>
+                                <span className="text-white/70">IP Address:</span>
+                                <span className="ml-2 text-white font-mono text-xs">{event.details.ip}</span>
+                              </div>
+                            )}
+                            {event.details?.userAgent && (
                               <div>
                                 <span className="text-white/70">Browser:</span>
-                                <span className="ml-2 text-white text-xs">
-                                  {event.metadata.userAgent.split(' ')[0]}
-                                </span>
+                                <span className="ml-2 text-white text-xs">{event.details.userAgent.split(' ')[0]}</span>
                               </div>
                             )}
                           </div>
 
                           {/* Additional Metadata */}
-                          {event.metadata && Object.keys(event.metadata).length > 0 && (
+                          {event.details && Object.keys(event.details).length > 0 && (
                             <div>
                               <span className="text-white/70 text-sm">Additional Details:</span>
                               <div className="mt-2 bg-black/20 p-3 rounded-lg border border-white/10">
                                 <pre className="text-white/80 text-xs whitespace-pre-wrap font-mono">
-                                  {JSON.stringify(event.metadata, null, 2)}
+                                  {JSON.stringify(event.details, null, 2)}
                                 </pre>
                               </div>
                             </div>

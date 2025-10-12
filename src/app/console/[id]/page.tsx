@@ -40,17 +40,20 @@ import { AuditAction } from '@/lib/audit';
 // Types based on Prisma schema
 interface AuditLog {
   id: string;
-  admin: {
+  user?: {
     id: string;
     name?: string;
     email: string;
     role: 'USER' | 'ADMIN' | 'SUPPORT' | 'MANAGER';
   };
+  actorId?: string;
+  actorRole?: 'USER' | 'ADMIN' | 'SUPPORT' | 'MANAGER';
   action: string;
   targetId?: string;
   targetType?: string;
-  timestamp: Date;
+  responseStatus?: string;
   details?: any;
+  timestamp: Date;
 }
 
 interface AuditStats {
@@ -60,46 +63,91 @@ interface AuditStats {
   auditsToday: number;
 }
 
-// Action filter options derived from AuditAction enum
+// Action filter options derived from AuditAction enum (fully aligned)
 const actionOptions = [
   { value: 'all', label: 'All Actions', group: null },
+  // Affiliate management
+  { value: AuditAction.CREATE_AFFILIATE, label: 'Create Affiliate', group: 'Affiliate Management' },
+  { value: AuditAction.UPDATE_AFFILIATE, label: 'Update Affiliate', group: 'Affiliate Management' },
+  { value: AuditAction.DELETE_AFFILIATE, label: 'Delete Affiliate', group: 'Affiliate Management' },
+  { value: AuditAction.GET_AFFILIATE, label: 'Get Affiliate', group: 'Affiliate Management' },
+  { value: AuditAction.APPROVE_AFFILIATE, label: 'Approve Affiliate', group: 'Affiliate Management' },
+  { value: AuditAction.REJECT_AFFILIATE, label: 'Reject Affiliate', group: 'Affiliate Management' },
+  // Backtest management
+  { value: AuditAction.CREATE_BACKTEST, label: 'Create Backtest', group: 'Backtest Management' },
+  { value: AuditAction.UPDATE_BACKTEST, label: 'Update Backtest', group: 'Backtest Management' },
+  { value: AuditAction.DELETE_BACKTEST, label: 'Delete Backtest', group: 'Backtest Management' },
+  { value: AuditAction.GET_BACKTEST, label: 'Get Backtest', group: 'Backtest Management' },
+  // Payouts
+  { value: AuditAction.INITIATE_PAYOUT, label: 'Initiate Payout', group: 'Payouts' },
+  { value: AuditAction.COMPLETE_PAYOUT, label: 'Complete Payout', group: 'Payouts' },
+  { value: AuditAction.CREATE_PAYOUT, label: 'Create Payout', group: 'Payouts' },
+  { value: AuditAction.UPDATE_PAYOUT, label: 'Update Payout', group: 'Payouts' },
+  { value: AuditAction.FAIL_PAYOUT, label: 'Fail Payout', group: 'Payouts' },
   // User management
   { value: AuditAction.CREATE_USER, label: 'Create User', group: 'User Management' },
   { value: AuditAction.UPDATE_USER, label: 'Update User', group: 'User Management' },
   { value: AuditAction.DELETE_USER, label: 'Delete User', group: 'User Management' },
-  
+  { value: AuditAction.GET_USER, label: 'Get User', group: 'User Management' },
+  { value: AuditAction.ACCOUNT_CREATED, label: 'Account Created', group: 'User Management' },
+  { value: AuditAction.ACCOUNT_NOT_FOUND, label: 'Account Not Found', group: 'User Management' },
+  { value: AuditAction.PROFILE_UPDATED, label: 'Profile Updated', group: 'User Management' },
+  { value: AuditAction.PASSWORD_CHANGED, label: 'Password Changed', group: 'User Management' },
+  { value: AuditAction.EMAIL_VERIFIED, label: 'Email Verified', group: 'User Management' },
   // Authentication
   { value: AuditAction.LOGIN, label: 'Login', group: 'Authentication' },
   { value: AuditAction.LOGOUT, label: 'Logout', group: 'Authentication' },
   { value: AuditAction.FAILED_LOGIN, label: 'Failed Login', group: 'Authentication' },
   { value: AuditAction.PASSWORD_RESET, label: 'Password Reset', group: 'Authentication' },
-  
+  { value: AuditAction.SESSION_EXPIRED, label: 'Session Expired', group: 'Authentication' },
   // Pair management
   { value: AuditAction.CREATE_PAIR, label: 'Create Pair', group: 'Pair Management' },
   { value: AuditAction.UPDATE_PAIR, label: 'Update Pair', group: 'Pair Management' },
   { value: AuditAction.DELETE_PAIR, label: 'Delete Pair', group: 'Pair Management' },
-  
+  { value: AuditAction.GET_PAIR, label: 'Get Pair', group: 'Pair Management' },
   // Subscription management
   { value: AuditAction.CREATE_SUBSCRIPTION, label: 'Create Subscription', group: 'Subscription Management' },
   { value: AuditAction.UPDATE_SUBSCRIPTION, label: 'Update Subscription', group: 'Subscription Management' },
   { value: AuditAction.CANCEL_SUBSCRIPTION, label: 'Cancel Subscription', group: 'Subscription Management' },
-  
+  { value: AuditAction.DELETE_SUBSCRIPTION, label: 'Delete Subscription', group: 'Subscription Management' },
+  { value: AuditAction.RENEW_SUBSCRIPTION, label: 'Renew Subscription', group: 'Subscription Management' },
+  { value: AuditAction.PAUSE_SUBSCRIPTION, label: 'Pause Subscription', group: 'Subscription Management' },
+  { value: AuditAction.RESUME_SUBSCRIPTION, label: 'Resume Subscription', group: 'Subscription Management' },
+  { value: AuditAction.GET_SUBSCRIPTION, label: 'Get Subscription', group: 'Subscription Management' },
   // Payment management
-  { value: AuditAction.PROCESS_PAYMENT, label: 'Process Payment', group: 'Payment Management' },
-  { value: AuditAction.REFUND_PAYMENT, label: 'Refund Payment', group: 'Payment Management' },
-  
+  { value: AuditAction.CREATE_PAYMENT, label: 'Create Payment', group: 'Payment Management' },
+  { value: AuditAction.UPDATE_PAYMENT, label: 'Update Payment', group: 'Payment Management' },
+  { value: AuditAction.DELETE_PAYMENT, label: 'Delete Payment', group: 'Payment Management' },
+  { value: AuditAction.GET_PAYMENT, label: 'Get Payment', group: 'Payment Management' },
+  // TradingView integration
+  { value: AuditAction.TRADINGVIEW_INVITED, label: 'TradingView Invited', group: 'TradingView' },
+  { value: AuditAction.TRADINGVIEW_JOINED, label: 'TradingView Joined', group: 'TradingView' },
+  { value: AuditAction.TRADINGVIEW_USERNAME_VERIFIED, label: 'TradingView Username Verified', group: 'TradingView' },
+  // Notifications
+  { value: AuditAction.CREATE_NOTIFICATION, label: 'Create Notification', group: 'Notifications' },
+  { value: AuditAction.UPDATE_NOTIFICATION, label: 'Update Notification', group: 'Notifications' },
+  { value: AuditAction.DELETE_NOTIFICATION, label: 'Delete Notification', group: 'Notifications' },
+  { value: AuditAction.GET_NOTIFICATION, label: 'Get Notification', group: 'Notifications' },
+  { value: AuditAction.NOTIFICATION_RECEIVED, label: 'Notification Received', group: 'Notifications' },
+  { value: AuditAction.NOTIFICATION_READ, label: 'Notification Read', group: 'Notifications' },
+  // Email
+  { value: AuditAction.SEND_EMAIL, label: 'Send Email', group: 'Email' },
+  { value: AuditAction.EMAIL_BOUNCED, label: 'Email Bounced', group: 'Email' },
+  { value: AuditAction.EMAIL_COMPLAINT, label: 'Email Complaint', group: 'Email' },
   // System administration
   { value: AuditAction.SYSTEM_BACKUP, label: 'System Backup', group: 'System Administration' },
   { value: AuditAction.SYSTEM_RESTORE, label: 'System Restore', group: 'System Administration' },
   { value: AuditAction.CONFIG_UPDATE, label: 'Config Update', group: 'System Administration' },
-  
+  { value: AuditAction.SYSTEM_MAINTENANCE, label: 'System Maintenance', group: 'System Administration' },
+  { value: AuditAction.FEATURE_ACCESSED, label: 'Feature Accessed', group: 'System Administration' },
   // Data management
   { value: AuditAction.DATA_EXPORT, label: 'Data Export', group: 'Data Management' },
   { value: AuditAction.DATA_IMPORT, label: 'Data Import', group: 'Data Management' },
-  
   // Security
   { value: AuditAction.ROLE_CHANGE, label: 'Role Change', group: 'Security' },
   { value: AuditAction.PERMISSION_CHANGE, label: 'Permission Change', group: 'Security' },
+  // Internal
+  { value: AuditAction.INTERNAL_ERROR, label: 'Internal Error', group: 'Internal' },
 ];
 
 const AuditLogsPage = () => {
@@ -135,6 +183,7 @@ const AuditLogsPage = () => {
         ...(searchQuery && { search: searchQuery }),
         ...(filterRole !== 'all' && { role: filterRole }),
         ...(filterAction !== 'all' && { action: filterAction }),
+        role: 'NOTUSER',
       });
 
       const response = await fetch(`/api/audit-logs?${params}`);
@@ -387,7 +436,7 @@ const AuditLogsPage = () => {
               <Accordion type="single" collapsible className="space-y-2">
                 {auditLogs.map((log) => {
                   const ActionIcon = getActionIcon(log.action);
-                  const RoleIcon = getRoleIcon(log.admin.role);
+                  const RoleIcon = getRoleIcon(log.user?.role || 'USER');
                   
                   return (
                     <AccordionItem
@@ -399,18 +448,18 @@ const AuditLogsPage = () => {
                         <div className="flex items-center justify-between w-full">
                           <div className="flex items-center gap-4">
                             {/* Role Badge */}
-                            <Badge className={`${getRoleColors(log.admin.role)} flex items-center gap-1`}>
+                            <Badge className={`${getRoleColors(log.user?.role || 'USER')} flex items-center gap-1`}>
                               <RoleIcon size={12} />
-                              {log.admin.role}
+                              {log.user?.role || 'USER'}
                             </Badge>
 
-                            {/* Admin Info */}
+                            {/* User Info */}
                             <div className="text-left">
                               <div className="font-medium text-white">
-                                {log.admin.name || 'Unnamed User'}
+                                {log.user?.name || 'Unnamed User'}
                               </div>
                               <div className="text-sm text-white/60">
-                                {log.admin.email}
+                                {log.user?.email || ''}
                               </div>
                             </div>
 
@@ -450,20 +499,26 @@ const AuditLogsPage = () => {
                                 {new Date(log.timestamp).toLocaleString()}
                               </span>
                             </div>
+                            {/* Actor ID removed */}
+                            {log.actorRole && (
+                              <div>
+                                <span className="text-white/70">Actor Role:</span>
+                                <span className="ml-2 text-white">{log.actorRole}</span>
+                              </div>
+                            )}
+                            {log.responseStatus && (
+                              <div>
+                                <span className="text-white/70">Response Status:</span>
+                                <span className="ml-2 text-white">{log.responseStatus}</span>
+                              </div>
+                            )}
                             {log.targetType && (
                               <div>
                                 <span className="text-white/70">Target Type:</span>
                                 <span className="ml-2 text-white">{log.targetType}</span>
                               </div>
                             )}
-                            {log.targetId && (
-                              <div>
-                                <span className="text-white/70">Target ID:</span>
-                                <span className="ml-2 text-white font-mono text-xs">
-                                  {log.targetId}
-                                </span>
-                              </div>
-                            )}
+                            {/* Target ID removed */}
                           </div>
 
                           {/* Details */}
