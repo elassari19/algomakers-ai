@@ -1,3 +1,35 @@
+// Affiliate Email Template
+export interface AffiliateCreatedEmailParams {
+  name: string;
+  email: string;
+  referralCode: string;
+  commissionRate: number;
+  walletAddress?: string;
+}
+
+export function affiliateCreatedEmail({ name, email, referralCode, commissionRate, walletAddress }: AffiliateCreatedEmailParams) {
+  const subject = '🎉 Welcome to the AlgoMakers.Ai Affiliate Program!';
+  const html = `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto;">
+      <h1 style="color: #2D3748;">Affiliate Account Created</h1>
+      <p>Hello${name ? ` ${name}` : ''},</p>
+      <p>Congratulations! Your affiliate account has been created.</p>
+      <ul style="list-style: none; padding: 0;">
+        <li><strong>Email:</strong> ${email}</li>
+        <li><strong>Referral Code:</strong> <span style="color: #3182CE;">${referralCode}</span></li>
+        <li><strong>Commission Rate:</strong> ${commissionRate * 100}%</li>
+        ${walletAddress ? `<li><strong>Wallet Address:</strong> ${walletAddress}</li>` : ''}
+      </ul>
+      <p>Share your referral code to start earning commissions!</p>
+      <hr style="margin: 32px 0; border: none; border-top: 1px solid #E2E8F0;">
+      <div style="color: #4A5568; font-size: 0.95em; margin-bottom: 16px;">
+        Need help? <a href="mailto:support@algomakers.ai" style="color: #3182CE; text-decoration: underline;">Contact Support</a>
+      </div>
+      <small style="color: #A0AEC0;">&copy; ${new Date().getFullYear()} AlgoMakers.Ai</small>
+    </div>
+  `;
+  return { subject, html };
+}
 export interface VerifyEmailParams {
   code: string;
   name?: string;
@@ -231,9 +263,13 @@ export function passwordResetEmail({ firstName, resetUrl, expiryTime }: Password
 // --- EMAIL SENDING LOGIC ---
 import nodemailer from 'nodemailer';
 import { prisma } from './prisma';
+import { Role } from '@/generated/prisma';
+import { createAuditLog } from './audit';
 
 export type SendEmailOptions = {
-  template: 'verify_email' | 'welcome' | 'payment_receipt' | 'invite_pending' | 'invite_completed' | 'renewal_reminder' | 'password_reset' | 'custom';
+  userId?: string;
+  role?: Role;
+  template: 'affiliate_created' | 'verify_email' | 'welcome' | 'payment_receipt' | 'invite_pending' | 'invite_completed' | 'renewal_reminder' | 'password_reset' | 'custom';
   to: string;
   params?: any;
   subject?: string;
@@ -250,6 +286,10 @@ type EmailContent = {
 
 function generateEmailContent(options: SendEmailOptions): EmailContent {
   switch (options.template) {
+    case 'affiliate_created': {
+      const { subject, html } = affiliateCreatedEmail(options.params);
+      return { subject, html };
+    }
     case 'verify_email': {
       const { subject, html } = verifyEmail(options.params);
       return { subject, html };
@@ -311,7 +351,35 @@ export async function sendEmail(options: SendEmailOptions) {
       rejectUnauthorized: false,
     },
   });
-  const info = await transporter.sendMail(mailOptions);
-
-  return info;
+  try {
+    const info = await transporter.sendMail(mailOptions);
+    await createAuditLog({
+      actorId: options.userId || 'system',
+      actorRole: options?.role || 'USER',
+      action: 'EMAIL_SENT',
+      targetId: options.userId,
+      targetType: options.role,
+      details: {
+        template: options.template,
+        to: options.to,
+        subject: options.subject,
+      },
+    });
+    return info;
+  } catch (error) {
+    console.error('Failed to send email:', error);
+    await createAuditLog({
+      actorId: options.userId || 'system',
+      actorRole: options?.role || 'USER',
+      action: 'EMAIL_FAILED',
+      targetId: options.userId,
+      targetType: options.role,
+      details: {
+        template: options.template,
+        to: options.to,
+        subject: options.subject,
+        error: error instanceof Error ? error.message : String(error),
+      },
+    });
+  }
 }

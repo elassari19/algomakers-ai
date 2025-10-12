@@ -3,8 +3,7 @@ import { prisma } from '@/lib/prisma';
 import { z } from 'zod';
 import bcrypt from 'bcryptjs';
 import { createAuditLog, AuditAction, AuditTargetType } from '@/lib/audit';
-import { patchMetricsStats } from '@/lib/stats-service';
-import { StatsType } from '@/generated/prisma';
+// ...existing code...
 
 const resetPasswordSchema = z.object({
   token: z.string().min(1, 'Reset token is required'),
@@ -39,6 +38,17 @@ export async function POST(request: NextRequest) {
     });
 
     if (!user) {
+      await createAuditLog({
+        actorId: 'unknown',
+        actorRole: 'USER',
+        action: AuditAction.PASSWORD_RESET,
+        targetType: AuditTargetType.USER,
+        responseStatus: 'FAILURE',
+        details: {
+          reason: 'invalid_or_expired_token',
+          token,
+        },
+      });
       return NextResponse.json(
         { error: 'Invalid or expired reset token' },
         { status: 400 }
@@ -58,56 +68,30 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    // Log successful password reset (existing Event model)
-    await prisma.event.create({
-      data: {
-        userId: user.id,
-        eventType: 'PASSWORD_RESET_COMPLETED',
-        metadata: {
-          email: user.email,
-          timestamp: new Date().toISOString(),
-        },
-      },
-    });
-
-    // Get user role to determine if audit log should be created
+    // Get user role for audit log
     const userWithRole = await prisma.user.findUnique({
       where: { id: user.id },
       select: { role: true },
     });
+    const role = userWithRole?.role || 'USER';
 
-    // Create audit log only for non-USER roles
-    if (userWithRole?.role && userWithRole.role !== 'USER') {
-      await createAuditLog({
-        adminId: user.id,
-        action: AuditAction.PASSWORD_RESET,
-        targetType: AuditTargetType.USER,
-        targetId: user.id,
-        details: {
-          email: user.email,
-          action: 'password_reset_completed',
-          role: userWithRole.role,
-        },
-      });
-    }
-
-    // Track password reset completion stats
-    try {
-      await patchMetricsStats(StatsType.USER_METRICS, {
-        id: `password-reset-completed-${user.id}-${Date.now()}`,
-        userId: user.id,
-        userName: user.name || 'Unknown',
-        userEmail: user.email,
-        userRole: userWithRole?.role || 'USER',
-        completedAt: new Date().toISOString(),
+    // Log successful password reset (unified audit log)
+    await createAuditLog({
+      actorId: user.id,
+      actorRole: role,
+      action: AuditAction.PASSWORD_RESET,
+      targetType: AuditTargetType.USER,
+      targetId: user.id,
+      responseStatus: 'SUCCESS',
+      details: {
+        email: user.email,
+        action: 'password_reset_completed',
+        timestamp: new Date().toISOString(),
         tokenUsed: token,
-        hasAuditLog: userWithRole?.role !== 'USER',
-        resetMethod: 'TOKEN_RESET',
-        type: 'PASSWORD_RESET_COMPLETION'
-      });
-    } catch (statsError) {
-      console.error('Failed to track password reset completion stats:', statsError);
-    }
+        method: 'TOKEN_RESET',
+        role,
+      },
+    });
 
     return NextResponse.json({
       message: 'Password has been reset successfully',
@@ -116,6 +100,20 @@ export async function POST(request: NextRequest) {
     console.error('Reset password error:', error);
 
     if (error instanceof z.ZodError) {
+      await createAuditLog({
+        actorId: 'unknown',
+        actorRole: 'USER',
+        action: AuditAction.PASSWORD_RESET,
+        targetType: AuditTargetType.USER,
+        responseStatus: 'FAILURE',
+        details: {
+          reason: 'invalid_input',
+          issues: error.issues.map((issue) => ({
+            field: issue.path.join('.'),
+            message: issue.message,
+          })),
+        },
+      });
       return NextResponse.json(
         {
           error: 'Invalid input',
@@ -128,6 +126,16 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    await createAuditLog({
+      actorId: 'unknown',
+      actorRole: 'USER',
+      action: AuditAction.INTERNAL_ERROR,
+      targetType: AuditTargetType.USER,
+      responseStatus: 'FAILURE',
+      details: {
+        reason: 'internal_server_error',
+      },
+    });
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }

@@ -5,9 +5,8 @@ import { prisma } from '@/lib/prisma';
 import { userSchema } from '@/lib/zode-schema';
 import bcrypt from 'bcryptjs';
 import { z } from 'zod';
-import { patchMetricsStats } from '@/lib/stats-service';
-import { StatsType } from '@/generated/prisma';
 import { createAuditLog, AuditAction, AuditTargetType } from '@/lib/audit';
+import { Role } from '@/generated/prisma';
 
 // Individual field schemas
 const updateNameSchema = z.object({
@@ -58,8 +57,8 @@ const profileActionSchema = z.discriminatedUnion('action', [
 ]);
 
 export async function GET(request: NextRequest) {
+  const session = await getServerSession(authOptions);
   try {
-    const session = await getServerSession(authOptions);
 
     if (!session?.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -81,12 +80,33 @@ export async function GET(request: NextRequest) {
     });
 
     if (!user) {
+      await createAuditLog({
+        actorId: session.user.id,
+        actorRole: Role.USER,
+        action: AuditAction.ACCOUNT_NOT_FOUND,
+        targetType: AuditTargetType.USER,
+        targetId: session.user.id,
+        responseStatus: 'FAILURE',
+        details: {
+          reason: 'user_not_found',
+        },
+      });
       return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
 
     return NextResponse.json({ user });
   } catch (error) {
     console.error('Profile GET error:', error);
+    await createAuditLog({
+      actorId: session?.user.id || 'unknown',
+      actorRole: Role.USER,
+      action: AuditAction.INTERNAL_ERROR,
+      targetType: AuditTargetType.USER,
+      responseStatus: 'FAILURE',
+      details: {
+        reason: 'internal_server_error',
+      },
+    });
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }
@@ -95,17 +115,27 @@ export async function GET(request: NextRequest) {
 }
 
 export async function PUT(request: NextRequest) {
+  const session = await getServerSession(authOptions);
+  const body = await request.json();
   try {
-    const session = await getServerSession(authOptions);
 
     if (!session?.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const body = await request.json();
     const validationResult = profileActionSchema.safeParse(body);
 
     if (!validationResult.success) {
+      await createAuditLog({
+        actorId: session.user.id,
+        actorRole: Role.USER,
+        action: AuditAction.INTERNAL_ERROR,
+        targetType: AuditTargetType.USER,
+        responseStatus: 'FAILURE',
+        details: {
+          reason: 'validation_failed',
+        },
+      });
       return NextResponse.json(
         {
           error: 'Validation failed',
@@ -131,6 +161,16 @@ export async function PUT(request: NextRequest) {
     });
 
     if (!currentUser) {
+      await createAuditLog({
+        actorId: session.user.id,
+        actorRole: Role.USER,
+        action: AuditAction.ACCOUNT_NOT_FOUND,
+        targetType: AuditTargetType.USER,
+        responseStatus: 'FAILURE',
+        details: {
+          reason: 'user_not_found',
+        },
+      });
       return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
 
@@ -177,6 +217,16 @@ export async function PUT(request: NextRequest) {
       case 'update-password':
         // Verify current password
         if (!currentUser.passwordHash) {
+          await createAuditLog({
+            actorId: session.user.id,
+            actorRole: Role.USER,
+            action: AuditAction.UPDATE_USER,
+            targetType: AuditTargetType.USER,
+            responseStatus: 'FAILURE',
+            details: {
+              reason: 'no_password_set',
+            },
+          });
           return NextResponse.json(
             { error: 'No password set. Please set a password first.' },
             { status: 400 }
@@ -188,6 +238,16 @@ export async function PUT(request: NextRequest) {
           currentUser.passwordHash
         );
         if (!isCurrentPasswordValid) {
+          await createAuditLog({
+            actorId: session.user.id,
+            actorRole: Role.USER,
+            action: AuditAction.UPDATE_USER,
+            targetType: AuditTargetType.USER,
+            responseStatus: 'FAILURE',
+            details: {
+              reason: 'invalid_current_password',
+            },
+          });
           return NextResponse.json(
             { error: 'Current password is incorrect' },
             { status: 400 }
@@ -218,6 +278,16 @@ export async function PUT(request: NextRequest) {
         });
 
         if (!user) {
+          await createAuditLog({
+            actorId: session.user.id,
+            actorRole: Role.USER,
+            action: AuditAction.ACCOUNT_NOT_FOUND,
+            targetType: AuditTargetType.USER,
+            responseStatus: 'FAILURE',
+            details: {
+              reason: 'user_not_found',
+            },
+          });
           return NextResponse.json(
             { error: 'User not found' },
             { status: 404 }
@@ -225,6 +295,17 @@ export async function PUT(request: NextRequest) {
         }
 
         if (user.emailVerified) {
+          await createAuditLog({
+            actorId: session.user.id,
+            actorRole: Role.USER,
+            action: AuditAction.UPDATE_USER,
+            targetType: AuditTargetType.USER,
+            targetId: session.user.id,
+            responseStatus: 'FAILURE',
+            details: {
+              reason: 'email_already_verified',
+            },
+          });
           return NextResponse.json(
             { error: 'Email is already verified' },
             { status: 400 }
@@ -244,6 +325,17 @@ export async function PUT(request: NextRequest) {
         });
 
         if (!userForDeletion?.passwordHash) {
+          await createAuditLog({
+            actorId: session.user.id,
+            actorRole: Role.USER,
+            action: AuditAction.DELETE_USER,
+            targetType: AuditTargetType.USER,
+            targetId: session.user.id,
+            responseStatus: 'FAILURE',
+            details: {
+              reason: 'user_not_found_or_no_password',
+            },
+          });
           return NextResponse.json(
             { error: 'User not found or no password set' },
             { status: 404 }
@@ -256,6 +348,17 @@ export async function PUT(request: NextRequest) {
           userForDeletion.passwordHash
         );
         if (!isPasswordValid) {
+          await createAuditLog({
+            actorId: session.user.id,
+            actorRole: Role.USER,
+            action: AuditAction.DELETE_USER,
+            targetType: AuditTargetType.USER,
+            targetId: session.user.id,
+            responseStatus: 'FAILURE',
+            details: {
+              reason: 'invalid_password',
+            },
+          });
           return NextResponse.json(
             { error: 'Password is incorrect' },
             { status: 400 }
@@ -277,23 +380,13 @@ export async function PUT(request: NextRequest) {
         });
 
         // Log the deletion event
-        await prisma.event.create({
-          data: {
-            userId: session.user.id,
-            eventType: 'ACCOUNT_DELETED',
-            metadata: {
-              timestamp: new Date().toISOString(),
-              deletedBy: session.user.id,
-            },
-          },
-        });
-
-        // Create audit log for account deletion
         await createAuditLog({
-          adminId: session.user.id,
+          actorId: session.user.id,
+          actorRole: Role.USER,
           action: AuditAction.DELETE_USER,
           targetType: AuditTargetType.USER,
           targetId: session.user.id,
+          responseStatus: 'SUCCESS',
           details: {
             action: 'delete-account',
             deletionType: 'SOFT_DELETE',
@@ -329,52 +422,19 @@ export async function PUT(request: NextRequest) {
       });
 
       // Log the update event
-      await prisma.event.create({
-        data: {
-          userId: session.user.id,
-          eventType: 'PROFILE_UPDATED',
-          metadata: {
-            action: data.action,
-            updatedFields,
-            timestamp: new Date().toISOString(),
-          },
-        },
-      });
-
-      // Create audit log for profile updates
       await createAuditLog({
-        adminId: session.user.id,
+        actorId: session.user.id,
+        actorRole: Role.USER,
         action: AuditAction.UPDATE_USER,
         targetType: AuditTargetType.USER,
         targetId: session.user.id,
+        responseStatus: 'SUCCESS',
         details: {
-          action: data.action,
+          action: 'update-profile',
           updatedFields,
-          newEmail: updatedFields.includes('email') ? updatedUser.email : undefined,
-          newName: updatedFields.includes('name') ? updatedUser.name : undefined,
-          hasTradingViewUsername: !!updatedUser.tradingviewUsername,
-          emailVerificationStatus: updatedUser.emailVerified ? 'VERIFIED' : 'UNVERIFIED',
           timestamp: new Date().toISOString(),
         },
       });
-
-      // Track profile update stats
-      try {
-        await patchMetricsStats(StatsType.USER_METRICS, {
-          id: session.user.id,
-          userName: updatedUser.name || 'Unknown',
-          userEmail: updatedUser.email,
-          userRole: updatedUser.role,
-          action: data.action,
-          updatedFields,
-          updatedAt: new Date().toISOString(),
-          emailVerificationStatus: updatedUser.emailVerified ? 'VERIFIED' : 'UNVERIFIED',
-          hasTradingViewUsername: !!updatedUser.tradingviewUsername,
-          type: 'PROFILE_UPDATE'
-        });
-      } catch (statsError) {
-        console.error('Failed to track profile update stats:', statsError);
-      }
 
       return NextResponse.json({
         message: successMessage,
@@ -385,6 +445,16 @@ export async function PUT(request: NextRequest) {
     return NextResponse.json({ message: successMessage });
   } catch (error) {
     console.error('Profile PUT error:', error);
+    await createAuditLog({
+      actorId: session?.user.id || 'unknown',
+      actorRole: Role.USER,
+      action: AuditAction.INTERNAL_ERROR,
+      targetType: AuditTargetType.USER,
+      responseStatus: 'FAILURE',
+      details: {
+        reason: 'internal_server_error',
+      },
+    });
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }

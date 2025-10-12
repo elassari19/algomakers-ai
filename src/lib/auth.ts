@@ -6,8 +6,9 @@ import DiscordProvider from 'next-auth/providers/discord';
 import CredentialsProvider from 'next-auth/providers/credentials';
 import bcrypt from 'bcryptjs';
 import { prisma } from '@/lib/prisma';
-import { createAuditLog, AuditAction, AuditTargetType, createEventLog } from '@/lib/audit';
+import { AuditAction, AuditTargetType, createAuditLog } from '@/lib/audit';
 import { AUTH_ERRORS, getErrorCategory } from './constant-errors';
+import { Role } from '@/generated/prisma';
 
 export const authOptions: AuthOptions = {
   adapter: PrismaAdapter(prisma),
@@ -42,10 +43,13 @@ export const authOptions: AuthOptions = {
         });
 
         if (!user) {
-          await createEventLog({
-            userId: 'null',
-            eventType: 'FAILED_LOGIN',
-            metadata: {
+          await createAuditLog({
+            actorId: 'null',
+            actorRole: Role.USER,
+            action: AuditAction.FAILED_LOGIN,
+            targetType: AuditTargetType.USER,
+            responseStatus: 'FAILURE',
+            details: {
               email: credentials.email,
               reason: 'account_not_found',
             },
@@ -54,19 +58,20 @@ export const authOptions: AuthOptions = {
         }
 
         if (!user.passwordHash) {
-          await createEventLog({
-            userId: user.id,
-            eventType: 'FAILED_LOGIN',
-            metadata: {
-              email: credentials.email,
+          await createAuditLog({
+            actorId: user.id,
+            actorRole: user.role,
+            action: AuditAction.FAILED_LOGIN,
+            targetType: AuditTargetType.USER,
+            targetId: user.id,
+            responseStatus: 'FAILURE',
+            details: {
+              email: user.email,
               reason: 'no_password_set',
+              role: user.role,
             },
           });
-          throw new Error(JSON.stringify({
-            error: AUTH_ERRORS.INVALID_CREDENTIALS,
-            code: 'INVALID_CREDENTIALS',
-            category: getErrorCategory(AUTH_ERRORS.INVALID_CREDENTIALS),
-          }));
+          throw new Error(AUTH_ERRORS.INVALID_CREDENTIALS);
         }
 
         // Check user status - reject if not active
@@ -74,10 +79,12 @@ export const authOptions: AuthOptions = {
           // Create audit log for failed login attempt (inactive user) if it's not a USER
           if (user.role !== 'USER') {
             await createAuditLog({
-              adminId: user.id,
+              actorId: user.id,
+              actorRole: user.role,
               action: AuditAction.FAILED_LOGIN,
               targetType: AuditTargetType.USER,
               targetId: user.id,
+              responseStatus: 'FAILURE',
               details: {
                 email: user.email,
                 reason: `user_status_${user.status?.toLowerCase()}`,
@@ -86,10 +93,14 @@ export const authOptions: AuthOptions = {
               },
             });
           } else {
-            await createEventLog({
-              userId: user.id,
-              eventType: 'FAILED_LOGIN',
-              metadata: {
+            await createAuditLog({
+              actorId: user.id,
+              actorRole: user.role,
+              action: AuditAction.FAILED_LOGIN,
+              targetType: AuditTargetType.USER,
+              targetId: user.id,
+              responseStatus: 'FAILURE',
+              details: {
                 email: credentials.email,
                 reason: `user_status_${user.status?.toLowerCase()}`,
                 status: user.status,
@@ -100,41 +111,21 @@ export const authOptions: AuthOptions = {
           let errorObj;
           switch (user.status) {
             case 'SUSPENDED':
-              errorObj = {
-                error: AUTH_ERRORS.ACCOUNT_SUSPENDED,
-                code: 'ACCOUNT_SUSPENDED',
-                category: getErrorCategory(AUTH_ERRORS.ACCOUNT_SUSPENDED),
-              };
+               errorObj = AUTH_ERRORS.ACCOUNT_SUSPENDED;
               break;
             case 'INACTIVE':
-              errorObj = {
-                error: AUTH_ERRORS.ACCOUNT_INACTIVE,
-                code: 'ACCOUNT_INACTIVE',
-                category: getErrorCategory(AUTH_ERRORS.ACCOUNT_INACTIVE),
-              };
+              errorObj = AUTH_ERRORS.ACCOUNT_INACTIVE;
               break;
             case 'DELETED':
-              errorObj = {
-                error: AUTH_ERRORS.ACCOUNT_DELETED,
-                code: 'ACCOUNT_DELETED',
-                category: getErrorCategory(AUTH_ERRORS.ACCOUNT_DELETED),
-              };
+              errorObj = AUTH_ERRORS.ACCOUNT_DELETED;
               break;
             case 'UNVERIFIED':
-              errorObj = {
-                error: AUTH_ERRORS.ACCOUNT_UNVERIFIED,
-                code: 'ACCOUNT_UNVERIFIED',
-                category: getErrorCategory(AUTH_ERRORS.ACCOUNT_UNVERIFIED),
-              };
+              errorObj = AUTH_ERRORS.ACCOUNT_UNVERIFIED;
               break;
             default:
-              errorObj = {
-                error: AUTH_ERRORS.ACCOUNT_INACTIVE,
-                code: 'ACCOUNT_INACTIVE',
-                category: getErrorCategory(AUTH_ERRORS.ACCOUNT_INACTIVE),
-              };
+              errorObj = AUTH_ERRORS.ACCOUNT_INACTIVE;
           }
-          throw new Error(JSON.stringify(errorObj));
+          throw new Error(errorObj);
         }
 
         // Check email verification - require verification for login
@@ -142,10 +133,12 @@ export const authOptions: AuthOptions = {
           // Create audit log for failed login attempt (unverified email) if it's not a USER
           if (user.role !== 'USER') {
             await createAuditLog({
-              adminId: user.id,
+              actorId: user.id,
+              actorRole: user.role,
               action: AuditAction.FAILED_LOGIN,
               targetType: AuditTargetType.USER,
               targetId: user.id,
+              responseStatus: 'FAILURE',
               details: {
                 email: user.email,
                 reason: 'email_not_verified',
@@ -153,10 +146,14 @@ export const authOptions: AuthOptions = {
               },
             });
           } else {
-            await createEventLog({
-              userId: user.id,
-              eventType: 'FAILED_LOGIN',
-              metadata: {
+            await createAuditLog({
+              actorId: user.id,
+              actorRole: user.role,
+              action: AuditAction.FAILED_LOGIN,
+              targetType: AuditTargetType.USER,
+              targetId: user.id,
+              responseStatus: 'FAILURE',
+              details: {
                 email: credentials.email,
                 reason: 'email_not_verified',
               },
@@ -176,28 +173,19 @@ export const authOptions: AuthOptions = {
 
         if (!isPasswordValid) {
           // Create audit log for failed login attempt (invalid password) if it's not a USER
-          if (user.role !== 'USER') {
-            await createAuditLog({
-              adminId: user.id,
+          await createAuditLog({
+              actorId: user.id,
+              actorRole: user.role,
               action: AuditAction.FAILED_LOGIN,
               targetType: AuditTargetType.USER,
               targetId: user.id,
+              responseStatus: 'FAILURE',
               details: {
                 email: user.email,
                 reason: 'invalid_password',
                 role: user.role,
               },
             });
-          } else {
-            await createEventLog({
-              userId: user.id,
-              eventType: 'FAILED_LOGIN',
-              metadata: {
-                email: credentials.email,
-                reason: 'invalid_password',
-              },
-            });
-          }
           throw new Error(JSON.stringify({
             error: AUTH_ERRORS.INVALID_CREDENTIALS,
             code: 'INVALID_CREDENTIALS',
@@ -258,10 +246,12 @@ export const authOptions: AuthOptions = {
           // Create audit log for failed OAuth login (inactive user) if it's not a USER
           if (fullUser.role !== 'USER') {
             await createAuditLog({
-              adminId: user.id,
+              actorId: user.id,
+              actorRole: fullUser.role,
               action: AuditAction.FAILED_LOGIN,
               targetType: AuditTargetType.USER,
               targetId: user.id,
+              responseStatus: 'FAILURE',
               details: {
                 email: fullUser.email,
                 reason: `oauth_user_status_${fullUser.status?.toLowerCase()}`,
@@ -275,41 +265,21 @@ export const authOptions: AuthOptions = {
           let errorObj;
           switch (fullUser.status) {
             case 'SUSPENDED':
-              errorObj = {
-                error: AUTH_ERRORS.ACCOUNT_SUSPENDED,
-                code: 'ACCOUNT_SUSPENDED',
-                category: getErrorCategory(AUTH_ERRORS.ACCOUNT_SUSPENDED),
-              };
+              errorObj = AUTH_ERRORS.ACCOUNT_SUSPENDED;
               break;
             case 'INACTIVE':
-              errorObj = {
-                error: AUTH_ERRORS.ACCOUNT_INACTIVE,
-                code: 'ACCOUNT_INACTIVE',
-                category: getErrorCategory(AUTH_ERRORS.ACCOUNT_INACTIVE),
-              };
+              errorObj = AUTH_ERRORS.ACCOUNT_INACTIVE;
               break;
             case 'DELETED':
-              errorObj = {
-                error: AUTH_ERRORS.ACCOUNT_DELETED,
-                code: 'ACCOUNT_DELETED',
-                category: getErrorCategory(AUTH_ERRORS.ACCOUNT_DELETED),
-              };
+              errorObj = AUTH_ERRORS.ACCOUNT_DELETED;
               break;
             case 'UNVERIFIED':
-              errorObj = {
-                error: AUTH_ERRORS.ACCOUNT_UNVERIFIED,
-                code: 'ACCOUNT_UNVERIFIED',
-                category: getErrorCategory(AUTH_ERRORS.ACCOUNT_UNVERIFIED),
-              };
+              errorObj = AUTH_ERRORS.ACCOUNT_UNVERIFIED;
               break;
             default:
-              errorObj = {
-                error: AUTH_ERRORS.ACCOUNT_INACTIVE,
-                code: 'ACCOUNT_INACTIVE',
-                category: getErrorCategory(AUTH_ERRORS.ACCOUNT_INACTIVE),
-              };
+              errorObj = AUTH_ERRORS.ACCOUNT_INACTIVE;
           }
-          throw new Error(JSON.stringify(errorObj));
+          throw new Error(errorObj);
         }
 
         // Check email verification for OAuth (some OAuth providers auto-verify)
@@ -321,14 +291,30 @@ export const authOptions: AuthOptions = {
               where: { id: user.id },
               data: { emailVerified: new Date() },
             });
+            await createAuditLog({
+              actorId: user.id,
+              actorRole: fullUser.role,
+              action: AuditAction.EMAIL_VERIFIED,
+              targetType: AuditTargetType.USER,
+              targetId: user.id,
+              responseStatus: 'SUCCESS',
+              details: {
+                email: fullUser.email,
+                method: 'google_oauth_auto_verify',
+                provider: account?.provider,
+                role: fullUser.role,
+              },
+            });
           } else {
             // Create audit log for failed OAuth login (unverified email) if it's not a USER
             if (fullUser.role !== 'USER') {
               await createAuditLog({
-                adminId: user.id,
+                actorId: user.id,
+                actorRole: fullUser.role,
                 action: AuditAction.FAILED_LOGIN,
                 targetType: AuditTargetType.USER,
                 targetId: user.id,
+                responseStatus: 'FAILURE',
                 details: {
                   email: fullUser.email,
                   reason: 'oauth_email_not_verified',
@@ -358,77 +344,53 @@ export const authOptions: AuthOptions = {
   },
   events: {
     async signIn({ user, account, isNewUser }) {
-      // Log the sign-in event (existing Event model)
+      // Log the sign-in event using the unified audit log
       if (user.id) {
-        await prisma.event.create({
-          data: {
-            userId: user.id,
-            eventType: 'USER_SIGN_IN',
-            metadata: {
-              provider: account?.provider,
-              isNewUser,
-            },
-          },
-        });
-
-        // Get user role to determine if audit log should be created
+        // Get user role for audit log
         const userWithRole = await prisma.user.findUnique({
           where: { id: user.id },
           select: { role: true },
         });
-
-        // Create audit log only for non-USER roles
-        if (userWithRole?.role && userWithRole.role !== 'USER') {
-          await createAuditLog({
-            adminId: user.id,
-            action: AuditAction.LOGIN,
-            targetType: AuditTargetType.USER,
-            targetId: user.id,
-            details: {
-              provider: account?.provider || 'credentials',
-              isNewUser: isNewUser || false,
-              email: user.email,
-              role: userWithRole.role,
-            },
-          });
-        }
+        const role = userWithRole?.role || 'USER';
+        await createAuditLog({
+          actorId: user.id,
+          actorRole: role,
+          action: AuditAction.LOGIN,
+          targetType: AuditTargetType.USER,
+          targetId: user.id,
+          responseStatus: 'SUCCESS',
+          details: {
+            provider: account?.provider || 'credentials',
+            isNewUser: isNewUser || false,
+            email: user.email,
+            role,
+          },
+        });
       }
     },
     async createUser({ user }) {
-      // Log the user creation event (existing Event model)
+      // Log the user creation event using the unified audit log
       if (user.id) {
-        await prisma.event.create({
-          data: {
-            userId: user.id,
-            eventType: 'USER_CREATED',
-            metadata: {
-              email: user.email,
-              name: user.name,
-            },
-          },
-        });
-
-        // Get user role to determine if audit log should be created
+        // Get user role for audit log
         const userWithRole = await prisma.user.findUnique({
           where: { id: user.id },
           select: { role: true },
         });
-
-        // Create audit log only for non-USER roles (OAuth users default to USER role)
-        if (userWithRole?.role && userWithRole.role !== 'USER') {
-          await createAuditLog({
-            adminId: user.id,
-            action: AuditAction.CREATE_USER,
-            targetType: AuditTargetType.USER,
-            targetId: user.id,
-            details: {
-              email: user.email,
-              name: user.name,
-              method: 'oauth',
-              role: userWithRole.role,
-            },
-          });
-        }
+        const role = userWithRole?.role || 'USER';
+        await createAuditLog({
+          actorId: user.id,
+          actorRole: role,
+          action: AuditAction.CREATE_USER,
+          targetType: AuditTargetType.USER,
+          targetId: user.id,
+          responseStatus: 'SUCCESS',
+          details: {
+            email: user.email,
+            name: user.name,
+            method: 'oauth',
+            role,
+          },
+        });
       }
     },
   },

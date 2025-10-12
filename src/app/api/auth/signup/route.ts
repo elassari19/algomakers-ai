@@ -2,10 +2,10 @@ import { NextRequest, NextResponse } from 'next/server';
 import bcrypt from 'bcryptjs';
 import { prisma } from '@/lib/prisma';
 import { z } from 'zod';
-import { EmailService } from '@/lib/email-service';
+import { sendEmail } from '@/lib/email-service';
+import { randomBytes } from 'crypto';
 import { createAuditLog, AuditAction, AuditTargetType } from '@/lib/audit';
-import { patchMetricsStats } from '@/lib/stats-service';
-import { StatsType } from '@/generated/prisma';
+
 
 const signupSchema = z.object({
   name: z.string().min(2, 'Name must be at least 2 characters'),
@@ -20,17 +20,33 @@ const signupSchema = z.object({
 });
 
 export async function POST(request: NextRequest) {
-  try {
-    const body = await request.json();
-    const { name, email, password, tradingViewUsername } =
-      signupSchema.parse(body);
+  const body = await request.json();
+  const { name, email, password, tradingViewUsername } =
+    signupSchema.parse(body);
 
+    try {
     // Check if user already exists
     const existingUser = await prisma.user.findUnique({
       where: { email },
     });
 
     if (existingUser) {
+      await createAuditLog({
+        actorId: existingUser.id,
+        actorRole: existingUser.role,
+        action: AuditAction.CREATE_USER,
+        targetType: AuditTargetType.USER,
+        targetId: existingUser.id,
+        responseStatus: 'FAILURE',
+        details: {
+          email: existingUser.email,
+          name: existingUser.name,
+          hasTradingViewUsername: !!existingUser.tradingviewUsername,
+          role: existingUser.role,
+          action: 'self_registration',
+          timestamp: new Date().toISOString(),
+        },
+      });
       return NextResponse.json(
         { error: 'User with this email already exists' },
         { status: 400 }
@@ -54,7 +70,11 @@ export async function POST(request: NextRequest) {
     // Hash password
     const passwordHash = await bcrypt.hash(password, 12);
 
-    // Create user
+    // Generate verify token and expiry (24 hours)
+    const verifyToken = randomBytes(32).toString('hex');
+    const verifyTokenExpiry = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
+
+    // Create user with verify token
     const user = await prisma.user.create({
       data: {
         name,
@@ -62,6 +82,9 @@ export async function POST(request: NextRequest) {
         passwordHash,
         tradingviewUsername: tradingViewUsername,
         role: 'USER',
+        resetToken: verifyToken,
+        resetTokenExpiry: verifyTokenExpiry,
+        status: 'UNVERIFIED',
       },
       select: {
         id: true,
@@ -70,98 +93,48 @@ export async function POST(request: NextRequest) {
         tradingviewUsername: true,
         role: true,
         createdAt: true,
+        resetToken: true,
+        resetTokenExpiry: true,
+        status: true,
       },
     });
 
-    // Log user creation event (existing Event model)
-    await prisma.event.create({
-      data: {
-        userId: user.id,
-        eventType: 'USER_SIGNUP',
-        metadata: {
-          email: user.email,
-          hasTraingViewUsername: !!tradingViewUsername,
-        },
+    // Log user creation (always, for unified audit log)
+    await createAuditLog({
+      actorId: user.id,
+      actorRole: user.role,
+      action: AuditAction.CREATE_USER,
+      targetType: AuditTargetType.USER,
+      targetId: user.id,
+      responseStatus: 'SUCCESS',
+      details: {
+        email: user.email,
+        name: user.name,
+        hasTradingViewUsername: !!tradingViewUsername,
+        role: user.role,
+        action: 'self_registration',
+        timestamp: new Date().toISOString(),
       },
     });
-
-    // Create audit log only for non-USER roles (signup defaults to USER role, so no audit log)
-    if (user.role !== 'USER') {
-      await createAuditLog({
-        adminId: user.id,
-        action: AuditAction.CREATE_USER,
-        targetType: AuditTargetType.USER,
-        targetId: user.id,
-        details: {
-          email: user.email,
-          name: user.name,
-          hasTradingViewUsername: !!tradingViewUsername,
-          role: user.role,
-          action: 'self_registration',
-        },
-      });
-    }
 
     // Send welcome email
     try {
-      const dashboardUrl = `${
-        process.env.NEXTAUTH_URL || 'http://localhost:3000'
-      }/dashboard`;
-
-      await EmailService.sendWelcomeEmail(user.email, {
-        tradingViewUsername: tradingViewUsername || 'Not provided',
-        dashboardUrl,
-      });
-
-      // Log successful email send
-      await prisma.event.create({
-        data: {
-          userId: user.id,
-          eventType: 'WELCOME_EMAIL_SENT',
-          metadata: {
-            email: user.email,
-            timestamp: new Date().toISOString(),
-          },
+      const verifyUrl = `${process.env.NEXTAUTH_URL || 'http://localhost:3000'}/verify-email?token=${verifyToken}`;
+      await sendEmail({
+        template: 'welcome',
+        to: user.email,
+        params: {
+          code: verifyToken,
+          name: user.name,
+          url: verifyUrl,
         },
       });
     } catch (emailError) {
       // Log failed email send but don't fail the signup
       console.error('Failed to send welcome email:', emailError);
-
-      await prisma.event.create({
-        data: {
-          userId: user.id,
-          eventType: 'WELCOME_EMAIL_FAILED',
-          metadata: {
-            email: user.email,
-            error:
-              emailError instanceof Error
-                ? emailError.message
-                : 'Unknown error',
-            timestamp: new Date().toISOString(),
-          },
-        },
-      });
     }
 
-    // Track user signup stats
-    try {
-      await patchMetricsStats(StatsType.USER_METRICS, {
-        id: user.id,
-        userName: user.name,
-        userEmail: user.email,
-        userRole: user.role,
-        hasTradingViewUsername: !!tradingViewUsername,
-        tradingViewUsername: tradingViewUsername || null,
-        signupAt: new Date().toISOString(),
-        welcomeEmailSent: true, // Assume success unless caught in email error
-        hasAuditLog: user.role !== 'USER',
-        registrationMethod: 'EMAIL_PASSWORD',
-        type: 'USER_SIGNUP'
-      });
-    } catch (statsError) {
-      console.error('Failed to track user signup stats:', statsError);
-    }
+
 
     return NextResponse.json({
       message: 'User created successfully',
@@ -174,14 +147,35 @@ export async function POST(request: NextRequest) {
     });
   } catch (error) {
     console.error('Signup error:', error);
-
+    // Audit log for validation or internal errors
     if (error instanceof z.ZodError) {
+      await createAuditLog({
+        actorId: 'unknown',
+        actorRole: 'USER',
+        action: AuditAction.CREATE_USER,
+        targetType: AuditTargetType.USER,
+        responseStatus: 'FAILURE',
+        details: {
+          reason: 'validation_failed',
+          issues: error.issues,
+        },
+      });
       return NextResponse.json(
         { error: 'Invalid input', details: error.issues },
         { status: 400 }
       );
-    }
+    } 
 
+    await createAuditLog({
+      actorId: 'unknown',
+      actorRole: 'USER',
+      action: AuditAction.INTERNAL_ERROR,
+      targetType: AuditTargetType.USER,
+      responseStatus: 'FAILURE',
+      details: {
+        reason: 'internal_server_error',
+      },
+    });
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }

@@ -3,9 +3,8 @@ import { prisma } from '@/lib/prisma';
 import { z } from 'zod';
 import { sendEmail } from '@/lib/email-service';
 import { randomBytes } from 'crypto';
-import { createAuditLog, AuditAction, AuditTargetType } from '@/lib/audit';
-import { patchMetricsStats } from '@/lib/stats-service';
-import { StatsType } from '@/generated/prisma';
+import { Role } from '@/generated/prisma';
+import { AuditAction, AuditTargetType, createAuditLog } from '@/lib/audit';
 
 const forgotPasswordSchema = z.object({
   email: z.string().email('Invalid email address'),
@@ -17,9 +16,9 @@ function generateResetToken(): string {
 }
 
 export async function POST(request: NextRequest) {
+  const body = await request.json();
+  const { email } = forgotPasswordSchema.parse(body);
   try {
-    const body = await request.json();
-    const { email } = forgotPasswordSchema.parse(body);
 
     // Check if user exists
     const user = await prisma.user.findUnique({
@@ -33,6 +32,17 @@ export async function POST(request: NextRequest) {
 
     // Always return success to prevent email enumeration
     if (!user) {
+      await createAuditLog({
+        actorId: 'unknown',
+        actorRole: Role.USER,
+        action: AuditAction.PASSWORD_RESET,
+        targetType: AuditTargetType.USER,
+        responseStatus: 'FAILURE',
+        details: {
+          email,
+          reason: 'user_not_found',
+        },
+      });
       return NextResponse.json({
         message:
           'If an account with that email exists, we have sent a password reset link.',
@@ -49,6 +59,17 @@ export async function POST(request: NextRequest) {
       data: {
         resetToken,
         resetTokenExpiry,
+      },
+    });
+    await createAuditLog({
+      actorId: user.id,
+      actorRole: Role.USER,
+      action: AuditAction.PASSWORD_RESET,
+      targetId: user.id,
+      targetType: AuditTargetType.USER,
+      responseStatus: 'SUCCESS',
+      details: {
+        email: user.email,
       },
     });
 
@@ -70,6 +91,8 @@ export async function POST(request: NextRequest) {
     // Send password reset email using sendEmail
     try {
       await sendEmail({
+        userId: user.id,
+        role: 'USER',
         template: 'password_reset',
         to: user.email,
         params: {
@@ -78,87 +101,9 @@ export async function POST(request: NextRequest) {
           expiryTime,
         },
       });
-      // Log successful email send
-      await prisma.event.create({
-        data: {
-          userId: user.id,
-          eventType: 'PASSWORD_RESET_EMAIL_SENT',
-          metadata: {
-            email: user.email,
-            resetTokenExpiry: resetTokenExpiry.toISOString(),
-            timestamp: new Date().toISOString(),
-          },
-        },
-      });
     } catch (emailError) {
       // Log failed email send but don't fail the request
       console.error('Failed to send password reset email:', emailError);
-      await prisma.event.create({
-        data: {
-          userId: user.id,
-          eventType: 'PASSWORD_RESET_EMAIL_FAILED',
-          metadata: {
-            email: user.email,
-            error:
-              emailError instanceof Error
-                ? emailError.message
-                : 'Unknown error',
-            timestamp: new Date().toISOString(),
-          },
-        },
-      });
-    }
-
-    // Log the password reset request (existing Event model)
-    await prisma.event.create({
-      data: {
-        userId: user.id,
-        eventType: 'PASSWORD_RESET_REQUESTED',
-        metadata: {
-          email: user.email,
-          resetTokenExpiry: resetTokenExpiry.toISOString(),
-          timestamp: new Date().toISOString(),
-        },
-      },
-    });
-
-    // Get user role to determine if audit log should be created
-    const userWithRole = await prisma.user.findUnique({
-      where: { id: user.id },
-      select: { role: true },
-    });
-
-    // Create audit log only for non-USER roles
-    if (userWithRole?.role && userWithRole.role !== 'USER') {
-      await createAuditLog({
-        adminId: user.id,
-        action: AuditAction.PASSWORD_RESET,
-        targetType: AuditTargetType.USER,
-        targetId: user.id,
-        details: {
-          email: user.email,
-          resetTokenExpiry: resetTokenExpiry.toISOString(),
-          action: 'password_reset_requested',
-          role: userWithRole.role,
-        },
-      });
-    }
-
-    // Track password reset request stats
-    try {
-      await patchMetricsStats(StatsType.USER_METRICS, {
-        id: user.id,
-        userName: user.name || 'Unknown',
-        userEmail: user.email,
-        userRole: userWithRole?.role || 'USER',
-        resetTokenExpiry: resetTokenExpiry.toISOString(),
-        requestedAt: new Date().toISOString(),
-        emailSentSuccessfully: true, // Assume success unless caught in email error
-        hasAuditLog: userWithRole?.role !== 'USER',
-        type: 'PASSWORD_RESET_REQUEST'
-      });
-    } catch (statsError) {
-      console.error('Failed to track password reset stats:', statsError);
     }
 
     return NextResponse.json({
@@ -167,11 +112,17 @@ export async function POST(request: NextRequest) {
     });
   } catch (error) {
     console.error('Forgot password error:', error);
-    console.error(
-      'Error stack:',
-      error instanceof Error ? error.stack : 'No stack trace'
-    );
-
+    await createAuditLog({
+      actorId: 'unknown',
+      actorRole: Role.USER,
+      action: AuditAction.PASSWORD_RESET,
+      targetType: AuditTargetType.USER,
+      responseStatus: 'ERROR',
+      details: {
+        email,
+        error: error instanceof Error ? error.message : String(error),
+      },
+    });
     if (error instanceof z.ZodError) {
       return NextResponse.json(
         { error: 'Invalid email address' },

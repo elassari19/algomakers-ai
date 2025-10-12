@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { z } from 'zod';
-import { createEventLog } from '@/lib/audit';
+import { createAuditLog, AuditAction, AuditTargetType } from '@/lib/audit';
 import { getServerSession } from 'next-auth/next';
 import { authOptions } from '@/lib/auth';
 import { sendEmail } from '@/lib/email-service';
@@ -23,13 +23,38 @@ export async function POST(request: NextRequest) {
       let userEmail = email;
       if (!userEmail && session?.user?.email) userEmail = session.user.email;
       if (!userEmail) {
+        await createAuditLog({
+          actorId: 'unknown',
+          actorRole: 'USER',
+          action: AuditAction.SEND_EMAIL,
+          targetType: AuditTargetType.USER,
+          responseStatus: 'FAILURE',
+          details: { reason: 'email_required' },
+        });
         return NextResponse.json({ error: 'Email is required.' }, { status: 400 });
       }
       const user = await prisma.user.findUnique({ where: { email: userEmail } });
       if (!user) {
+        await createAuditLog({
+          actorId: 'unknown',
+          actorRole: 'USER',
+          action: AuditAction.SEND_EMAIL,
+          targetType: AuditTargetType.USER,
+          responseStatus: 'FAILURE',
+          details: { reason: 'user_not_found', email: userEmail },
+        });
         return NextResponse.json({ error: 'User not found.' }, { status: 404 });
       }
       if (user.emailVerified) {
+        await createAuditLog({
+          actorId: user.id,
+          actorRole: user.role || 'USER',
+          action: AuditAction.SEND_EMAIL,
+          targetType: AuditTargetType.USER,
+          targetId: user.id,
+          responseStatus: 'FAILURE',
+          details: { reason: 'email_already_verified', email: user.email },
+        });
         return NextResponse.json({ error: 'Email already verified.' }, { status: 400 });
       }
 
@@ -81,11 +106,18 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Log event
-    await createEventLog({
-      userId: user.id,
-      eventType: 'EMAIL_VERIFIED',
-      metadata: { email: user.email },
+    await createAuditLog({
+      actorId: user.id,
+      actorRole: user.role || 'USER',
+      action: AuditAction.SEND_EMAIL,
+      targetType: AuditTargetType.USER,
+      targetId: user.id,
+      responseStatus: 'SUCCESS',
+      details: {
+        email: user.email,
+        action: 'verification_email_requested',
+        timestamp: new Date().toISOString(),
+      },
     });
 
     return NextResponse.json({ message: 'Your email has been verified.' });
@@ -107,6 +139,14 @@ export async function PATCH(request: NextRequest) {
   try {
     const { token } = await request.json();
     if (!token) {
+      await createAuditLog({
+        actorId: 'unknown',
+        actorRole: 'USER',
+        action: AuditAction.SEND_EMAIL,
+        targetType: AuditTargetType.USER,
+        responseStatus: 'FAILURE',
+        details: { reason: 'verification_token_required' },
+      });
       return NextResponse.json({ error: 'Verification token is required.' }, { status: 400 });
     }
     // Find user by resetToken and check expiry
@@ -119,6 +159,14 @@ export async function PATCH(request: NextRequest) {
       },
     });
     if (!user) {
+      await createAuditLog({
+        actorId: 'unknown',
+        actorRole: 'USER',
+        action: AuditAction.SEND_EMAIL,
+        targetType: AuditTargetType.USER,
+        responseStatus: 'FAILURE',
+        details: { reason: 'invalid_or_expired_verification_token', token },
+      });
       return NextResponse.json({ error: 'Invalid or expired verification token.' }, { status: 400 });
     }
     // Mark user as verified and clear token
@@ -131,10 +179,18 @@ export async function PATCH(request: NextRequest) {
         resetTokenExpiry: null,
       },
     });
-    await createEventLog({
-      userId: user.id,
-      eventType: 'EMAIL_VERIFIED',
-      metadata: { email: user.email },
+    await createAuditLog({
+      actorId: user.id,
+      actorRole: user.role || 'USER',
+      action: AuditAction.SEND_EMAIL,
+      targetType: AuditTargetType.USER,
+      targetId: user.id,
+      responseStatus: 'SUCCESS',
+      details: {
+        email: user.email,
+        action: 'email_verified',
+        timestamp: new Date().toISOString(),
+      },
     });
     return NextResponse.json({ message: 'Your email has been verified.' });
   } catch (error) {

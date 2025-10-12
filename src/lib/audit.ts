@@ -1,18 +1,44 @@
+import { Role } from '@/generated/prisma';
+import { prisma } from '@/lib/prisma';
 /**
  * Utility functions for audit logging
  */
 
 // Audit log actions enum for consistency
 export enum AuditAction {
+  // Affiliate management
+  CREATE_AFFILIATE = 'CREATE_AFFILIATE',
+  UPDATE_AFFILIATE = 'UPDATE_AFFILIATE',
+  DELETE_AFFILIATE = 'DELETE_AFFILIATE',
+  GET_AFFILIATE = 'GET_AFFILIATE',
+  APPROVE_AFFILIATE = 'APPROVE_AFFILIATE',
+  REJECT_AFFILIATE = 'REJECT_AFFILIATE',
+
+  // Backtest management
+  CREATE_BACKTEST = 'CREATE_BACKTEST',
+  UPDATE_BACKTEST = 'UPDATE_BACKTEST',
+  DELETE_BACKTEST = 'DELETE_BACKTEST',
+  GET_BACKTEST = 'GET_BACKTEST',
+
+  // Payouts
+  INITIATE_PAYOUT = 'INITIATE_PAYOUT',
+  COMPLETE_PAYOUT = 'COMPLETE_PAYOUT',
+  CREATE_PAYOUT = 'CREATE_PAYOUT',
+  UPDATE_PAYOUT = 'UPDATE_PAYOUT',
+  FAIL_PAYOUT = 'FAIL_PAYOUT',
+
   // User management
   CREATE_USER = 'CREATE_USER',
   UPDATE_USER = 'UPDATE_USER',
   DELETE_USER = 'DELETE_USER',
+  GET_USER = 'GET_USER',
   
   // Account management
   ACCOUNT_CREATED = 'ACCOUNT_CREATED',
+  ACCOUNT_NOT_FOUND = 'ACCOUNT_NOT_FOUND',
   PROFILE_UPDATED = 'PROFILE_UPDATED',
   PASSWORD_CHANGED = 'PASSWORD_CHANGED',
+
   EMAIL_VERIFIED = 'EMAIL_VERIFIED',
   
   // Authentication
@@ -26,27 +52,23 @@ export enum AuditAction {
   CREATE_PAIR = 'CREATE_PAIR',
   UPDATE_PAIR = 'UPDATE_PAIR',
   DELETE_PAIR = 'DELETE_PAIR',
+  GET_PAIR = 'GET_PAIR',
   
   // Subscription management
   CREATE_SUBSCRIPTION = 'CREATE_SUBSCRIPTION',
   UPDATE_SUBSCRIPTION = 'UPDATE_SUBSCRIPTION',
   CANCEL_SUBSCRIPTION = 'CANCEL_SUBSCRIPTION',
-  SUBSCRIPTION_CREATED = 'SUBSCRIPTION_CREATED',
-  SUBSCRIPTION_ACTIVATED = 'SUBSCRIPTION_ACTIVATED',
-  SUBSCRIPTION_EXPIRED = 'SUBSCRIPTION_EXPIRED',
-  SUBSCRIPTION_CANCELLED = 'SUBSCRIPTION_CANCELLED',
-  SUBSCRIPTION_RENEWED = 'SUBSCRIPTION_RENEWED',
+  DELETE_SUBSCRIPTION = 'DELETE_SUBSCRIPTION',
+  RENEW_SUBSCRIPTION = 'RENEW_SUBSCRIPTION',
+  PAUSE_SUBSCRIPTION = 'PAUSE_SUBSCRIPTION',
+  RESUME_SUBSCRIPTION = 'RESUME_SUBSCRIPTION',
+  GET_SUBSCRIPTION = 'GET_SUBSCRIPTION',
   
   // Payment management
-  PROCESS_PAYMENT = 'PROCESS_PAYMENT',
-  REFUND_PAYMENT = 'REFUND_PAYMENT',
   CREATE_PAYMENT = 'CREATE_PAYMENT',
   UPDATE_PAYMENT = 'UPDATE_PAYMENT',
   DELETE_PAYMENT = 'DELETE_PAYMENT',
-  PAYMENT_INITIATED = 'PAYMENT_INITIATED',
-  PAYMENT_COMPLETED = 'PAYMENT_COMPLETED',
-  PAYMENT_FAILED = 'PAYMENT_FAILED',
-  INVOICE_GENERATED = 'INVOICE_GENERATED',
+  GET_PAYMENT = 'GET_PAYMENT',
   
   // TradingView integration
   TRADINGVIEW_INVITED = 'TRADINGVIEW_INVITED',
@@ -54,10 +76,12 @@ export enum AuditAction {
   TRADINGVIEW_USERNAME_VERIFIED = 'TRADINGVIEW_USERNAME_VERIFIED',
   
   // Notifications
+  CREATE_NOTIFICATION = 'CREATE_NOTIFICATION',
+  UPDATE_NOTIFICATION = 'UPDATE_NOTIFICATION',
+  DELETE_NOTIFICATION = 'DELETE_NOTIFICATION',
+  GET_NOTIFICATION = 'GET_NOTIFICATION',
   NOTIFICATION_RECEIVED = 'NOTIFICATION_RECEIVED',
   NOTIFICATION_READ = 'NOTIFICATION_READ',
-  CREATE_NOTIFICATION = 'CREATE_NOTIFICATION',
-  DELETE_NOTIFICATION = 'DELETE_NOTIFICATION',
 
   // Email
   SEND_EMAIL = 'SEND_EMAIL',
@@ -78,17 +102,23 @@ export enum AuditAction {
   // Security
   ROLE_CHANGE = 'ROLE_CHANGE',
   PERMISSION_CHANGE = 'PERMISSION_CHANGE',
+  
+  // Internal 
+  INTERNAL_ERROR = 'INTERNAL_ERROR',
 }
 
 // Target types for audit logs
 export enum AuditTargetType {
+  AFFILIATE = 'AFFILIATE',
   USER = 'USER',
-  PAIR = 'PAIR',
+  BACKTEST = 'BACKTEST',
   SUBSCRIPTION = 'SUBSCRIPTION',
   PAYMENT = 'PAYMENT',
   SYSTEM = 'SYSTEM',
   CONFIG = 'CONFIG',
   NOTIFICATION = 'NOTIFICATION',
+  EVENT = 'EVENT',
+  PAYOUT = 'PAYOUT',
 }
 
 // Interface for audit log details
@@ -108,126 +138,36 @@ export interface AuditDetails {
  * @param details - Optional additional details about the action
  */
 export async function createAuditLog({
-  adminId,
+  actorId,
+  actorRole,
   action,
   targetId,
   targetType,
+  responseStatus,
   details,
 }: {
-  adminId: string;
+  actorId: string;
+  actorRole: Role;
   action: AuditAction | string;
   targetId?: string;
   targetType?: AuditTargetType | string;
+  responseStatus?: string;
   details?: AuditDetails;
 }): Promise<void> {
   try {
-    // Use fetch to call the audit logs API route to ensure all API logic is invoked
-    const baseUrl = process.env.NEXTAUTH_URL || 'http://localhost:3000';
-    
-    await fetch(`${baseUrl}/api/audit-logs`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        adminId,
+    await prisma.auditLog.create({
+      data: {
+        actorId,
+        actorRole,
         action: action.toString(),
-        targetId,
+        targetId: targetId,
         targetType: targetType?.toString(),
-        details: details || {},
-      }),
+        responseStatus: responseStatus,
+        details: details,
+      },
     });
   } catch (error) {
     // Silently fail audit logging to not break main functionality
     console.error('Failed to create audit log:', error);
   }
 }
-
-/**
- * Create an audit log entry via API (for client-side use)
- */
-export async function createAuditLogViaAPI({
-  adminId,
-  action,
-  targetId,
-  targetType,
-  details,
-}: {
-  adminId: string;
-  action: AuditAction | string;
-  targetId?: string;
-  targetType?: AuditTargetType | string;
-  details?: AuditDetails;
-}): Promise<void> {
-  try {
-    await fetch('/api/audit-logs', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        adminId,
-        action,
-        targetId,
-        targetType,
-        details,
-      }),
-    });
-  } catch (error) {
-    // Silently fail audit logging to not break main functionality
-    console.error('Failed to create audit log via API:', error);
-  }
-}
-
-/**
- * Helper function to create user-related audit logs
- */
-export const auditUserAction = async (
-  adminId: string,
-  action: AuditAction.CREATE_USER | AuditAction.UPDATE_USER | AuditAction.DELETE_USER,
-  targetUserId: string,
-  details?: AuditDetails
-) => {
-  await createAuditLog({
-    adminId,
-    action,
-    targetId: targetUserId,
-    targetType: AuditTargetType.USER,
-    details,
-  });
-};
-
-/**
- * Helper function to create authentication audit logs
- */
-export const auditAuthAction = async (
-  userId: string,
-  action: AuditAction.LOGIN | AuditAction.LOGOUT | AuditAction.FAILED_LOGIN,
-  details?: AuditDetails
-) => {
-  await createAuditLog({
-    adminId: userId,
-    action,
-    details: {
-      ...details,
-      timestamp: new Date().toISOString(),
-      userAgent: typeof window !== 'undefined' ? window.navigator.userAgent : undefined,
-    },
-  });
-};
-
-/**
- * Helper function to create system audit logs
- */
-export const auditSystemAction = async (
-  adminId: string,
-  action: AuditAction,
-  details?: AuditDetails
-) => {
-  await createAuditLog({
-    adminId,
-    action,
-    targetType: AuditTargetType.SYSTEM,
-    details,
-  });
-};
