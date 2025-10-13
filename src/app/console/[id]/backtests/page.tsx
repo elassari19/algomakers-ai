@@ -313,10 +313,9 @@ const ConsolePage = () => {
         );
       },
     },
-    { key: 'id', header: 'ID', sortable: false },
     { 
-      key: 'createdAt', 
-      header: 'Created At', 
+      key: 'updatedAt', 
+      header: 'Updated At', 
       sortable: true,
       render: (value) => {
         if (!value) return '';
@@ -331,8 +330,8 @@ const ConsolePage = () => {
       }
     },
     { 
-      key: 'updatedAt', 
-      header: 'Updated At', 
+      key: 'createdAt', 
+      header: 'Created At', 
       sortable: true,
       render: (value) => {
         if (!value) return '';
