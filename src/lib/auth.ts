@@ -186,11 +186,7 @@ export const authOptions: AuthOptions = {
                 role: user.role,
               },
             });
-          throw new Error(JSON.stringify({
-            error: AUTH_ERRORS.INVALID_CREDENTIALS,
-            code: 'INVALID_CREDENTIALS',
-            category: getErrorCategory(AUTH_ERRORS.INVALID_CREDENTIALS),
-          }));
+          throw new Error(JSON.stringify(AUTH_ERRORS.INVALID_CREDENTIALS));
         }
 
         return {
