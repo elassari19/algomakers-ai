@@ -14,7 +14,7 @@ export default function BrowserLayout({
   return (
     <SidebarProvider>
       <AppSidebar />
-      <SidebarInset className="h-screen">
+      <SidebarInset className="h-screen overflow-auto">
         <AppHeader />
         <SidebarTrigger
           size="lg"
