@@ -8,6 +8,7 @@ interface GetPairsFilters {
   q?: string;
   type?: string;
   hasSubscription?: boolean;
+  userId?: string; // Add userId to filter subscriptions by user
 }
 
 export async function getPairs(filters: GetPairsFilters = {}) {
@@ -18,6 +19,7 @@ export async function getPairs(filters: GetPairsFilters = {}) {
       q,
       type,
       hasSubscription,
+      userId, // Add userId parameter
     } = filters;
 
     // Build where clause
@@ -69,26 +71,17 @@ export async function getPairs(filters: GetPairsFilters = {}) {
     // Fetch pairs with pagination
     const pairs = await prisma.pair.findMany({
       where,
-      select: {
-        id: true,
-        symbol: true,
-        version: true,
-        createdAt: true,
-        discountOneMonth: true,
-        discountSixMonths: true,
-        discountThreeMonths: true,
-        discountTwelveMonths: true,
-        priceOneMonth: true,
-        priceSixMonths: true,
-        priceThreeMonths: true,
-        priceTwelveMonths: true,
-        timeframe: true,
-        updatedAt: true,
-        performance: true,
-        properties: true,
-        riskPerformanceRatios: true,
-        tradesAnalysis: true,
-        subscriptions: true,
+      include: {
+        subscriptions: {
+          where: { 
+            userId, 
+          },
+          include: {
+            payment: true,
+            pair: true,
+            user: true,
+          }
+        }
       },
       skip,
       take: limit,
@@ -113,17 +106,39 @@ export async function getPairs(filters: GetPairsFilters = {}) {
   }
 }
 
-export async function getBacktest(id: string) {
+export async function getUserSubscriptions(userId: string) {
   try {
-    const res = await prisma.pair.findUnique({
-      where: { id },
+    const subscriptions = await prisma.subscription.findMany({
+      where: {
+        userId,
+        status: { in: ['ACTIVE', 'PENDING'] },
+      },
       include: {
-        subscriptions: true,
-      }
+        pair: true,
+        payment: true,
+      },
     });
-    return JSON.parse(JSON.stringify(res));
+
+    return JSON.parse(JSON.stringify(subscriptions));
   } catch (error) {
-    console.error('Error fetching backtest:', error);
-    throw new Error('Failed to fetch backtest');
+    console.error('Error fetching user subscriptions:', error);
+    throw new Error('Failed to fetch user subscriptions');
+  }
+}
+
+export async function checkUserSubscription(userId: string, pairId: string) {
+  try {
+    const subscription = await prisma.subscription.findFirst({
+      where: {
+        userId,
+        pairId,
+        status: { in: ['ACTIVE', 'PENDING'] },
+      },
+    });
+
+    return !!subscription;
+  } catch (error) {
+    console.error('Error checking user subscription:', error);
+    return false;
   }
 }

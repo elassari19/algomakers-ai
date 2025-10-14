@@ -3,7 +3,7 @@
 import React, { useState } from 'react';
 import { usePathname } from 'next/navigation';
 import Link from 'next/link';
-import { Bell, ShoppingCart, X, Settings } from 'lucide-react';
+import { Bell, ShoppingCart, X, Settings, Loader2 } from 'lucide-react';
 import { useSelector, useDispatch } from 'react-redux';
 import { RootState, AppDispatch } from '@/store';
 import { removeItem, addItem } from '@/store/basketSlice';
@@ -26,6 +26,7 @@ import {
   SheetTrigger,
 } from '@/components/ui/sheet';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Toaster } from 'sonner';
 
 interface Notification {
   id: string;
@@ -68,6 +69,7 @@ export function AppHeader() {
   const dispatch = useDispatch<AppDispatch>();
   const basketItems = useSelector((state: RootState) => state.basket.items);
   const [expandedItemId, setExpandedItemId] = useState<string | null>(null);
+  const [isProcessingCheckout, setIsProcessingCheckout] = useState(false);
 
   // Generate breadcrumbs from pathname
   const generateBreadcrumbs = () => {
@@ -155,6 +157,75 @@ export function AppHeader() {
     setExpandedItemId(expandedItemId === itemId ? null : itemId);
   };
 
+  const handleCheckout = async () => {
+    if (isProcessingCheckout) return; // Prevent multiple clicks
+    
+    setIsProcessingCheckout(true);
+    try {
+      // Prepare payment items from basket
+      const paymentItems = basketItems.map(item => ({
+        pairId: item.pair.id,
+        basePrice: item.price,
+        discountRate: item.plan.discount || 0,
+        finalPrice: (item.plan.discount || 0) > 0 
+          ? item.price * (1 - (item.plan.discount || 0) / 100) 
+          : item.price,
+        period: (() => {
+          const periodMap: { [key: string]: string } = {
+            '1-month': 'ONE_MONTH',
+            '3-months': 'THREE_MONTHS',
+            '6-months': 'SIX_MONTHS',
+            '12-months': 'TWELVE_MONTHS'
+          };
+          return periodMap[item.plan.id] || 'ONE_MONTH';
+        })(),
+      }));
+
+      const checkoutData = {
+        amount: basketTotal,
+        currency: 'usd',
+        network: 'trc20', // Default to TRC20, could be made configurable
+        pairIds: basketItems.map(item => item.pair.symbol),
+        orderData: {
+          pairIds: basketItems.map(item => item.pair.id),
+          paymentItems: paymentItems,
+          userId: 'current-user-id', // This should come from auth context
+        },
+      };
+
+      const response = await fetch('/api/payments/create-invoice', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(checkoutData),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        console.error('Checkout failed:', error);
+        // TODO: Show error toast
+        return;
+      }
+
+      const invoice = await response.json();
+      console.log('Invoice created:', invoice);
+
+      // Redirect to the invoice URL
+      if (invoice.invoiceUrl) {
+        window.location.href = invoice.invoiceUrl;
+      } else {
+        console.error('No invoice URL received');
+        // TODO: Show error toast
+      }
+    } catch (error) {
+      console.error('Checkout error:', error);
+      // TODO: Show error toast
+    } finally {
+      setIsProcessingCheckout(false);
+    }
+  };
+
   const getNotificationIcon = (type: Notification['type']) => {
     const icons = {
       info: '💡',
@@ -179,6 +250,7 @@ export function AppHeader() {
 
   return (
     <header className="sticky top-0 z-40 w-full border-b border-white/20 bg-white/5 backdrop-blur-md">
+      <Toaster position="top-center" richColors />
       <div className="flex h-10 items-center justify-between pl-8 px-4 sm:px-6 sm:pl-12">
         {/* Left side - Breadcrumbs */}
         <div className="flex items-center space-x-4">
@@ -440,8 +512,19 @@ export function AppHeader() {
                       ${basketTotal.toFixed(2)}
                     </span>
                   </div>
-                  <Button className="w-full bg-gradient-to-r from-pink-600 to-purple-400 hover:from-pink-700 hover:to-purple-500 text-white">
-                    Proceed to Checkout
+                  <Button 
+                    className="w-full bg-gradient-to-r from-pink-600 to-purple-400 hover:from-pink-700 hover:to-purple-500 text-white"
+                    onClick={handleCheckout}
+                    disabled={isProcessingCheckout}
+                  >
+                    {isProcessingCheckout ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Processing...
+                      </>
+                    ) : (
+                      'Proceed to Checkout'
+                    )}
                   </Button>
                 </div>
               )}

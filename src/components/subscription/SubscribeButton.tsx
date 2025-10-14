@@ -143,28 +143,6 @@ export function SubscribeButton({
     }
   }, [onCancel, pair?.id, pair?.symbol]);
 
-  const handleSubscriptionSubmit = useCallback((data: any) => {
-    // Transform the subscription data to match PaymentModal interface
-    const paymentData = {
-      pairIds: data.pairIds,
-      pairNames: data.pairIds.map((id: string) => {
-        const foundPair = mockPairs.find((p) => p.id === id);
-        return foundPair ? foundPair.symbol : '';
-      }),
-      plan: {
-        period: data.plan.period,
-        months: data.plan.months,
-        price: data.plan.price,
-      },
-      tradingViewUsername: data.tradingViewUsername,
-      totalAmount: data.plan.price * data.pairIds.length,
-    };
-
-    setSubscriptionData(paymentData);
-    setSubscriptionModalOpen(false);
-    setPaymentModalOpen(true);
-  }, []);
-
   const handlePaymentSuccess = useCallback(() => {
     setPaymentModalOpen(false);
     setSubscriptionData(null);

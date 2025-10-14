@@ -177,8 +177,8 @@ async function handlePaymentSuccess(webhook: NOWPaymentsWebhook) {
     for (const payment of payments) {
       for (const paymentItem of payment.paymentItems) {
         try {
-          // Calculate expiry date based on plan (you'll need to store plan info)
-          const expiryDate = calculateExpiryDate(new Date(), 1); // Default to 1 month
+          // Calculate expiry date based on the period from payment item
+          const expiryDate = calculateExpiryDate(new Date(), Number(paymentItem.period));
 
           await prisma.subscription.create({
             data: {

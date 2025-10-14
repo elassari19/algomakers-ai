@@ -23,6 +23,13 @@ interface CreateInvoiceRequest {
     tier?: string;
     duration?: string;
     userId?: string;
+    paymentItems?: {
+      pairId: string;
+      basePrice: number;
+      discountRate: number;
+      finalPrice: number;
+      period: string;
+    }[];
   };
 }
 
@@ -106,8 +113,8 @@ export async function POST(request: NextRequest) {
       }
     };
 
-    // Create payment with NOWPayments API (using /v1/payment endpoint)
-    // Note: Using production API since sandbox requires different credentials
+    // Create payment with NOWPayments API (using /v1/invoice endpoint)
+    // The invoice endpoint creates a hosted checkout that handles payment
     const nowPaymentsUrl =
       process.env.NOWPAYMENTS_API_URL || 'https://api.nowpayments.io';
 
@@ -122,7 +129,7 @@ export async function POST(request: NextRequest) {
       return 'subscription';
     };
 
-    const paymentData = {
+    const invoiceData = {
       price_amount: body.amount,
       price_currency: 'usd',
       pay_currency: getCurrencyCode(body.network),
@@ -135,14 +142,14 @@ export async function POST(request: NextRequest) {
       cancel_url: `${process.env.NEXTAUTH_URL}/dashboard?payment=cancelled`,
     };
 
-    // First, create an invoice to get the hosted checkout URL
+    // Create invoice with NOWPayments API
     const invoiceResponse = await fetch(`${nowPaymentsUrl}/v1/invoice`, {
       method: 'POST',
       headers: {
         'x-api-key': process.env.NOWPAYMENTS_API_KEY,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify(paymentData),
+      body: JSON.stringify(invoiceData),
     });
 
     if (!invoiceResponse.ok) {
@@ -167,88 +174,22 @@ export async function POST(request: NextRequest) {
     }
 
     const invoice = await invoiceResponse.json();
-    console.log('NOWPayments invoice created:', invoice);
 
-    // Second, create a payment to get the address and QR code
-    const paymentResponse = await fetch(`${nowPaymentsUrl}/v1/payment`, {
-      method: 'POST',
-      headers: {
-        'x-api-key': process.env.NOWPAYMENTS_API_KEY,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(paymentData),
-    });
-
-    if (!paymentResponse.ok) {
-      const errorData = await paymentResponse.text();
-      await createAuditLog({
-        actorId: session?.user?.id || 'system',
-        actorRole: (session?.user?.role as Role) || 'USER',
-        action: AuditAction.CREATE_PAYMENT,
-        targetType: AuditTargetType.PAYMENT,
-        responseStatus: 'FAILURE',
-        details: { reason: 'nowpayments_payment_creation_failed', error: errorData },
-      });
-      console.error(
-        'NOWPayments payment API error:',
-        paymentResponse.status,
-        errorData
-      );
-      return NextResponse.json(
-        { error: 'Failed to create payment' },
-        { status: 500 }
-      );
-    }
-
-    let payment = null;
-    try {
-      payment = await paymentResponse.json();
-      console.log('NOWPayments payment created:', payment);
-    } catch (error) {
-      console.log('Payment creation failed, using invoice only');
-      await createAuditLog({
-        actorId: session?.user?.id || 'system',
-        actorRole: (session?.user?.role as Role) || 'USER',
-        action: AuditAction.CREATE_PAYMENT,
-        targetType: AuditTargetType.PAYMENT,
-        responseStatus: 'FAILURE',
-        details: { reason: 'nowpayments_payment_response_parse_failed', error },
-      });
-    }
-
-    // Combine invoice and payment data
+    // Transform the invoice response for our API
     const transformedInvoice = {
       id: invoice.id || orderId,
-      amount:
-        payment?.pay_amount || parseFloat(invoice.price_amount) || body.amount,
-      currency:
-        payment?.pay_currency ||
-        invoice.pay_currency ||
-        getCurrencyCode(body.network),
+      amount: parseFloat(invoice.price_amount) || body.amount,
+      currency: invoice.pay_currency || getCurrencyCode(body.network),
       network: body.network,
-      address: payment?.pay_address || '',
-      qrCode: payment?.pay_address
-        ? generateQRCode(
-            payment.pay_amount ||
-              parseFloat(invoice.price_amount) ||
-              body.amount,
-            payment.pay_address,
-            payment.pay_currency ||
-              invoice.pay_currency ||
-              getCurrencyCode(body.network)
-          )
-        : generateQRCode(
-            parseFloat(invoice.price_amount) || body.amount,
-            '',
-            invoice.pay_currency || getCurrencyCode(body.network)
-          ),
+      address: '', // Invoice uses hosted checkout, no direct address
+      qrCode: '', // Invoice uses hosted checkout, no QR code needed
       expiresAt: invoice.created_at
         ? new Date(
             new Date(invoice.created_at).getTime() + 20 * 60 * 1000
           ).toISOString()
         : new Date(Date.now() + 20 * 60 * 1000).toISOString(),
       status: 'pending',
-      nowPaymentsId: payment?.payment_id || invoice.id,
+      nowPaymentsId: invoice.id,
       orderId: orderId,
       invoiceUrl: invoice.invoice_url,
     };
@@ -269,50 +210,89 @@ export async function POST(request: NextRequest) {
 
     // Create PaymentItem records for each pair (schema.prisma compliant)
     const paymentItems = [];
-    for (const pairSymbol of pairIds) {
-      try {
-        // Find or create the pair first
-        let pair = await prisma.pair.findFirst({
-          where: { symbol: pairSymbol },
-        });
-
-        if (!pair) {
-          return NextResponse.json(
-            { error: `Pair not found: ${pairSymbol}` },
-            { status: 400 }
+    
+    // Check if we have detailed payment items from basket
+    if (body.orderData.paymentItems && body.orderData.paymentItems.length > 0) {
+      // Use the detailed payment items from basket
+      for (const paymentItem of body.orderData.paymentItems) {
+        try {
+          const item = await prisma.paymentItem.create({
+            data: {
+              paymentId: paymentRecord.id,
+              pairId: paymentItem.pairId,
+              basePrice: paymentItem.basePrice,
+              discountRate: paymentItem.discountRate,
+              finalPrice: paymentItem.finalPrice,
+              period: paymentItem.period as any, // Map string to enum
+            },
+          });
+          paymentItems.push(item);
+        } catch (error) {
+          console.error(
+            `Failed to create payment item record for pair ${paymentItem.pairId}:`,
+            error
           );
+          await createAuditLog({
+            actorId: session?.user?.id || userId,
+            actorRole: (session?.user?.role as Role) || 'USER',
+            action: AuditAction.CREATE_PAYMENT,
+            targetType: AuditTargetType.PAYMENT,
+            targetId: paymentRecord.id,
+            responseStatus: 'FAILURE',
+            details: {
+              reason: `failed_to_create_payment_item_for_${paymentItem.pairId}`,
+              error: error instanceof Error ? error.message : 'Unknown error',
+            },
+          });
         }
+      }
+    } else {
+      // Fallback to old logic for backwards compatibility
+      for (const pairSymbol of pairIds) {
+        try {
+          // Find or create the pair first
+          let pair = await prisma.pair.findFirst({
+            where: { symbol: pairSymbol },
+          });
 
-        const paymentItem = await prisma.paymentItem.create({
-          data: {
-            paymentId: paymentRecord.id,
-            pairId: pair.id,
-            basePrice: pair.priceOneMonth || body.amount / pairIds.length,
-            discountRate: pair.discountOneMonth || 0,
-            finalPrice:
-              (Number(pair.priceOneMonth) || body.amount / pairIds.length) *
-              (1 - (Number(pair.discountOneMonth) || 0) / 100),
-            period: 'ONE_MONTH', // Default period
-          },
-        });
-        paymentItems.push(paymentItem);
-      } catch (error) {
-        console.error(
-          `Failed to create payment item record for ${pairSymbol}:`,
-          error
-        );
-        await createAuditLog({
-          actorId: session?.user?.id || userId,
-          actorRole: (session?.user?.role as Role) || 'USER',
-          action: AuditAction.CREATE_PAYMENT,
-          targetType: AuditTargetType.PAYMENT,
-          targetId: paymentRecord.id,
-          responseStatus: 'FAILURE',
-          details: {
-            reason: `failed_to_create_payment_item_for_${pairSymbol}`,
-            error: error instanceof Error ? error.message : 'Unknown error',
-          },
-        });
+          if (!pair) {
+            return NextResponse.json(
+              { error: `Pair not found: ${pairSymbol}` },
+              { status: 400 }
+            );
+          }
+
+          const paymentItem = await prisma.paymentItem.create({
+            data: {
+              paymentId: paymentRecord.id,
+              pairId: pair.id,
+              basePrice: pair.priceOneMonth || body.amount / pairIds.length,
+              discountRate: pair.discountOneMonth || 0,
+              finalPrice:
+                (Number(pair.priceOneMonth) || body.amount / pairIds.length) *
+                (1 - (Number(pair.discountOneMonth) || 0) / 100),
+              period: 'ONE_MONTH', // Default period
+            },
+          });
+          paymentItems.push(paymentItem);
+        } catch (error) {
+          console.error(
+            `Failed to create payment item record for ${pairSymbol}:`,
+            error
+          );
+          await createAuditLog({
+            actorId: session?.user?.id || userId,
+            actorRole: (session?.user?.role as Role) || 'USER',
+            action: AuditAction.CREATE_PAYMENT,
+            targetType: AuditTargetType.PAYMENT,
+            targetId: paymentRecord.id,
+            responseStatus: 'FAILURE',
+            details: {
+              reason: `failed_to_create_payment_item_for_${pairSymbol}`,
+              error: error instanceof Error ? error.message : 'Unknown error',
+            },
+          });
+        }
       }
     }
 
