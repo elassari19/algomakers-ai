@@ -9,7 +9,7 @@ import { cookies } from 'next/headers';
 import { BacktestChart } from '@/components/pair/BacktestChart';
 
 interface BacktestDetailPageProps {
-  params: Promise<{ id: string; backtestId: string }>;
+  params: Promise<{ id: string }>;
 }
 
 async function getBacktest(id: string) {
@@ -33,9 +33,9 @@ async function getBacktest(id: string) {
 export default async function BacktestDetailPage({
   params,
 }: BacktestDetailPageProps) {
-  const { id, backtestId } = await params;
+  const { id } = await params;
 
-  let pair = await getBacktest(backtestId);
+  let pair = await getBacktest(id);
   if (!pair) {
     notFound();
   }
@@ -290,7 +290,7 @@ export default async function BacktestDetailPage({
                                 }
                                 return(
                                 <tr
-                                  key={idx}
+                                  key={'metrics'+idx}
                                   className="border-t border-white/10"
                                 >
                                   <td className="px-2 py-1 text-left text-nowrap">
@@ -366,12 +366,12 @@ export default async function BacktestDetailPage({
                             {properties.map(
                               (row: any, idx: number) => {
                                 // Skip rendering if row index is in ignore array
-                                if ([1, 4, 7, 8].includes(idx)) {
+                                if ([0, 2, 4, 7, 8].includes(idx)) {
                                   return null;
-                                }
+                                } else {
                                 return (
                                 <tr
-                                  key={idx}
+                                  key={'properties'+idx}
                                   className="border-t border-white/10"
                                 >
                                   <td className="px-2 py-1 font-semibold text-white/90 whitespace-nowrap max-w-48 overflow-hidden text-ellipsis">
@@ -381,7 +381,7 @@ export default async function BacktestDetailPage({
                                     {row.value}
                                   </td>
                                 </tr>
-                              )}
+                              )}}
                             )}
                           </tbody>
                         </table>
