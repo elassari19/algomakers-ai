@@ -126,19 +126,52 @@ export async function getUserSubscriptions(userId: string) {
   }
 }
 
-export async function checkUserSubscription(userId: string, pairId: string) {
+export async function getUserSubscriptionPairs(userId: string) {
   try {
-    const subscription = await prisma.subscription.findFirst({
+    const subscriptions = await prisma.subscription.findMany({
       where: {
         userId,
-        pairId,
-        status: { in: ['ACTIVE', 'PENDING'] },
+      },
+      include: {
+        pair: {
+          select: {
+            id: true,
+            symbol: true,
+            version: true,
+            timeframe: true,
+            // priceOneMonth: true,
+            // discountOneMonth: true,
+            // priceThreeMonths: true,
+            // discountThreeMonths: true,
+            // priceSixMonths: true,
+            // discountSixMonths: true,
+            // priceTwelveMonths: true,
+            // discountTwelveMonths: true,
+            paymentItems: true,
+          },
+        },
+        payment: true,
+        commissions: true,
       },
     });
 
-    return !!subscription;
+    // Transform the data to match the expected format
+    // const pairs = subscriptions.map(subscription => ({
+    //   ...subscription.pair,
+    //   subscription: {
+    //     id: subscription.id,
+    //     status: subscription.status.toLowerCase(),
+    //     expiryDate: subscription.expiryDate.toISOString(),
+    //     startDate: subscription.startDate.toISOString(),
+    //     period: subscription.period,
+    //     paymentId: subscription.paymentId,
+    //   },
+    // }));
+    console.log('subscriptions pairs', subscriptions);
+
+    return JSON.stringify(subscriptions);
   } catch (error) {
-    console.error('Error checking user subscription:', error);
-    return false;
+    console.error('Error fetching user subscription pairs:', error);
+    throw new Error('Failed to fetch user subscription pairs');
   }
 }

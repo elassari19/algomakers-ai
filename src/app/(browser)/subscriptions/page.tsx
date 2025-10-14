@@ -1,12 +1,11 @@
 'use client';
 
-import { Suspense } from 'react';
+import { Suspense, useState, useEffect } from 'react';
 import { ClientSortFilterBar } from '@/components/subscription/ClientSortFilterBar';
 import { ReusableTable, Column } from '@/components/ui/reusable-table';
 import { GradientBackground } from '@/components/ui/gradient-background';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { mockPairs } from '@/lib/dummy-data';
 import { useSearchParams } from 'next/navigation';
 import {
   TrendingUp,
@@ -27,34 +26,27 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import Link from 'next/link';
+import { useSession } from 'next-auth/react';
+import { getUserSubscriptionPairs, getUserSubscriptions } from '@/app/api/services';
 
-interface PairData {
+interface SubscriptionData {
   id: string;
-  symbol: string;
-  name: string;
-  metrics: {
-    roi: number;
-    riskReward: number;
-    totalTrades: number;
-    winRate: number;
-    maxDrawdown: number;
-    profit: number;
-  };
-  timeframe?: string;
-  isPopular?: boolean;
-  subscription?: {
-    status: 'active' | 'expiring' | 'expired' | 'pending';
-    expiryDate?: string;
-  };
-}
-
-interface IProps {
-  searchParams?: {
-    search?: string;
-    filter?: string;
-    limit?: string;
-    page?: string;
-    q?: string;
+  period: string;
+  startDate: string;
+  expiryDate: string;
+  status: 'ACTIVE' | 'PENDING' | 'EXPIRED';
+  paymentId: string | null;
+  inviteStatus: string;
+  basePrice: number;
+  discountRate: number;
+  createdAt: string;
+  updatedAt: string;
+  pair: {
+    id: string;
+    symbol: string;
+    version: string;
+    timeframe: string;
+    paymentItems: any[];
   };
 }
 
@@ -70,21 +62,55 @@ function SubscriptionsContent() {
   const searchQuery = search || '';
   const filterBy = filter || 'all';
   const currentPage = parseInt(page || '1');
-  const itemsPerPage = parseInt(limit || '5');
+  const itemsPerPage = parseInt(limit || '20');
 
-  // Mock user state - replace with real auth
-  const isUserLoggedIn = true;
+  // State for subscription pairs data
+  const [subscriptionPairs, setSubscriptionPairs] = useState<SubscriptionData[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const { data: session } = useSession();
+
+  // Fetch subscription pairs on component mount
+  useEffect(() => {
+    if (!session?.user?.id) {
+      setIsLoading(false);
+      return;
+    }
+
+    const fetchSubscriptionPairs = async () => {
+      try {
+        setIsLoading(true);
+        setError(null);
+
+        const response = await getUserSubscriptionPairs(session.user.id);
+        const data = JSON.parse(response)
+        console.log('subscriptions pairs', data);
+        setSubscriptionPairs(data);
+      } catch (err) {
+        console.error('Error fetching subscription pairs:', err);
+        setError(err instanceof Error ? err.message : 'Failed to fetch subscription pairs');
+        setSubscriptionPairs([]);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchSubscriptionPairs();
+  }, [session?.user?.id]);
+        console.log('subscriptions pairs', subscriptionPairs);
 
   // Filter subscribed pairs based on URL params
   function getFilteredPairs() {
-    let filtered = mockPairs;
+    let filtered = subscriptionPairs;
 
     // Search filter
     if (searchQuery) {
       filtered = filtered.filter(
-        (pair) =>
-          pair.symbol.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          pair.name.toLowerCase().includes(searchQuery.toLowerCase())
+        (subscription) =>
+          subscription.pair.symbol.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          subscription.pair.version?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          subscription.period.toLowerCase().includes(searchQuery.toLowerCase())
       );
     }
 
@@ -93,57 +119,51 @@ function SubscriptionsContent() {
       switch (filterBy) {
         case 'active':
           filtered = filtered.filter(
-            (pair) => pair.subscription?.status === 'active'
-          );
-          break;
-        case 'expiring':
-          filtered = filtered.filter(
-            (pair) => pair.subscription?.status === 'expiring'
+            (subscription) => subscription.status === 'ACTIVE'
           );
           break;
         case 'pending':
           filtered = filtered.filter(
-            (pair) => pair.subscription?.status === 'pending'
+            (subscription) => subscription.status === 'PENDING'
+          );
+          break;
+        case 'expired':
+          filtered = filtered.filter(
+            (subscription) => subscription.status === 'EXPIRED'
           );
           break;
         case 'forex':
           filtered = filtered.filter(
-            (pair) =>
-              !pair.symbol.includes('BTC') &&
-              !pair.symbol.includes('ETH') &&
-              !pair.symbol.includes('LTC') &&
-              !pair.symbol.includes('ADA') &&
-              !pair.symbol.includes('XAU')
+            (subscription) =>
+              !subscription.pair.symbol.includes('BTC') &&
+              !subscription.pair.symbol.includes('ETH') &&
+              !subscription.pair.symbol.includes('LTC') &&
+              !subscription.pair.symbol.includes('ADA') &&
+              !subscription.pair.symbol.includes('XAU')
           );
           break;
         case 'crypto':
           filtered = filtered.filter(
-            (pair) =>
-              pair.symbol.includes('BTC') ||
-              pair.symbol.includes('ETH') ||
-              pair.symbol.includes('LTC') ||
-              pair.symbol.includes('ADA')
+            (subscription) =>
+              subscription.pair.symbol.includes('BTC') ||
+              subscription.pair.symbol.includes('ETH') ||
+              subscription.pair.symbol.includes('LTC') ||
+              subscription.pair.symbol.includes('ADA')
           );
           break;
         case 'commodities':
           filtered = filtered.filter(
-            (pair) =>
-              pair.symbol.includes('XAU') ||
-              pair.symbol.includes('XAG') ||
-              pair.symbol.includes('OIL')
+            (subscription) =>
+              subscription.pair.symbol.includes('XAU') ||
+              subscription.pair.symbol.includes('XAG') ||
+              subscription.pair.symbol.includes('OIL')
           );
-          break;
-        case 'profitable':
-          filtered = filtered.filter((pair) => pair.metrics.profit > 0);
-          break;
-        case 'popular':
-          filtered = filtered.filter((pair) => pair.isPopular);
           break;
       }
     }
 
-    // Sort by ROI (highest first) as default
-    filtered.sort((a, b) => b.metrics.roi - a.metrics.roi);
+    // Sort by created date (newest first) as default
+    filtered.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
     return filtered;
   }
@@ -157,6 +177,32 @@ function SubscriptionsContent() {
   const endIndex = startIndex + itemsPerPage;
   const paginatedPairs = filteredPairs.slice(startIndex, endIndex);
 
+  // Show loading state while session is being determined
+  if (!session) {
+    return (
+      <GradientBackground>
+        <div className="flex items-center justify-center min-h-screen">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white"></div>
+          <span className="ml-3 text-white/80">Loading...</span>
+        </div>
+      </GradientBackground>
+    );
+  }
+
+  // Show error state if user is not authenticated
+  if (!session.user?.id) {
+    return (
+      <GradientBackground>
+        <div className="flex items-center justify-center min-h-screen">
+          <div className="text-center">
+            <h2 className="text-2xl font-bold text-white mb-4">Authentication Required</h2>
+            <p className="text-white/70">Please sign in to view your subscriptions.</p>
+          </div>
+        </div>
+      </GradientBackground>
+    );
+  }
+
   return (
     <GradientBackground>
       <div className="min-h-screen flex flex-col justify-between p-0 md:p-4">
@@ -166,7 +212,7 @@ function SubscriptionsContent() {
             My Subscriptions
           </h1>
           <p className="text-white/70">
-            Manage your subscribed trading pairs and monitor their performance.
+            Manage your trading pair subscriptions and monitor their status.
           </p>
         </div>
 
@@ -189,194 +235,143 @@ function SubscriptionsContent() {
                 filterBy={filterBy}
                 totalResults={totalFilteredPairs}
               />
-              <ReusableTable<PairData>
+              <ReusableTable<SubscriptionData>
                 data={paginatedPairs}
                 columns={[
                   {
-                    key: 'subscription',
+                    key: 'status',
                     header: 'Status',
                     width: 'w-32',
-                    render: (value: any, row: PairData) => {
-                      const userSubscriptionStatus =
-                        row.subscription?.status || 'none';
+                    render: (value: string, row: SubscriptionData) => {
+                      const status = row.status;
                       return (
                         <div className="flex flex-col gap-1">
                           <Button
                             size="sm"
                             variant={
-                              userSubscriptionStatus === 'active'
+                              status === 'ACTIVE'
                                 ? 'default'
-                                : 'outline'
+                                : status === 'PENDING'
+                                ? 'outline'
+                                : 'destructive'
                             }
                             className={`text-xs ${
-                              userSubscriptionStatus === 'active'
+                              status === 'ACTIVE'
                                 ? 'bg-green-600 hover:bg-green-700 text-white'
-                                : userSubscriptionStatus === 'expiring'
-                                ? 'bg-yellow-600 hover:bg-yellow-700 text-white'
-                                : 'border-blue-500 text-blue-400 hover:bg-blue-500/10'
+                                : status === 'PENDING'
+                                ? 'border-blue-500 text-blue-400 hover:bg-blue-500/10'
+                                : 'bg-red-600 hover:bg-red-700 text-white'
                             }`}
                           >
-                            {userSubscriptionStatus === 'active'
+                            {status === 'ACTIVE'
                               ? 'Active'
-                              : userSubscriptionStatus === 'expiring'
-                              ? 'Renew'
-                              : userSubscriptionStatus === 'expired'
-                              ? 'Expired'
-                              : 'Subscribe'}
+                              : status === 'PENDING'
+                              ? 'Pending'
+                              : 'Expired'}
                           </Button>
                         </div>
                       );
                     },
                   },
                   {
-                    key: 'symbol',
+                    key: 'pair.symbol',
                     header: 'Pair',
                     sortable: true,
-                    render: (value: string, row: PairData) => (
+                    render: (value: string, row: SubscriptionData) => (
                       <div className="flex flex-col gap-1">
                         <div className="flex items-center gap-2">
                           <Link
-                            href={`/pair/${row.id}`}
+                            href={`/pair/${row.pair.id}`}
                             className="text-white hover:text-blue-400 transition-colors font-semibold"
                           >
-                            {value}
+                            {row.pair.symbol}
                           </Link>
-                          {row.isPopular && (
-                            <Badge
-                              variant="secondary"
-                              className="text-xs bg-orange-500/10 text-orange-400"
-                            >
-                              🔥 Popular
-                            </Badge>
-                          )}
                         </div>
                         <span className="text-xs text-slate-400">
-                          {row.name}
+                          {row.pair.version}
                         </span>
                       </div>
                     ),
                   },
                   {
-                    key: 'metrics.roi',
-                    header: 'ROI',
-                    sortable: true,
-                    align: 'center',
-                    accessor: (row: PairData) => row.metrics.roi,
-                    render: (value: number) => {
-                      const isPositive = value > 0;
-                      return (
-                        <div className="flex flex-col items-center">
-                          <span
-                            className={`font-medium ${
-                              isPositive ? 'text-green-400' : 'text-red-400'
-                            }`}
-                          >
-                            {isPositive ? '+' : ''}
-                            {value.toFixed(1)}%
-                          </span>
-                          <span className="text-xs text-slate-400">return</span>
-                        </div>
-                      );
-                    },
-                  },
-                  {
-                    key: 'metrics.riskReward',
-                    header: 'R/R',
-                    sortable: true,
-                    align: 'center',
-                    accessor: (row: PairData) => row.metrics.riskReward,
-                    render: (value: number) => (
-                      <div className="flex flex-col items-center">
-                        <span
-                          className={`font-medium ${
-                            value > 1.5 ? 'text-green-400' : 'text-white'
-                          }`}
-                        >
-                          {value.toFixed(1)}
-                        </span>
-                        <span className="text-xs text-slate-400">ratio</span>
-                      </div>
-                    ),
-                  },
-                  {
-                    key: 'metrics.totalTrades',
-                    header: 'Trades',
-                    sortable: true,
-                    align: 'center',
-                    accessor: (row: PairData) => row.metrics.totalTrades,
-                    render: (value: number) => (
-                      <div className="flex flex-col items-center">
-                        <span className="font-medium text-white">{value}</span>
-                        <span className="text-xs text-slate-400">total</span>
-                      </div>
-                    ),
-                  },
-                  {
-                    key: 'metrics.winRate',
-                    header: 'Win Rate',
-                    sortable: true,
-                    align: 'center',
-                    accessor: (row: PairData) => row.metrics.winRate,
-                    render: (value: number) => (
-                      <div className="flex flex-col items-center">
-                        <span
-                          className={`font-medium ${
-                            value > 60 ? 'text-green-400' : 'text-white'
-                          }`}
-                        >
-                          {value.toFixed(1)}%
-                        </span>
-                        <span className="text-xs text-slate-400">wins</span>
-                      </div>
-                    ),
-                  },
-                  {
-                    key: 'metrics.maxDrawdown',
-                    header: 'Max DD',
-                    sortable: true,
-                    align: 'center',
-                    accessor: (row: PairData) => row.metrics.maxDrawdown,
-                    render: (value: number) => (
-                      <div className="flex flex-col items-center">
-                        <span
-                          className={`font-medium ${
-                            value < 10 ? 'text-green-400' : 'text-red-400'
-                          }`}
-                        >
-                          {value.toFixed(1)}%
-                        </span>
-                        <span className="text-xs text-slate-400">drawdown</span>
-                      </div>
-                    ),
-                  },
-                  {
-                    key: 'metrics.profit',
-                    header: 'Profit',
-                    sortable: true,
-                    align: 'center',
-                    accessor: (row: PairData) => row.metrics.profit,
-                    render: (value: number) => (
-                      <div className="flex flex-col items-center">
-                        <span
-                          className={`font-medium ${
-                            value > 0 ? 'text-green-400' : 'text-red-400'
-                          }`}
-                        >
-                          ${value.toLocaleString()}
-                        </span>
-                        <span className="text-xs text-slate-400">earned</span>
-                      </div>
-                    ),
-                  },
-                  {
-                    key: 'timeframe',
-                    header: 'Timeframe',
+                    key: 'period',
+                    header: 'Period',
                     sortable: true,
                     align: 'center',
                     render: (value: string) => (
                       <div className="flex flex-col items-center">
                         <span className="text-sm font-medium text-white">
-                          {value || 'N/A'}
+                          {value.replace('_', ' ')}
+                        </span>
+                        <span className="text-xs text-slate-400">plan</span>
+                      </div>
+                    ),
+                  },
+                  {
+                    key: 'basePrice',
+                    header: 'Price',
+                    sortable: true,
+                    align: 'center',
+                    render: (value: number) => (
+                      <div className="flex flex-col items-center">
+                        <span className="font-medium text-green-400">
+                          ${value}
+                        </span>
+                        <span className="text-xs text-slate-400">base</span>
+                      </div>
+                    ),
+                  },
+                  {
+                    key: 'discountRate',
+                    header: 'Discount',
+                    sortable: true,
+                    align: 'center',
+                    render: (value: number) => (
+                      <div className="flex flex-col items-center">
+                        <span className="font-medium text-blue-400">
+                          {value}%
+                        </span>
+                        <span className="text-xs text-slate-400">off</span>
+                      </div>
+                    ),
+                  },
+                  {
+                    key: 'startDate',
+                    header: 'Start Date',
+                    sortable: true,
+                    align: 'center',
+                    render: (value: string) => (
+                      <div className="flex flex-col items-center">
+                        <span className="text-sm font-medium text-white">
+                          {new Date(value).toLocaleDateString()}
+                        </span>
+                        <span className="text-xs text-slate-400">started</span>
+                      </div>
+                    ),
+                  },
+                  {
+                    key: 'expiryDate',
+                    header: 'Expiry Date',
+                    sortable: true,
+                    align: 'center',
+                    render: (value: string) => (
+                      <div className="flex flex-col items-center">
+                        <span className="text-sm font-medium text-white">
+                          {new Date(value).toLocaleDateString()}
+                        </span>
+                        <span className="text-xs text-slate-400">expires</span>
+                      </div>
+                    ),
+                  },
+                  {
+                    key: 'pair.timeframe',
+                    header: 'Timeframe',
+                    sortable: true,
+                    align: 'center',
+                    render: (value: string, row: SubscriptionData) => (
+                      <div className="flex flex-col items-center">
+                        <span className="text-sm font-medium text-white">
+                          {row.pair.timeframe || 'N/A'}
                         </span>
                         <span className="text-xs text-slate-400">period</span>
                       </div>
@@ -387,7 +382,7 @@ function SubscriptionsContent() {
                     header: 'Actions',
                     align: 'center',
                     width: 'w-20',
-                    render: (_, row: PairData) => (
+                    render: (_, row: SubscriptionData) => (
                       <div className="flex items-center justify-center">
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
@@ -405,7 +400,7 @@ function SubscriptionsContent() {
                           >
                             <DropdownMenuItem asChild>
                               <Link
-                                href={`/pair/${row.id}`}
+                                href={`/pair/${row.pair.id}`}
                                 className="flex items-center cursor-pointer"
                               >
                                 <Eye className="h-4 w-4 mr-2" />
@@ -414,7 +409,7 @@ function SubscriptionsContent() {
                             </DropdownMenuItem>
                             <DropdownMenuItem
                               onClick={() =>
-                                navigator.clipboard.writeText(row.symbol)
+                                navigator.clipboard.writeText(row.pair.symbol)
                               }
                               className="cursor-pointer"
                             >
@@ -429,126 +424,97 @@ function SubscriptionsContent() {
                 ]}
                 title="My Subscriptions"
                 icon={TrendingUp}
-                isLoading={false}
+                isLoading={isLoading}
                 searchable={true}
-                searchFields={['symbol', 'name', 'timeframe']}
+                searchFields={['pair.symbol', 'pair.version', 'period']}
                 emptyStateTitle="No subscriptions found"
                 emptyStateDescription="You don't have any active subscriptions yet"
                 enableRowDetails={true}
-                rowDetailTitle={(pair) => `${pair.symbol} - ${pair.name}`}
+                rowDetailTitle={(subscription) => `${subscription.pair.symbol} - ${subscription.period.replace('_', ' ')}`}
                 excludeFromDetails={['id']}
-                rowDetailContent={(pair) => (
+                rowDetailContent={(subscription) => (
                   <div className="space-y-6">
-                    {/* Trading Performance */}
+                    {/* Subscription Details */}
                     <div className="bg-white/10 p-4 rounded-lg border border-white/20">
                       <h3 className="text-white font-semibold mb-3 flex items-center gap-2">
-                        <BarChart3 className="h-5 w-5" />
-                        Trading Performance
+                        <Calendar className="h-5 w-5" />
+                        Subscription Details
                       </h3>
                       <div className="grid grid-cols-2 gap-4 text-sm">
                         <div>
-                          <p className="text-white/70">ROI</p>
-                          <p
-                            className={`font-semibold text-lg ${
-                              pair.metrics.roi > 0
-                                ? 'text-green-400'
-                                : 'text-red-400'
+                          <p className="text-white/70">Status</p>
+                          <Badge
+                            className={`mt-1 ${
+                              subscription.status === 'ACTIVE'
+                                ? 'bg-green-500/20 text-green-400'
+                                : subscription.status === 'PENDING'
+                                ? 'bg-yellow-500/20 text-yellow-400'
+                                : 'bg-red-500/20 text-red-400'
                             }`}
                           >
-                            {pair.metrics.roi > 0 ? '+' : ''}
-                            {pair.metrics.roi.toFixed(1)}%
-                          </p>
+                            {subscription.status}
+                          </Badge>
                         </div>
                         <div>
-                          <p className="text-white/70">Win Rate</p>
-                          <p className="text-blue-400 font-semibold text-lg">
-                            {pair.metrics.winRate.toFixed(1)}%
-                          </p>
-                        </div>
-                        <div>
-                          <p className="text-white/70">Risk/Reward</p>
+                          <p className="text-white/70">Period</p>
                           <p className="text-white font-semibold">
-                            {pair.metrics.riskReward.toFixed(1)}
+                            {subscription.period.replace('_', ' ')}
                           </p>
                         </div>
                         <div>
-                          <p className="text-white/70">Max Drawdown</p>
-                          <p className="text-red-400 font-semibold">
-                            {pair.metrics.maxDrawdown.toFixed(1)}%
+                          <p className="text-white/70">Start Date</p>
+                          <p className="text-white font-semibold">
+                            {new Date(subscription.startDate).toLocaleDateString()}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-white/70">Expiry Date</p>
+                          <p className="text-white font-semibold">
+                            {new Date(subscription.expiryDate).toLocaleDateString()}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-white/70">Base Price</p>
+                          <p className="text-green-400 font-semibold">
+                            ${subscription.basePrice}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-white/70">Discount Rate</p>
+                          <p className="text-blue-400 font-semibold">
+                            {subscription.discountRate}%
                           </p>
                         </div>
                       </div>
                     </div>
 
-                    {/* Trading Stats */}
+                    {/* Pair Information */}
                     <div className="bg-white/10 p-4 rounded-lg border border-white/20">
                       <h3 className="text-white font-semibold mb-3 flex items-center gap-2">
-                        <Activity className="h-5 w-5" />
-                        Trading Statistics
+                        <TrendingUp className="h-5 w-5" />
+                        Trading Pair Information
                       </h3>
                       <div className="space-y-3">
                         <div className="flex justify-between items-center">
-                          <span className="text-white/70">Total Trades:</span>
+                          <span className="text-white/70">Symbol:</span>
                           <span className="text-white font-semibold">
-                            {pair.metrics.totalTrades}
+                            {subscription.pair.symbol}
                           </span>
                         </div>
                         <div className="flex justify-between items-center">
-                          <span className="text-white/70">Total Profit:</span>
-                          <span
-                            className={`font-semibold text-lg ${
-                              pair.metrics.profit > 0
-                                ? 'text-green-400'
-                                : 'text-red-400'
-                            }`}
-                          >
-                            ${pair.metrics.profit.toLocaleString()}
+                          <span className="text-white/70">Version:</span>
+                          <span className="text-white font-semibold">
+                            {subscription.pair.version || 'N/A'}
                           </span>
                         </div>
                         <div className="flex justify-between items-center">
                           <span className="text-white/70">Timeframe:</span>
                           <Badge className="bg-blue-500/20 text-blue-400">
-                            {pair.timeframe}
+                            {subscription.pair.timeframe}
                           </Badge>
                         </div>
                       </div>
                     </div>
-
-                    {/* Subscription Details */}
-                    {pair.subscription && (
-                      <div className="bg-white/10 p-4 rounded-lg border border-white/20">
-                        <h3 className="text-white font-semibold mb-3 flex items-center gap-2">
-                          <Calendar className="h-5 w-5" />
-                          Subscription Details
-                        </h3>
-                        <div className="space-y-2 text-sm">
-                          <div className="flex justify-between">
-                            <span className="text-white/70">Status:</span>
-                            <Badge
-                              className={`${
-                                pair.subscription.status === 'active'
-                                  ? 'bg-green-500/20 text-green-400'
-                                  : pair.subscription.status === 'expiring'
-                                  ? 'bg-yellow-500/20 text-yellow-400'
-                                  : 'bg-red-500/20 text-red-400'
-                              }`}
-                            >
-                              {pair.subscription.status.toUpperCase()}
-                            </Badge>
-                          </div>
-                          <div className="flex justify-between">
-                            <span className="text-white/70">Expires:</span>
-                            <span className="text-white">
-                              {pair.subscription.expiryDate
-                                ? new Date(
-                                    pair.subscription.expiryDate
-                                  ).toLocaleDateString()
-                                : 'N/A'}
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-                    )}
 
                     {/* Actions */}
                     <div className="flex gap-3 pt-4">
@@ -556,10 +522,10 @@ function SubscriptionsContent() {
                         <Target className="h-4 w-4 mr-2" />
                         View Signals
                       </Button>
-                      {pair.subscription?.status === 'expiring' && (
+                      {subscription.status === 'PENDING' && (
                         <Button className="flex-1 bg-gradient-to-r from-green-500 to-blue-600 text-white">
                           <Clock className="h-4 w-4 mr-2" />
-                          Renew
+                          Complete Payment
                         </Button>
                       )}
                     </div>
