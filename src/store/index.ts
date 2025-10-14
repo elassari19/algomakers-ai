@@ -1,9 +1,11 @@
 import { configureStore } from '@reduxjs/toolkit';
 import sidebarReducer from './sidebarSlice';
+import basketReducer from './basketSlice';
 
 export const store = configureStore({
   reducer: {
     sidebar: sidebarReducer,
+    basket: basketReducer,
     // Add your slices here
   },
 });

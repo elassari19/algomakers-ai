@@ -1,16 +1,15 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { CreditCard, TrendingUp, Lock, Clock, X } from 'lucide-react';
 import { SubscriptionModal } from './SubscriptionModal';
 import { PaymentModal } from './PaymentModal';
 import { mockPairs } from '@/lib/dummy-data';
+import { Pair } from '@/generated/prisma';
 
 interface SubscribeButtonProps {
-  pairId: string;
-  pairSymbol?: string;
   userSubscriptionStatus?:
     | 'none'
     | 'active'
@@ -18,15 +17,15 @@ interface SubscribeButtonProps {
     | 'expired'
     | 'pending';
   isUserLoggedIn: boolean;
+  pair: Pair; // Add pairs prop
   className?: string;
   onCancel?: (pairId: string) => void; // Optional callback for cancel action
 }
 
 export function SubscribeButton({
-  pairId,
-  pairSymbol,
   userSubscriptionStatus = 'none',
   isUserLoggedIn,
+  pair,
   className,
   onCancel,
 }: SubscribeButtonProps) {
@@ -113,8 +112,8 @@ export function SubscribeButton({
   const upgradeConfig = getUpgradeButtonConfig();
   const cancelConfig = getCancelButtonConfig();
 
-  // Modal handlers
-  const handleSubscribe = (
+  // Modal handlers - memoized to prevent unnecessary re-renders
+  const handleSubscribe = useCallback((
     pairId: string,
     action: 'subscribe' | 'upgrade' | 'cancel'
   ) => {
@@ -123,28 +122,28 @@ export function SubscribeButton({
     } else {
       setSubscriptionModalOpen(true);
     }
-  };
+  }, []);
 
-  const handleCancelSubscription = () => {
+  const handleCancelSubscription = useCallback(() => {
     // Call the optional onCancel callback if provided
     if (onCancel) {
-      onCancel(pairId);
+      onCancel(pair?.id || '');
     } else {
       // Default behavior: show confirmation and handle cancellation
       const confirmed = window.confirm(
         `Are you sure you want to cancel your subscription to ${
-          pairSymbol || 'this pair'
+          pair?.symbol || 'this pair'
         }?`
       );
       if (confirmed) {
-        console.log('Canceling subscription for pair:', pairId);
+        console.log('Canceling subscription for pair:', pair?.id);
         // TODO: Call API to cancel subscription
         // This would typically call an API endpoint to cancel the subscription
       }
     }
-  };
+  }, [onCancel, pair?.id, pair?.symbol]);
 
-  const handleSubscriptionSubmit = (data: any) => {
+  const handleSubscriptionSubmit = useCallback((data: any) => {
     // Transform the subscription data to match PaymentModal interface
     const paymentData = {
       pairIds: data.pairIds,
@@ -164,40 +163,40 @@ export function SubscribeButton({
     setSubscriptionData(paymentData);
     setSubscriptionModalOpen(false);
     setPaymentModalOpen(true);
-  };
+  }, []);
 
-  const handlePaymentSuccess = () => {
+  const handlePaymentSuccess = useCallback(() => {
     setPaymentModalOpen(false);
     setSubscriptionData(null);
     // TODO: Refresh user subscription data
-  };
+  }, []);
 
-  const handleCloseSubscriptionModal = () => {
+  const handleCloseSubscriptionModal = useCallback(() => {
     setSubscriptionModalOpen(false);
-  };
+  }, []);
 
-  const handleClosePaymentModal = () => {
+  const handleClosePaymentModal = useCallback(() => {
     setPaymentModalOpen(false);
     setSubscriptionData(null);
-  };
+  }, []);
 
-  const handleSubscribeClick = () => {
+  const handleSubscribeClick = useCallback(() => {
     if (!isUserLoggedIn) {
       // Redirect to sign in (only on client side)
       router.push(`/signin?callbackUrl=${encodeURIComponent(pathname)}`);
       return;
     }
 
-    handleSubscribe(pairId, subscribeConfig.action);
-  };
+    handleSubscribe(pair?.id || '', subscribeConfig.action);
+  }, [isUserLoggedIn, router, pathname, handleSubscribe, pair?.id, subscribeConfig.action]);
 
-  const handleUpgradeClick = () => {
-    handleSubscribe(pairId, upgradeConfig.action);
-  };
+  const handleUpgradeClick = useCallback(() => {
+    handleSubscribe(pair?.id || '', upgradeConfig.action);
+  }, [handleSubscribe, pair?.id, upgradeConfig.action]);
 
-  const handleCancelClick = () => {
-    handleSubscribe(pairId, cancelConfig.action);
-  };
+  const handleCancelClick = useCallback(() => {
+    handleSubscribe(pair?.id || '', cancelConfig.action);
+  }, [handleSubscribe, pair?.id, cancelConfig.action]);
 
   return (
     <>
@@ -249,9 +248,7 @@ export function SubscribeButton({
       <SubscriptionModal
         isOpen={subscriptionModalOpen}
         onClose={handleCloseSubscriptionModal}
-        pairs={mockPairs}
-        selectedPairIds={[pairId]}
-        onSubscribe={handleSubscriptionSubmit}
+        pair={pair}
       />
 
       {/* Payment Modal */}

@@ -3,7 +3,10 @@
 import React, { useState } from 'react';
 import { usePathname } from 'next/navigation';
 import Link from 'next/link';
-import { Bell, ShoppingCart, X } from 'lucide-react';
+import { Bell, ShoppingCart, X, Settings } from 'lucide-react';
+import { useSelector, useDispatch } from 'react-redux';
+import { RootState, AppDispatch } from '@/store';
+import { removeItem, addItem } from '@/store/basketSlice';
 import {
   Breadcrumb,
   BreadcrumbList,
@@ -31,14 +34,6 @@ interface Notification {
   timestamp: Date;
   read: boolean;
   type: 'info' | 'success' | 'warning' | 'error';
-}
-
-interface BasketItem {
-  id: string;
-  name: string;
-  price: number;
-  quantity: number;
-  image?: string;
 }
 
 export function AppHeader() {
@@ -70,20 +65,9 @@ export function AppHeader() {
     },
   ]);
 
-  const [basketItems, setBasketItems] = useState<BasketItem[]>([
-    {
-      id: '1',
-      name: 'BTC/USDT Premium Strategy',
-      price: 99.99,
-      quantity: 1,
-    },
-    {
-      id: '2',
-      name: 'ETH/USDT Pro Signals',
-      price: 149.99,
-      quantity: 1,
-    },
-  ]);
+  const dispatch = useDispatch<AppDispatch>();
+  const basketItems = useSelector((state: RootState) => state.basket.items);
+  const [expandedItemId, setExpandedItemId] = useState<string | null>(null);
 
   // Generate breadcrumbs from pathname
   const generateBreadcrumbs = () => {
@@ -122,7 +106,13 @@ export function AppHeader() {
   const breadcrumbs = generateBreadcrumbs();
   const unreadNotifications = notifications.filter((n) => !n.read).length;
   const basketTotal = basketItems.reduce(
-    (sum, item) => sum + item.price * item.quantity,
+    (sum, item) => {
+      const discount = item.plan.discount || 0;
+      const discountedPrice = discount > 0 
+        ? item.price * (1 - discount / 100) 
+        : item.price;
+      return sum + discountedPrice;
+    },
     0
   );
 
@@ -135,7 +125,34 @@ export function AppHeader() {
   };
 
   const removeBasketItem = (id: string) => {
-    setBasketItems((prev) => prev.filter((item) => item.id !== id));
+    dispatch(removeItem(id));
+  };
+
+  const updateBasketItemPlan = (itemId: string, newPlan: any) => {
+    // For now, we'll remove the old item and add a new one with updated plan
+    // In a real app, you'd have an updateItem action
+    const currentItem = basketItems.find(item => item.id === itemId);
+    if (currentItem) {
+      const newItemId = `${currentItem.pair.id}-${newPlan.id}`;
+
+      dispatch(removeItem(itemId));
+
+      // Add new item with updated plan immediately
+      dispatch(addItem({
+        id: newItemId,
+        name: `${currentItem.pair.symbol} - ${newPlan.period}`,
+        price: newPlan.price,
+        pair: currentItem.pair,
+        plan: newPlan,
+      }));
+
+      // Update expanded item ID to the new item
+      setExpandedItemId(newItemId);
+    }
+  };
+
+  const togglePlanOptions = (itemId: string) => {
+    setExpandedItemId(expandedItemId === itemId ? null : itemId);
   };
 
   const getNotificationIcon = (type: Notification['type']) => {
@@ -168,7 +185,7 @@ export function AppHeader() {
           <Breadcrumb>
             <BreadcrumbList>
               {breadcrumbs.map((crumb, index) => (
-                <React.Fragment key={crumb.href}>
+                <React.Fragment key={crumb.href + index}>
                   <BreadcrumbItem>
                     {crumb.isCurrentPage ? (
                       <BreadcrumbPage className="text-white font-medium">
@@ -279,7 +296,7 @@ export function AppHeader() {
                 )}
               </Button>
             </SheetTrigger>
-            <SheetContent className="w-full sm:w-[28rem] max-w-none bg-gradient-to-b from-purple-950 to-pink-950 backdrop-blur-md border-white/20 p-6">
+            <SheetContent className="w-full sm:w-[28rem] max-w-none  bg-gradient-to-b from-white/30 to-black/20 backdrop-blur-3xl border-white/20 p-6">
               <SheetHeader className="px-2">
                 <SheetTitle className="text-white">Shopping Basket</SheetTitle>
                 <SheetDescription className="text-white/70">
@@ -294,29 +311,124 @@ export function AppHeader() {
                       <p className="text-white/70">Your basket is empty</p>
                     </div>
                   ) : (
-                    basketItems.map((item) => (
-                      <div
-                        key={item.id}
-                        className="flex items-center space-x-3 p-3 rounded-lg bg-white/5 border border-white/10"
-                      >
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium text-white truncate">
-                            {item.name}
-                          </p>
-                          <p className="text-sm text-white/70">
-                            Qty: {item.quantity} × ${item.price}
-                          </p>
+                    basketItems.map((item) => {
+                      const plans = [
+                        { 
+                          id: '1-month', 
+                          period: '1 Month', 
+                          price: Number(item.pair.priceOneMonth), 
+                          discount: Number(item.pair.discountOneMonth) || 0 
+                        },
+                        { 
+                          id: '3-months', 
+                          period: '3 Months', 
+                          price: Number(item.pair.priceThreeMonths), 
+                          discount: Number(item.pair.discountThreeMonths) || 0 
+                        },
+                        { 
+                          id: '6-months', 
+                          period: '6 Months', 
+                          price: Number(item.pair.priceSixMonths), 
+                          discount: Number(item.pair.discountSixMonths) || 0 
+                        },
+                        { 
+                          id: '12-months', 
+                          period: '12 Months', 
+                          price: Number(item.pair.priceTwelveMonths), 
+                          discount: Number(item.pair.discountTwelveMonths) || 0 
+                        },
+                      ];
+                      
+                      return (
+                        <div key={item.id} className="space-y-2">
+                          <div className="flex items-center space-x-3 p-3 rounded-lg bg-white/5 border border-white/10">
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-medium text-white truncate">
+                                {item.name}
+                              </p>
+                              <div className="flex items-center gap-2 mt-1">
+                                {(item.plan.discount || 0) > 0 && (
+                                  <span className="text-xs text-green-400 font-medium">
+                                    -{(item.plan.discount || 0)}% OFF
+                                  </span>
+                                )}
+                                <p className="text-sm font-bold text-white">
+                                  ${(item.plan.discount || 0) > 0 
+                                    ? (item.price * (1 - (item.plan.discount || 0) / 100)).toFixed(2) 
+                                    : item.price.toFixed(2)
+                                  }
+                                </p>
+                                {(item.plan.discount || 0) > 0 && (
+                                  <span className="text-xs text-red-500 line-through">
+                                    ${item.price.toFixed(2)}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => togglePlanOptions(item.id)}
+                              className="text-white/60 hover:text-white h-8 w-8 p-0"
+                            >
+                              <Settings className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => removeBasketItem(item.id)}
+                              className="text-white/60 hover:text-red-400 h-8 w-8 p-0"
+                            >
+                              <X className="h-4 w-4" />
+                            </Button>
+                          </div>
+                          
+                          {expandedItemId === item.id && (
+                            <div className="ml-6 space-y-2">
+                              <p className="text-xs text-white">Change Plan:</p>
+                              <div className="grid grid-cols-2 gap-2">
+                                {plans.map((plan) => {
+                                  const discountedPrice = (plan.discount || 0) > 0 
+                                    ? plan.price * (1 - (plan.discount || 0) / 100) 
+                                    : plan.price;
+                                  
+                                  return (
+                                    <Button
+                                      key={plan.id}
+                                      variant="outline"
+                                      size="lg"
+                                      onClick={() => updateBasketItemPlan(item.id, plan)}
+                                      className={`text-xs ${
+                                        item.plan.id === plan.id
+                                          ? 'border border-pink-400 text-green-400 hover:text-green-300'
+                                          : 'border-white/20 hover:text-white/80 hover:bg-white/10'
+                                      }`}
+                                    >
+                                      <div className="grid grid-cols-2 items-center">
+                                        <span>{plan.period}</span>
+                                        {(plan.discount || 0) > 0 && (
+                                          <span className="line-through text-xs">
+                                            ${plan.price.toFixed(2)}
+                                          </span>
+                                        )}
+                                        {(plan.discount || 0) > 0 && (
+                                          <span className="text-xs">
+                                            -{(plan.discount || 0)}% OFF
+                                          </span>
+                                        )}
+                                        <span className="font-bold">
+                                          ${discountedPrice.toFixed(2)}
+                                        </span>
+                                      </div>
+                                    </Button>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          )}
                         </div>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => removeBasketItem(item.id)}
-                          className="text-white/60 hover:text-red-400 h-8 w-8 p-0"
-                        >
-                          <X className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    ))
+                      );
+                    })
                   )}
                 </div>
               </ScrollArea>
