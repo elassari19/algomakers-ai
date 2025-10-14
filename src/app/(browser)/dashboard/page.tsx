@@ -1,14 +1,15 @@
 'use client';
 
-import { Suspense } from 'react';
+import { Suspense, useState, useEffect, useMemo } from 'react';
 import Head from 'next/head';
-import { OverviewSection, OverviewDataItem } from '@/components/dashboard/DashboardStats';
+import { OverviewSection } from '@/components/dashboard/DashboardStats';
 import { ClientSortFilterBar } from '@/components/subscription/ClientSortFilterBar';
 import { GradientBackground } from '@/components/ui/gradient-background';
 import { ReusableTable, Column } from '@/components/ui/reusable-table';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { mockPairs } from '@/lib/dummy-data';
+import { SubscribeButton } from '@/components/subscription/SubscribeButton';
+import { getPairs } from '@/app/api/services';
 import { useSearchParams } from 'next/navigation';
 import {
   TrendingUp,
@@ -30,10 +31,9 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import Link from 'next/link';
+import { Pair, Subscription } from '@/generated/prisma';
 
-interface PairData {
-  id: string;
-  symbol: string;
+interface PairData extends Pair {
   name: string;
   metrics: {
     roi: number;
@@ -43,22 +43,8 @@ interface PairData {
     maxDrawdown: number;
     profit: number;
   };
-  timeframe?: string;
-  isPopular?: boolean;
-  subscription?: {
-    status: 'active' | 'expiring' | 'expired' | 'pending';
-    expiryDate?: string;
-  };
-}
-
-interface IProps {
-  searchParams?: {
-    search?: string;
-    filter?: string;
-    limit?: string;
-    page?: string;
-    q?: string;
-  };
+  isPopular: boolean;
+  subscriptions?: Subscription[];
 }
 
 function DashboardContent() {
@@ -71,113 +57,297 @@ function DashboardContent() {
   const q = searchParams.get('q');
 
   // Extract URL params with defaults
-  const searchQuery = search || '';
+  const searchQuery = q || '';
   const filterBy = filter || 'all';
   const currentPage = parseInt(page || '1');
-  const itemsPerPage = parseInt(limit || '5');
+  const itemsPerPage = parseInt(limit || '20');
 
-  // Mock user state - replace with real auth
-  const isUserLoggedIn = true;
+  // State for pairs data
+  const [pairs, setPairs] = useState<PairData[]>([]);
+  const [stats, setStats] = useState({
+    total: 0,
+    page: 1,
+    limit: 20,
+    totalPages: 0
+  });
+  const [loading, setLoading] = useState(true);
 
-  // Calculate stats from pairs data
-  const totalPairs = mockPairs.length;
-  const profitablePairs = mockPairs.filter(
-    (pair) => pair.metrics.profit > 0
-  ).length;
-  const totalProfit = mockPairs.reduce(
-    (sum, pair) => sum + pair.metrics.profit,
-    0
-  );
-
-  // Find best performer by ROI
-  const bestPerformer = mockPairs.reduce((best, current) =>
-    current.metrics.roi > best.metrics.roi ? current : best
-  );
-
-  const dashboardStats = {
-    totalPairs,
-    profitablePairs,
-    totalProfit,
-    bestPerformer: {
-      symbol: bestPerformer.symbol,
-      roi: bestPerformer.metrics.roi,
-    },
-  };
-
-  // Filter pairs based on URL params
-  function getFilteredPairs() {
-    let filtered = mockPairs;
-
-    // Search filter
-    if (searchQuery) {
-      filtered = filtered.filter(
-        (pair) =>
-          pair.symbol.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          pair.name.toLowerCase().includes(searchQuery.toLowerCase())
-      );
-    }
-
-    // Category filter
-    if (filterBy !== 'all') {
-      switch (filterBy) {
-        case 'forex':
-          filtered = filtered.filter(
-            (pair) =>
-              !pair.symbol.includes('BTC') &&
-              !pair.symbol.includes('ETH') &&
-              !pair.symbol.includes('LTC') &&
-              !pair.symbol.includes('ADA') &&
-              !pair.symbol.includes('XAU')
-          );
-          break;
-        case 'crypto':
-          filtered = filtered.filter(
-            (pair) =>
-              pair.symbol.includes('BTC') ||
-              pair.symbol.includes('ETH') ||
-              pair.symbol.includes('LTC') ||
-              pair.symbol.includes('ADA')
-          );
-          break;
-        case 'commodities':
-          filtered = filtered.filter(
-            (pair) =>
-              pair.symbol.includes('XAU') ||
-              pair.symbol.includes('XAG') ||
-              pair.symbol.includes('OIL')
-          );
-          break;
-        case 'profitable':
-          filtered = filtered.filter((pair) => pair.metrics.profit > 0);
-          break;
-        case 'popular':
-          filtered = filtered.filter((pair) => pair.isPopular);
-          break;
-        case 'subscribed':
-          filtered = filtered.filter(
-            (pair) =>
-              pair.subscription &&
-              (pair.subscription.status === 'active' ||
-                pair.subscription.status === 'expiring')
-          );
-          break;
+  // Fetch pairs data
+  useEffect(() => {
+    const fetchPairs = async () => {
+      setLoading(true);
+      try {
+        const result = await getPairs({ limit: 20 });
+        // console.log('pairs', JSON.parse(result.pairs[0].tradesAnalysis)[9]['All USDT']);
+        const mappedPairs: PairData[] = result.pairs.map((pair: any) => {
+          const performance = JSON.parse(pair.performance);
+          const properties = JSON.parse(pair.properties);
+          const riskPerfRatios = JSON.parse(pair.riskPerformanceRatios);
+          const tradesAnalysis = JSON.parse(pair.tradesAnalysis);
+          return({
+          ...pair,
+          performance: [],
+          properties: [],
+          riskPerfRatios: [],
+          tradesAnalysis: [],
+          metrics: {
+            roi: (10000 / performance[1]['All USDT']) * 100 || 0,
+            riskReward: tradesAnalysis[9]['All USDT'] || 0,
+            totalTrades: tradesAnalysis[0]['All USDT'] || 0,
+            winRate: (tradesAnalysis[2]['All USDT'] / tradesAnalysis[0]['All USDT'] * 100) || 0,
+            maxDrawdown: performance[7]['All USDT'] || 0,
+            profit: performance[1]['All USDT'] || 0,
+          },
+          isPopular: false,
+        })});
+        setPairs(mappedPairs);
+        setStats({
+          total: result.total,
+          page: result.page,
+          limit: result.limit,
+          totalPages: result.totalPages
+        });
+      } catch (error) {
+        console.error('Error fetching pairs:', error);
+      } finally {
+        setLoading(false);
       }
-    }
-
-    // Sort by ROI (highest first) as default
-    filtered.sort((a, b) => b.metrics.roi - a.metrics.roi);
-
-    return filtered;
-  }
-
-  const filteredPairs = getFilteredPairs();
+    };
+    fetchPairs();
+  }, [q, filterBy, currentPage, itemsPerPage]);
 
   // Calculate pagination
-  const totalFilteredPairs = filteredPairs.length;
-  const totalPages = Math.ceil(totalFilteredPairs / itemsPerPage);
-  const startIndex = (currentPage - 1) * itemsPerPage;
-  const endIndex = startIndex + itemsPerPage;
-  const paginatedPairs = filteredPairs.slice(startIndex, endIndex);
+  const totalFilteredPairs = stats.total;
+
+const columns: Column<PairData>[] = useMemo(() => [
+  {
+    key: 'subscription',
+    header: 'Status',
+    width: 'w-32',
+    render: (value: any, row: PairData) => {
+      const userSubscriptionStatus = row.subscriptions?.some((s: any) => row.id === s.pairId && s.status === 'ACTIVE') ? 'active' : 'none';
+      return (
+        <div className="flex flex-col gap-1">
+          <SubscribeButton
+            userSubscriptionStatus={userSubscriptionStatus}
+            isUserLoggedIn={true}
+            pair={row}
+          />
+        </div>
+      );
+    },
+  },
+  {
+    key: 'symbol',
+    header: 'Symbol',
+    sortable: true,
+    render: (value: string, row: PairData) => (
+      <div className="flex flex-col gap-1">
+        <div className="flex items-center gap-2">
+          <Link
+            href={`/dashboard/${row.id}`}
+            className="text-white hover:text-blue-400 transition-colors font-semibold"
+          >
+            {value}
+          </Link>
+          {row.isPopular && (
+            <Badge
+              variant="secondary"
+              className="text-xs bg-orange-500/10 text-orange-400"
+            >
+              🔥 Popular
+            </Badge>
+          )}
+        </div>
+        <span className="text-xs text-slate-400">
+          {row.name}
+        </span>
+      </div>
+    ),
+  },
+  {
+    key: 'timeframe',
+    header: 'Timeframe',
+    sortable: true,
+    align: 'center',
+    accessor: (row: PairData) => row.timeframe,
+    render: (value: string) => (
+      <div className="flex flex-col items-center">
+        <span className="text-sm font-medium text-white">
+          {value || 'N/A'}
+        </span>
+        <span className="text-xs text-slate-400">
+          period
+        </span>
+      </div>
+    ),
+  },
+  {
+    key: 'metrics.totalTrades',
+    header: 'Trades',
+    sortable: true,
+    align: 'center',
+    accessor: (row: PairData) => row.metrics.totalTrades,
+    render: (value: number) => (
+      <div className="flex flex-col items-center">
+        <span className="font-medium text-white">
+          {value}
+        </span>
+        <span className="text-xs text-slate-400">
+          total
+        </span>
+      </div>
+    ),
+  },
+  {
+    key: 'metrics.winRate',
+    header: 'Win Rate',
+    sortable: true,
+    align: 'center',
+    accessor: (row: PairData) => row.metrics.winRate,
+    render: (value: number) => (
+      <div className="flex flex-col items-center">
+        <span
+          className={`font-medium ${
+            value > 60 ? 'text-green-400' : 'text-white'
+          }`}
+        >
+          {value.toFixed(1)}%
+        </span>
+        <span className="text-xs text-slate-400">wins</span>
+      </div>
+    ),
+  },
+  {
+    key: 'metrics.roi',
+    header: 'ROI',
+    sortable: true,
+    align: 'center',
+    accessor: (row: PairData) => row.metrics.roi,
+    render: (value: number) => {
+      const isPositive = value > 0;
+      return (
+        <div className="flex items-center gap-1 justify-start">
+          {value > 0 ? <TrendingUp className="h-4 w-4 text-green-400" /> : value < 0 ? <TrendingUp className="h-4 w-4 -rotate-180 text-red-400" /> : <span className="h-4 w-4" />}
+          <span
+            className={`font-medium ${
+              isPositive ? 'text-green-400' : 'text-red-400'
+            }`}
+          >
+            {value.toFixed(2)}%
+          </span>
+        </div>
+      );
+    },
+  },
+  {
+    key: 'metrics.riskReward',
+    header: 'R/R',
+    sortable: true,
+    align: 'center',
+    accessor: (row: PairData) => row.metrics.riskReward,
+    render: (value: number) => (
+      <div className="flex flex-col items-center">
+        <span
+          className={`font-medium ${
+            value > 1.5 ? 'text-green-400' : 'text-white'
+          }`}
+        >
+          {value.toFixed(1)}
+        </span>
+        <span className="text-xs text-slate-400">
+          ratio
+        </span>
+      </div>
+    ),
+  },
+  {
+    key: 'metrics.maxDrawdown',
+    header: 'Max DD',
+    sortable: true,
+    align: 'center',
+    accessor: (row: PairData) => row.metrics.maxDrawdown,
+    render: (value: number) => (
+      <div className="flex flex-col items-center">
+        <span
+          className={`font-medium ${
+            value < 10 ? 'text-green-400' : 'text-red-400'
+          }`}
+        >
+          {value.toFixed(1)}%
+        </span>
+        <span className="text-xs text-slate-400">
+          drawdown
+        </span>
+      </div>
+    ),
+  },
+  {
+    key: 'metrics.profit',
+    header: 'Profit',
+    sortable: true,
+    align: 'center',
+    accessor: (row: PairData) => row.metrics.profit,
+    render: (value: number) => (
+      <div className="flex flex-col items-center">
+        <span
+          className={`font-medium ${
+            value > 0 ? 'text-green-400' : 'text-red-400'
+          }`}
+        >
+          ${value.toLocaleString()}
+        </span>
+        <span className="text-xs text-slate-400">
+          earned
+        </span>
+      </div>
+    ),
+  },
+  {
+    key: 'actions',
+    header: 'Actions',
+    align: 'center',
+    width: 'w-20',
+    render: (_, row: PairData) => (
+      <div className="flex items-center justify-center">
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              size="sm"
+              variant="ghost"
+              className="p-2 h-8 w-8 rounded-lg bg-slate-700 hover:bg-slate-600 transition-colors"
+            >
+              <MoreVertical className="h-4 w-4 text-slate-300" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent
+            align="end"
+            className="bg-slate-800 border-slate-700"
+          >
+            <DropdownMenuItem asChild>
+              <Link
+                href={`/dashboard/${row.id}`}
+                className="flex items-center cursor-pointer"
+              >
+                <Eye className="h-4 w-4 mr-2" />
+                View Details
+              </Link>
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              onClick={() =>
+                navigator.clipboard.writeText(row.symbol)
+              }
+              className="cursor-pointer"
+            >
+              <TrendingUp className="h-4 w-4 mr-2" />
+              Copy Symbol
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
+    ),
+  },
+], []);
 
   return (
     <>
@@ -208,32 +378,32 @@ function DashboardContent() {
                 overviewData={[
                   {
                     title: 'Total Pairs',
-                    currentValue: dashboardStats.totalPairs,
+                    currentValue: stats.total,
                     icon: BarChart3,
                     description: 'Available trading pairs',
                     pastValue: '+2 new pairs this month',
                   },
-                  {
-                    title: 'Profitable Pairs',
-                    currentValue: dashboardStats.profitablePairs,
-                    icon: Target,
-                    description: `${dashboardStats.totalPairs > 0 ? ((dashboardStats.profitablePairs / dashboardStats.totalPairs) * 100).toFixed(1) : '0'}% win rate`,
-                    pastValue: `${dashboardStats.profitablePairs} out of ${dashboardStats.totalPairs} pairs`,
-                  },
-                  {
-                    title: 'Total Profit',
-                    currentValue: `$${dashboardStats.totalProfit.toLocaleString()}`,
-                    icon: DollarSign,
-                    description: 'Combined performance',
-                    pastValue: '+15.2% this quarter',
-                  },
-                  {
-                    title: 'Best Performer',
-                    currentValue: dashboardStats.bestPerformer.symbol,
-                    icon: Award,
-                    description: `${dashboardStats.bestPerformer.roi}% ROI`,
-                    pastValue: 'Top performing pair',
-                  },
+                  // {
+                  //   title: 'Profitable Pairs',
+                  //   currentValue: dashboardStats.profitablePairs,
+                  //   icon: Target,
+                  //   description: `${dashboardStats.totalPairs > 0 ? ((dashboardStats.profitablePairs / dashboardStats.totalPairs) * 100).toFixed(1) : '0'}% win rate`,
+                  //   pastValue: `${dashboardStats.profitablePairs} out of ${dashboardStats.totalPairs} pairs`,
+                  // },
+                  // {
+                  //   title: 'Total Profit',
+                  //   currentValue: `$${dashboardStats.totalProfit.toLocaleString()}`,
+                  //   icon: DollarSign,
+                  //   description: 'Combined performance',
+                  //   pastValue: '+15.2% this quarter',
+                  // },
+                  // {
+                  //   title: 'Best Performer',
+                  //   currentValue: dashboardStats.bestPerformer.symbol,
+                  //   icon: Award,
+                  //   description: `${dashboardStats.bestPerformer.roi}% ROI`,
+                  //   pastValue: 'Top performing pair',
+                  // },
                 ]}
                 className="mb-0 grid-cols-2 md:grid-cols-4 w-[200%] md:w-full"
               />
@@ -260,262 +430,11 @@ function DashboardContent() {
                     className="w-[200%] md:w-full flex-row!"
                   />
                   <ReusableTable<PairData>
-                    data={mockPairs}
-                    columns={[
-                      {
-                        key: 'subscription',
-                        header: 'Status',
-                        width: 'w-32',
-                        render: (value: any, row: PairData) => {
-                          const userSubscriptionStatus =
-                            row.subscription?.status || 'none';
-                          return (
-                            <div className="flex flex-col gap-1">
-                              <Button
-                                size="sm"
-                                variant={
-                                  userSubscriptionStatus === 'active'
-                                    ? 'default'
-                                    : 'outline'
-                                }
-                                className={`text-xs ${
-                                  userSubscriptionStatus === 'active'
-                                    ? 'bg-green-600 hover:bg-green-700 text-white'
-                                    : userSubscriptionStatus === 'expiring'
-                                    ? 'bg-yellow-600 hover:bg-yellow-700 text-white'
-                                    : 'border-blue-500 text-blue-400 hover:bg-blue-500/10'
-                                }`}
-                              >
-                                {userSubscriptionStatus === 'active'
-                                  ? 'Active'
-                                  : userSubscriptionStatus === 'expiring'
-                                  ? 'Renew'
-                                  : userSubscriptionStatus === 'expired'
-                                  ? 'Expired'
-                                  : 'Subscribe'}
-                              </Button>
-                            </div>
-                          );
-                        },
-                      },
-                      {
-                        key: 'symbol',
-                        header: 'Pair',
-                        sortable: true,
-                        render: (value: string, row: PairData) => (
-                          <div className="flex flex-col gap-1">
-                            <div className="flex items-center gap-2">
-                              <Link
-                                href={`/pair/${row.id}`}
-                                className="text-white hover:text-blue-400 transition-colors font-semibold"
-                              >
-                                {value}
-                              </Link>
-                              {row.isPopular && (
-                                <Badge
-                                  variant="secondary"
-                                  className="text-xs bg-orange-500/10 text-orange-400"
-                                >
-                                  🔥 Popular
-                                </Badge>
-                              )}
-                            </div>
-                            <span className="text-xs text-slate-400">
-                              {row.name}
-                            </span>
-                          </div>
-                        ),
-                      },
-                      {
-                        key: 'metrics.roi',
-                        header: 'ROI',
-                        sortable: true,
-                        align: 'center',
-                        accessor: (row: PairData) => row.metrics.roi,
-                        render: (value: number) => {
-                          const isPositive = value > 0;
-                          const trend =
-                            value > 20 ? 'up' : value < 0 ? 'down' : 'neutral';
-                          return (
-                            <div className="flex flex-col items-center">
-                              <span
-                                className={`font-medium ${
-                                  isPositive ? 'text-green-400' : 'text-red-400'
-                                }`}
-                              >
-                                {isPositive ? '+' : ''}
-                                {value.toFixed(1)}%
-                              </span>
-                              <span className="text-xs text-slate-400">
-                                return
-                              </span>
-                            </div>
-                          );
-                        },
-                      },
-                      {
-                        key: 'metrics.riskReward',
-                        header: 'R/R',
-                        sortable: true,
-                        align: 'center',
-                        accessor: (row: PairData) => row.metrics.riskReward,
-                        render: (value: number) => (
-                          <div className="flex flex-col items-center">
-                            <span
-                              className={`font-medium ${
-                                value > 1.5 ? 'text-green-400' : 'text-white'
-                              }`}
-                            >
-                              {value.toFixed(1)}
-                            </span>
-                            <span className="text-xs text-slate-400">
-                              ratio
-                            </span>
-                          </div>
-                        ),
-                      },
-                      {
-                        key: 'metrics.totalTrades',
-                        header: 'Trades',
-                        sortable: true,
-                        align: 'center',
-                        accessor: (row: PairData) => row.metrics.totalTrades,
-                        render: (value: number) => (
-                          <div className="flex flex-col items-center">
-                            <span className="font-medium text-white">
-                              {value}
-                            </span>
-                            <span className="text-xs text-slate-400">
-                              total
-                            </span>
-                          </div>
-                        ),
-                      },
-                      {
-                        key: 'metrics.winRate',
-                        header: 'Win Rate',
-                        sortable: true,
-                        align: 'center',
-                        accessor: (row: PairData) => row.metrics.winRate,
-                        render: (value: number) => (
-                          <div className="flex flex-col items-center">
-                            <span
-                              className={`font-medium ${
-                                value > 60 ? 'text-green-400' : 'text-white'
-                              }`}
-                            >
-                              {value.toFixed(1)}%
-                            </span>
-                            <span className="text-xs text-slate-400">wins</span>
-                          </div>
-                        ),
-                      },
-                      {
-                        key: 'metrics.maxDrawdown',
-                        header: 'Max DD',
-                        sortable: true,
-                        align: 'center',
-                        accessor: (row: PairData) => row.metrics.maxDrawdown,
-                        render: (value: number) => (
-                          <div className="flex flex-col items-center">
-                            <span
-                              className={`font-medium ${
-                                value < 10 ? 'text-green-400' : 'text-red-400'
-                              }`}
-                            >
-                              {value.toFixed(1)}%
-                            </span>
-                            <span className="text-xs text-slate-400">
-                              drawdown
-                            </span>
-                          </div>
-                        ),
-                      },
-                      {
-                        key: 'metrics.profit',
-                        header: 'Profit',
-                        sortable: true,
-                        align: 'center',
-                        accessor: (row: PairData) => row.metrics.profit,
-                        render: (value: number) => (
-                          <div className="flex flex-col items-center">
-                            <span
-                              className={`font-medium ${
-                                value > 0 ? 'text-green-400' : 'text-red-400'
-                              }`}
-                            >
-                              ${value.toLocaleString()}
-                            </span>
-                            <span className="text-xs text-slate-400">
-                              earned
-                            </span>
-                          </div>
-                        ),
-                      },
-                      {
-                        key: 'timeframe',
-                        header: 'Timeframe',
-                        sortable: true,
-                        align: 'center',
-                        render: (value: string) => (
-                          <div className="flex flex-col items-center">
-                            <span className="text-sm font-medium text-white">
-                              {value || 'N/A'}
-                            </span>
-                            <span className="text-xs text-slate-400">
-                              period
-                            </span>
-                          </div>
-                        ),
-                      },
-                      {
-                        key: 'actions',
-                        header: 'Actions',
-                        align: 'center',
-                        width: 'w-20',
-                        render: (_, row: PairData) => (
-                          <div className="flex items-center justify-center">
-                            <DropdownMenu>
-                              <DropdownMenuTrigger asChild>
-                                <Button
-                                  size="sm"
-                                  variant="ghost"
-                                  className="p-2 h-8 w-8 rounded-lg bg-slate-700 hover:bg-slate-600 transition-colors"
-                                >
-                                  <MoreVertical className="h-4 w-4 text-slate-300" />
-                                </Button>
-                              </DropdownMenuTrigger>
-                              <DropdownMenuContent
-                                align="end"
-                                className="bg-slate-800 border-slate-700"
-                              >
-                                <DropdownMenuItem asChild>
-                                  <Link
-                                    href={`/pair/${row.id}`}
-                                    className="flex items-center cursor-pointer"
-                                  >
-                                    <Eye className="h-4 w-4 mr-2" />
-                                    View Details
-                                  </Link>
-                                </DropdownMenuItem>
-                                <DropdownMenuItem
-                                  onClick={() =>
-                                    navigator.clipboard.writeText(row.symbol)
-                                  }
-                                  className="cursor-pointer"
-                                >
-                                  <TrendingUp className="h-4 w-4 mr-2" />
-                                  Copy Symbol
-                                </DropdownMenuItem>
-                              </DropdownMenuContent>
-                            </DropdownMenu>
-                          </div>
-                        ),
-                      },
-                    ]}
+                    data={pairs}
+                    columns={columns}
                     title="Trading Pairs"
                     icon={TrendingUp}
-                    isLoading={false}
+                    isLoading={loading}
                     searchable={true}
                     searchFields={['symbol', 'name', 'timeframe']}
                     emptyStateTitle="No trading pairs found"
@@ -616,40 +535,33 @@ function DashboardContent() {
                         </div>
 
                         {/* Subscription Details */}
-                        {pair.subscription ? (
-                          <div className="bg-white/10 p-4 rounded-lg border border-white/20">
-                            <h3 className="text-white font-semibold mb-3 flex items-center gap-2">
-                              <Calendar className="h-5 w-5" />
-                              Subscription Details
-                            </h3>
-                            <div className="space-y-2 text-sm">
-                              <div className="flex justify-between">
-                                <span className="text-white/70">Status:</span>
-                                <Badge
-                                  className={`${
-                                    pair.subscription.status === 'active'
-                                      ? 'bg-green-500/20 text-green-400'
-                                      : pair.subscription.status === 'expiring'
-                                      ? 'bg-yellow-500/20 text-yellow-400'
-                                      : 'bg-red-500/20 text-red-400'
-                                  }`}
-                                >
-                                  {pair.subscription.status.toUpperCase()}
-                                </Badge>
-                              </div>
-                              <div className="flex justify-between">
-                                <span className="text-white/70">Expires:</span>
-                                <span className="text-white">
-                                  {pair.subscription.expiryDate
-                                    ? new Date(
-                                        pair.subscription.expiryDate
-                                      ).toLocaleDateString()
-                                    : 'N/A'}
-                                </span>
+                        {pair.subscriptions?.some(s => s.status === 'ACTIVE') ? (() => {
+                          const activeSubscription = pair.subscriptions?.find(s => s.status === 'ACTIVE');
+                          return (
+                            <div className="bg-white/10 p-4 rounded-lg border border-white/20">
+                              <h3 className="text-white font-semibold mb-3 flex items-center gap-2">
+                                <Calendar className="h-5 w-5" />
+                                Subscription Details
+                              </h3>
+                              <div className="space-y-2 text-sm">
+                                <div className="flex justify-between">
+                                  <span className="text-white/70">Status:</span>
+                                  <Badge className="bg-green-500/20 text-green-400">
+                                    {activeSubscription?.status.toUpperCase()}
+                                  </Badge>
+                                </div>
+                                <div className="flex justify-between">
+                                  <span className="text-white/70">Expires:</span>
+                                  <span className="text-white">
+                                    {activeSubscription?.expiryDate
+                                      ? new Date(activeSubscription.expiryDate).toLocaleDateString()
+                                      : 'N/A'}
+                                  </span>
+                                </div>
                               </div>
                             </div>
-                          </div>
-                        ) : (
+                          );
+                        })() : (
                           <div className="bg-white/10 p-4 rounded-lg border border-white/20">
                             <h3 className="text-white font-semibold mb-3 flex items-center gap-2">
                               <DollarSign className="h-5 w-5" />
@@ -664,24 +576,28 @@ function DashboardContent() {
 
                         {/* Actions */}
                         <div className="flex gap-3 pt-4">
-                          {pair.subscription ? (
-                            <>
-                              <Button className="flex-1 bg-gradient-to-r from-purple-500 to-pink-600 text-white">
-                                <Target className="h-4 w-4 mr-2" />
-                                View Signals
-                              </Button>
-                              {pair.subscription.status === 'expiring' && (
-                                <Button className="flex-1 bg-gradient-to-r from-green-500 to-blue-600 text-white">
-                                  <Clock className="h-4 w-4 mr-2" />
-                                  Renew
+                          {pair.subscriptions?.some(s => s.status === 'ACTIVE') ? (() => {
+                            const activeSubscription = pair.subscriptions?.find(s => s.status === 'ACTIVE');
+                            return (
+                              <>
+                                <Button className="flex-1 bg-gradient-to-r from-purple-500 to-pink-600 text-white">
+                                  <Target className="h-4 w-4 mr-2" />
+                                  View Signals
                                 </Button>
-                              )}
-                            </>
-                          ) : (
-                            <Button className="flex-1 bg-gradient-to-r from-green-500 to-blue-600 text-white">
-                              <DollarSign className="h-4 w-4 mr-2" />
-                              Subscribe Now
-                            </Button>
+                                {activeSubscription && new Date(activeSubscription.expiryDate) < new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) && (
+                                  <Button className="flex-1 bg-gradient-to-r from-green-500 to-blue-600 text-white">
+                                    <Clock className="h-4 w-4 mr-2" />
+                                    Renew
+                                  </Button>
+                                )}
+                              </>
+                            );
+                          })() : (
+                            <SubscribeButton
+                              isUserLoggedIn={true}
+                              pair={pair}
+                              className="flex-1"
+                            />
                           )}
                         </div>
                       </div>
