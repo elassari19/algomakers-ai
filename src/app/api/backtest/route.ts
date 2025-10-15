@@ -99,7 +99,10 @@ export async function GET(request: Request) {
   // If id is provided, fetch by id
   if (id) {
     try {
-      const pair = await prisma.pair.findUnique({ where: { id } });
+      const pair = await prisma.pair.findUnique({ 
+        where: { id },
+        include: { subscriptions: true }
+      });
       if (!pair) {
         return NextResponse.json({ found: false });
       }
@@ -125,6 +128,7 @@ export async function GET(request: Request) {
       
       const pair = await prisma.pair.findFirst({
         where: whereClause,
+        include: { subscriptions: true }
       });
       
       if (!pair) {
@@ -145,6 +149,7 @@ export async function GET(request: Request) {
   try {
     const pairs = await prisma.pair.findMany({
       orderBy: { createdAt: 'desc' },
+      include: { subscriptions: true }
     });
     return NextResponse.json({ pairs });
   } catch (error) {
@@ -283,7 +288,6 @@ export async function PATCH(request: NextRequest) {
   try {
 
     const body = await request.json();
-    console.log('Body received in PATCH /api/backtest:', body);
     const {
       symbol,
       timeframe,

@@ -11,25 +11,38 @@ export async function GET(
 
     // Validate environment variables
     if (!process.env.NOWPAYMENTS_API_KEY) {
+      console.error('NOWPAYMENTS_API_KEY environment variable is not set');
       return NextResponse.json(
         { error: 'NOWPayments API key not configured' },
         { status: 500 }
       );
     }
 
-    console.log(
-      'Using API key:',
-      process.env.NOWPAYMENTS_API_KEY?.substring(0, 8) + '...'
-    );
+    console.log('NOWPAYMENTS_API_KEY found, length:', process.env.NOWPAYMENTS_API_KEY.length);
+    console.log('NOWPAYMENTS_API_URL:', process.env.NOWPAYMENTS_API_URL);
 
     // Get payment status from NOWPayments API
     const nowPaymentsUrl =
       process.env.NOWPAYMENTS_API_URL || 'https://api-sandbox.nowpayments.io';
 
-    console.log('Checking payment status for ID:', invoiceId);
+    console.log('Using NOWPayments URL:', nowPaymentsUrl);
+    console.log('Checking payment status for ID:', invoiceId)
 
-    // Try to get payment status - first try as payment ID, then as invoice ID
-    let response = await fetch(`${nowPaymentsUrl}/v1/payment/${invoiceId}`, {
+    // For NOWPayments invoices, we need to check status differently
+    // Let's try different endpoints and see what works
+
+    console.log('Trying different NOWPayments endpoints...');
+
+    // Use invoiceId as the payment ID to check
+    const paymentIdToCheck = invoiceId;
+
+    // Fetch payment from database for possible orderId usage
+    const dbPayment = await prisma.payment.findFirst({
+      where: { invoiceId: paymentIdToCheck },
+    });
+
+    // First try: payment status
+    let response = await fetch(`${nowPaymentsUrl}/v1/payment/${paymentIdToCheck}`, {
       method: 'GET',
       headers: {
         'x-api-key': process.env.NOWPAYMENTS_API_KEY!,
@@ -37,28 +50,17 @@ export async function GET(
       },
     });
 
-    // If payment ID doesn't work, try to find the payment in our database
-    if (!response.ok && response.status === 403) {
-      // Try to find the payment ID from our database using the invoice ID
-      const dbPayment = await prisma.payment.findFirst({
-        where: {
-          OR: [{ invoiceId: invoiceId }, { orderId: { contains: invoiceId } }],
-        },
-      });
+    console.log('Payment endpoint response status:', response.status, `${nowPaymentsUrl}/v1/payment/${paymentIdToCheck}`);
 
-      if (dbPayment?.invoiceId && dbPayment.invoiceId !== invoiceId) {
-        // Retry with the actual payment ID from database
-        response = await fetch(
-          `${nowPaymentsUrl}/v1/payment/${dbPayment.invoiceId}`,
-          {
-            method: 'GET',
-            headers: {
-              'x-api-key': process.env.NOWPAYMENTS_API_KEY!,
-              'Content-Type': 'application/json',
-            },
-          }
-        );
-      }
+    // For hosted checkout invoices, if payment doesn't exist yet, it's pending
+    if (response.status === 404) {
+      console.log('Payment not found - likely pending payment on hosted checkout');
+      return NextResponse.json({
+        status: 'pending',
+        invoiceId,
+        message: 'Payment not yet initiated',
+        updatedAt: new Date().toISOString(),
+      });
     }
 
     if (!response.ok) {
@@ -69,11 +71,14 @@ export async function GET(
         errorData
       );
 
-      // If payment not found, it might be pending
+      // For invoices that haven't been paid yet, return pending status
+      // This is normal for hosted checkout invoices
       if (response.status === 404) {
+        console.log('Payment/Invoice not found - likely pending payment');
         return NextResponse.json({
           status: 'pending',
           invoiceId,
+          message: 'Payment not yet initiated',
           updatedAt: new Date().toISOString(),
         });
       }
@@ -109,8 +114,9 @@ export async function GET(
 
     // Update payment status in database
     try {
+      // Update by the ID we used to check status
       await prisma.payment.updateMany({
-        where: { invoiceId: invoiceId },
+        where: { invoiceId: paymentIdToCheck },
         data: {
           status: mapStatusToEnum(status),
           txHash: paymentStatus.payment_id || paymentStatus.tx_hash,

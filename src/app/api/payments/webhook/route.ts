@@ -30,37 +30,56 @@ interface NOWPaymentsWebhook {
 }
 
 export async function POST(request: NextRequest) {
-  const session = await getServerSession(authOptions);
-  if (!session?.user?.id) {
-    await createAuditLog({
-      actorId: 'unknown',
-      actorRole: 'USER',
-      action: AuditAction.UPDATE_PAYMENT,
-      targetType: AuditTargetType.PAYMENT,
-      responseStatus: 'FAILURE',
-      details: { reason: 'unauthorized' },
-    });
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
+  console.log('=== WEBHOOK RECEIVED ===');
+  console.log('Headers:', Object.fromEntries(request.headers.entries()));
+
   try {
     const body: NOWPaymentsWebhook = await request.json();
 
-    // Verify webhook signature from NOWPayments
+    console.log('Webhook body:', JSON.stringify(body, null, 2));
+
+    // Verify webhook signature from NOWPayments (skip in development if no keys)
     const signature = request.headers.get('x-nowpayments-sig');
-    if (signature && process.env.NOWPAYMENTS_API_KEY) {
-      const isValid = verifySignature(
-        signature,
-        JSON.stringify(body),
-        process.env.NOWPAYMENTS_API_KEY
-      );
-      if (!isValid) {
+    console.log('Webhook signature present:', !!signature);
+
+    const isDevelopment = process.env.NODE_ENV === 'development';
+
+    if (signature) {
+      // Try with IPN key first (NOWPayments typically uses IPN key for webhooks)
+      const ipnKey = process.env.NOWPAYMENTS_IPN_KEY;
+      const apiKey = process.env.NOWPAYMENTS_API_KEY;
+
+      let isValid = false;
+
+      if (ipnKey) {
+        isValid = verifySignature(signature, JSON.stringify(body), ipnKey);
+        console.log('Signature verification with IPN key:', isValid);
+      }
+
+      if (!isValid && apiKey) {
+        isValid = verifySignature(signature, JSON.stringify(body), apiKey);
+        console.log('Signature verification with API key:', isValid);
+      }
+
+      if (!isValid && !isDevelopment) {
         console.error('Invalid webhook signature');
         return NextResponse.json(
           { error: 'Invalid signature' },
           { status: 401 }
         );
+      } else if (!isValid && isDevelopment) {
+        console.warn('Invalid webhook signature in development - proceeding anyway');
       }
+    } else if (!isDevelopment) {
+      console.error('Missing webhook signature in production');
+      return NextResponse.json(
+        { error: 'Missing signature' },
+        { status: 401 }
+      );
     }
+
+    // Get session for audit logging (optional for webhooks)
+    const session = await getServerSession(authOptions);
 
     // Process different payment statuses
     switch (body.payment_status) {
@@ -144,9 +163,15 @@ function verifySignature(
 
 async function handlePaymentSuccess(webhook: NOWPaymentsWebhook) {
   const session = await getServerSession(authOptions);
+  console.log('Processing webhook payment success:', {
+    payment_id: webhook.payment_id,
+    order_id: webhook.order_id,
+    purchase_id: webhook.purchase_id,
+  });
+
   try {
-    // Update payment status in database
-    const updatedPayments = await prisma.payment.updateMany({
+    // Try to find payment by invoiceId first, then by orderId
+    let updatedPayments = await prisma.payment.updateMany({
       where: { invoiceId: webhook.payment_id },
       data: {
         status: PaymentStatus.PAID,
@@ -155,12 +180,42 @@ async function handlePaymentSuccess(webhook: NOWPaymentsWebhook) {
       },
     });
 
+    // If no payment found by invoiceId, try orderId
     if (updatedPayments.count === 0) {
-      console.warn('No payment records found for invoice:', webhook.payment_id);
+      console.log('No payment found by invoiceId, trying orderId:', webhook.order_id);
+      updatedPayments = await prisma.payment.updateMany({
+        where: { orderId: webhook.order_id },
+        data: {
+          status: PaymentStatus.PAID,
+          txHash: webhook.payment_id,
+          actuallyPaid: webhook.actually_paid || webhook.pay_amount,
+        },
+      });
+    }
+
+    // If still no payment found, try purchase_id if available
+    if (updatedPayments.count === 0 && webhook.purchase_id) {
+      console.log('No payment found by orderId, trying purchase_id:', webhook.purchase_id);
+      updatedPayments = await prisma.payment.updateMany({
+        where: { orderId: webhook.purchase_id },
+        data: {
+          status: PaymentStatus.PAID,
+          txHash: webhook.payment_id,
+          actuallyPaid: webhook.actually_paid || webhook.pay_amount,
+        },
+      });
+    }
+
+    if (updatedPayments.count === 0) {
+      console.warn('No payment records found for webhook:', {
+        payment_id: webhook.payment_id,
+        order_id: webhook.order_id,
+        purchase_id: webhook.purchase_id,
+      });
       return;
     }
 
-    // Get payment records with their pairs to create subscriptions
+    // Get payment records with their subscriptions to update them
     const payments = await prisma.payment.findMany({
       where: { invoiceId: webhook.payment_id },
       include: {
@@ -173,30 +228,26 @@ async function handlePaymentSuccess(webhook: NOWPaymentsWebhook) {
       },
     });
 
-    // Create subscription records for each payment/pair combination
+    // Update subscription records for each payment/pair combination
     for (const payment of payments) {
       for (const paymentItem of payment.paymentItems) {
         try {
-          // Calculate expiry date based on the period from payment item
-          const expiryDate = calculateExpiryDate(new Date(), Number(paymentItem.period));
-
-          await prisma.subscription.create({
-            data: {
+          // Update existing subscription status to ACTIVE
+          await prisma.subscription.updateMany({
+            where: {
               userId: payment.userId,
               pairId: paymentItem.pairId,
-              period: paymentItem.period,
-              startDate: new Date(),
-              expiryDate: expiryDate,
-              status: SubscriptionStatus.PENDING, // Admin needs to send TradingView invite
               paymentId: payment.id,
-              inviteStatus: InviteStatus.PENDING,
-              basePrice: paymentItem.basePrice,
-              discountRate: paymentItem.discountRate,
+              status: SubscriptionStatus.PENDING, // Only update pending subscriptions
+            },
+            data: {
+              status: SubscriptionStatus.ACTIVE,
+              inviteStatus: InviteStatus.PENDING, // Still pending admin action for TradingView invite
             },
           });
         } catch (error) {
           console.error(
-            `Failed to create subscription for payment ${payment.id} and pair ${paymentItem.pairId}:`,
+            `Failed to update subscription for payment ${payment.id} and pair ${paymentItem.pairId}:`,
             error
           );
         }

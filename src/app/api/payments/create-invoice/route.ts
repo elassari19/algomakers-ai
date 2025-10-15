@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { PaymentNetwork, PaymentStatus } from '@/generated/prisma';
+import { PaymentNetwork, PaymentStatus, SubscriptionStatus, InviteStatus } from '@/generated/prisma';
 import type { Role } from '@/generated/prisma';
 import { createAuditLog, AuditAction, AuditTargetType } from '@/lib/audit';
 import { getServerSession } from 'next-auth';
@@ -99,6 +99,154 @@ export async function POST(request: NextRequest) {
       .toString(36)
       .substr(2, 9)}`;
 
+    // Create subscriptions first for each pair
+    const subscriptions = [];
+    
+    // Check if we have detailed payment items from basket
+    if (body.orderData.paymentItems && body.orderData.paymentItems.length > 0) {
+      // Use the detailed payment items from basket
+      for (const paymentItem of body.orderData.paymentItems) {
+        try {
+          // Calculate expiry date based on the period from payment item
+          const months = paymentItem.period === 'ONE_MONTH' ? 1 :
+                        paymentItem.period === 'THREE_MONTHS' ? 3 :
+                        paymentItem.period === 'SIX_MONTHS' ? 6 :
+                        paymentItem.period === 'TWELVE_MONTHS' ? 12 : 1;
+          const expiryDate = calculateExpiryDate(new Date(), months);
+
+          const subscription = await prisma.subscription.create({
+            data: {
+              userId: userId,
+              pairId: paymentItem.pairId,
+              period: paymentItem.period as any, // Map string to enum
+              startDate: new Date(),
+              expiryDate: expiryDate,
+              status: SubscriptionStatus.PENDING, // Will be activated when payment is confirmed
+              inviteStatus: InviteStatus.PENDING,
+              basePrice: paymentItem.basePrice,
+              discountRate: paymentItem.discountRate,
+            },
+          });
+          subscriptions.push(subscription);
+        } catch (error) {
+          console.error(
+            `Failed to create subscription for pair ${paymentItem.pairId}:`,
+            error
+          );
+          await createAuditLog({
+            actorId: session?.user?.id || userId,
+            actorRole: (session?.user?.role as Role) || 'USER',
+            action: AuditAction.CREATE_PAYMENT,
+            targetType: AuditTargetType.PAYMENT,
+            responseStatus: 'FAILURE',
+            details: {
+              reason: `failed_to_create_subscription_for_${paymentItem.pairId}`,
+              error: error instanceof Error ? error.message : 'Unknown error',
+            },
+          });
+        }
+      }
+    } else {
+      // Fallback to old logic for backwards compatibility
+      for (const pairSymbol of pairIds) {
+        try {
+          // Find the pair first
+          let pair = await prisma.pair.findFirst({
+            where: { symbol: pairSymbol },
+          });
+
+          if (!pair) {
+            return NextResponse.json(
+              { error: `Pair not found: ${pairSymbol}` },
+              { status: 400 }
+            );
+          }
+
+          // Calculate expiry date (default to 1 month)
+          const expiryDate = calculateExpiryDate(new Date(), 1);
+
+          const subscription = await prisma.subscription.create({
+            data: {
+              userId: userId,
+              pairId: pair.id,
+              period: (body?.orderData?.paymentItems && body.orderData.paymentItems.length > 0
+                ? body.orderData.paymentItems[0].period
+                : 'ONE_MONTH') as any, // Default period
+              startDate: new Date(),
+              expiryDate: expiryDate,
+              status: SubscriptionStatus.PENDING, // Will be activated when payment is confirmed
+              inviteStatus: InviteStatus.PENDING,
+              basePrice: pair.priceOneMonth || body.amount / pairIds.length,
+              discountRate: pair.discountOneMonth || 0,
+            },
+          });
+          subscriptions.push(subscription);
+        } catch (error) {
+          console.error(
+            `Failed to create subscription for ${pairSymbol}:`,
+            error
+          );
+          await createAuditLog({
+            actorId: session?.user?.id || userId,
+            actorRole: (session?.user?.role as Role) || 'USER',
+            action: AuditAction.CREATE_PAYMENT,
+            targetType: AuditTargetType.PAYMENT,
+            responseStatus: 'FAILURE',
+            details: {
+              reason: `failed_to_create_subscription_for_${pairSymbol}`,
+              error: error instanceof Error ? error.message : 'Unknown error',
+            },
+          });
+        }
+      }
+    }
+
+    // Now create the payment record
+    const paymentRecord = await prisma.payment.create({
+      data: {
+        userId: userId,
+        totalAmount: body.amount,
+        network: mapNetworkToEnum(body.network),
+        status: PaymentStatus.PENDING,
+        orderId: orderId,
+        expiresAt: new Date(Date.now() + 20 * 60 * 1000), // 20 minutes from now
+        orderData: body.orderData,
+      },
+    });
+
+    // Create PaymentItem records for each subscription/pair combination
+    const paymentItems = [];
+    
+    for (const subscription of subscriptions) {
+      try {
+        const pair = await prisma.pair.findUnique({
+          where: { id: subscription.pairId },
+        });
+
+        if (!pair) continue;
+
+        const paymentItem = await prisma.paymentItem.create({
+          data: {
+            paymentId: paymentRecord.id,
+            pairId: subscription.pairId,
+            basePrice: subscription.basePrice || pair.priceOneMonth || body.amount / subscriptions.length,
+            discountRate: subscription.discountRate || pair.discountOneMonth || 0,
+            finalPrice: Number(subscription.basePrice || pair.priceOneMonth || body.amount / subscriptions.length) * (1 - Number(subscription.discountRate || pair.discountOneMonth || 0) / 100),
+            period: subscription.period,
+          },
+        });
+        paymentItems.push(paymentItem);
+
+        // Note: paymentId is no longer set on subscriptions
+        // Subscriptions are linked to payments through paymentItems and pairs
+      } catch (error) {
+        console.error(
+          `Failed to create payment item for subscription ${subscription.id}:`,
+          error
+        );
+      }
+    }
+
     // Map network to currency code (correct NOWPayments currency codes)
     const getCurrencyCode = (network: string): string => {
       switch (network.toLowerCase()) {
@@ -175,6 +323,12 @@ export async function POST(request: NextRequest) {
 
     const invoice = await invoiceResponse.json();
 
+    // Update payment record with invoice ID
+    await prisma.payment.update({
+      where: { id: paymentRecord.id },
+      data: { invoiceId: invoice.id },
+    });
+
     // Transform the invoice response for our API
     const transformedInvoice = {
       id: invoice.id || orderId,
@@ -193,108 +347,6 @@ export async function POST(request: NextRequest) {
       orderId: orderId,
       invoiceUrl: invoice.invoice_url,
     };
-
-    // Create a single payment record with multiple pairs
-    const paymentRecord = await prisma.payment.create({
-      data: {
-        userId: userId,
-        totalAmount: body.amount,
-        network: mapNetworkToEnum(body.network),
-        status: PaymentStatus.PENDING,
-        invoiceId: transformedInvoice.nowPaymentsId,
-        orderId: orderId,
-        expiresAt: new Date(transformedInvoice.expiresAt),
-        orderData: body.orderData,
-      },
-    });
-
-    // Create PaymentItem records for each pair (schema.prisma compliant)
-    const paymentItems = [];
-    
-    // Check if we have detailed payment items from basket
-    if (body.orderData.paymentItems && body.orderData.paymentItems.length > 0) {
-      // Use the detailed payment items from basket
-      for (const paymentItem of body.orderData.paymentItems) {
-        try {
-          const item = await prisma.paymentItem.create({
-            data: {
-              paymentId: paymentRecord.id,
-              pairId: paymentItem.pairId,
-              basePrice: paymentItem.basePrice,
-              discountRate: paymentItem.discountRate,
-              finalPrice: paymentItem.finalPrice,
-              period: paymentItem.period as any, // Map string to enum
-            },
-          });
-          paymentItems.push(item);
-        } catch (error) {
-          console.error(
-            `Failed to create payment item record for pair ${paymentItem.pairId}:`,
-            error
-          );
-          await createAuditLog({
-            actorId: session?.user?.id || userId,
-            actorRole: (session?.user?.role as Role) || 'USER',
-            action: AuditAction.CREATE_PAYMENT,
-            targetType: AuditTargetType.PAYMENT,
-            targetId: paymentRecord.id,
-            responseStatus: 'FAILURE',
-            details: {
-              reason: `failed_to_create_payment_item_for_${paymentItem.pairId}`,
-              error: error instanceof Error ? error.message : 'Unknown error',
-            },
-          });
-        }
-      }
-    } else {
-      // Fallback to old logic for backwards compatibility
-      for (const pairSymbol of pairIds) {
-        try {
-          // Find or create the pair first
-          let pair = await prisma.pair.findFirst({
-            where: { symbol: pairSymbol },
-          });
-
-          if (!pair) {
-            return NextResponse.json(
-              { error: `Pair not found: ${pairSymbol}` },
-              { status: 400 }
-            );
-          }
-
-          const paymentItem = await prisma.paymentItem.create({
-            data: {
-              paymentId: paymentRecord.id,
-              pairId: pair.id,
-              basePrice: pair.priceOneMonth || body.amount / pairIds.length,
-              discountRate: pair.discountOneMonth || 0,
-              finalPrice:
-                (Number(pair.priceOneMonth) || body.amount / pairIds.length) *
-                (1 - (Number(pair.discountOneMonth) || 0) / 100),
-              period: 'ONE_MONTH', // Default period
-            },
-          });
-          paymentItems.push(paymentItem);
-        } catch (error) {
-          console.error(
-            `Failed to create payment item record for ${pairSymbol}:`,
-            error
-          );
-          await createAuditLog({
-            actorId: session?.user?.id || userId,
-            actorRole: (session?.user?.role as Role) || 'USER',
-            action: AuditAction.CREATE_PAYMENT,
-            targetType: AuditTargetType.PAYMENT,
-            targetId: paymentRecord.id,
-            responseStatus: 'FAILURE',
-            details: {
-              reason: `failed_to_create_payment_item_for_${pairSymbol}`,
-              error: error instanceof Error ? error.message : 'Unknown error',
-            },
-          });
-        }
-      }
-    }
 
     // Audit log for all roles
     await createAuditLog({
@@ -395,4 +447,10 @@ function generateQRCode(
   )}`;
 
   return qrApiUrl;
+}
+
+function calculateExpiryDate(startDate: Date, months: number): Date {
+  const expiryDate = new Date(startDate);
+  expiryDate.setMonth(expiryDate.getMonth() + months);
+  return expiryDate;
 }
