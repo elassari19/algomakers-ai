@@ -109,9 +109,10 @@ async function getDashboardData(searchParams: { [key: string]: string | string[]
 export default async function DashboardPage({
   searchParams,
 }: {
-  searchParams: { [key: string]: string | string[] | undefined };
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
 }) {
-  const data = await getDashboardData(searchParams);
+  const resolvedSearchParams = await searchParams;
+  const data = await getDashboardData(resolvedSearchParams);
 
   return (
     <Suspense
