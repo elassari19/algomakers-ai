@@ -1,7 +1,4 @@
-'use client';
-
-import { useState, useEffect } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { Suspense } from 'react';
 import Link from 'next/link';
 import {
   ArrowLeft,
@@ -98,57 +95,50 @@ interface SubscriptionDetails {
   }>;
 }
 
-export default function SubscriptionDetailsPage() {
-  const params = useParams();
-  const router = useRouter();
-  const [subscription, setSubscription] = useState<SubscriptionDetails | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+async function getSubscriptionData(id: string) {
+  try {
+    const data = await getSubscriptionDetails(id);
+    return JSON.parse(data);
+  } catch (error) {
+    console.error('Error fetching subscription details:', error);
+    throw new Error('Failed to load subscription details');
+  }
+}
 
-  useEffect(() => {
-	const fetchSubscriptionDetails = async () => {
-	  try {
-		const subscriptionId = params.id as string;
-		const data = await getSubscriptionDetails(subscriptionId);
-		setSubscription(JSON.parse(data));
-	  } catch (err) {
-		console.error('Error fetching subscription details:', err);
-		setError('Failed to load subscription details');
-	  } finally {
-		setLoading(false);
-	  }
-	};
+export default async function SubscriptionDetailsPage({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
+  const { id } = await params;
 
-	if (params.id) {
-	  fetchSubscriptionDetails();
-	}
-  }, [params.id]);
+  let subscription: SubscriptionDetails | null = null;
+  let error: string | null = null;
 
-  if (loading) {
-	return (
-	  <div className="min-h-screen bg-slate-900 flex items-center justify-center">
-		<div className="text-center">
-		  <RefreshCw className="w-8 h-8 animate-spin text-blue-400 mx-auto mb-4" />
-		  <p className="text-slate-400">Loading subscription details...</p>
-		</div>
-	  </div>
-	);
+  try {
+    subscription = await getSubscriptionData(id);
+  } catch (err) {
+    error = err instanceof Error ? err.message : 'Subscription not found';
   }
 
   if (error || !subscription) {
-	return (
-	  <div className="min-h-screen bg-slate-900 flex items-center justify-center">
-		<div className="text-center">
-		  <AlertCircle className="w-12 h-12 text-red-400 mx-auto mb-4" />
-		  <h1 className="text-2xl font-bold text-white mb-2">Error</h1>
-		  <p className="text-slate-400 mb-6">{error || 'Subscription not found'}</p>
-		  <Button onClick={() => router.back()}>
-			<ArrowLeft className="w-4 h-4 mr-2" />
-			Go Back
-		  </Button>
-		</div>
-	  </div>
-	);
+    return (
+      <GradientBackground>
+        <div className="min-h-screen bg-slate-900 flex items-center justify-center">
+          <div className="text-center">
+            <AlertCircle className="w-12 h-12 text-red-400 mx-auto mb-4" />
+            <h1 className="text-2xl font-bold text-white mb-2">Error</h1>
+            <p className="text-slate-400 mb-6">{error || 'Subscription not found'}</p>
+            <Link href="/subscriptions">
+              <Button>
+                <ArrowLeft className="w-4 h-4 mr-2" />
+                Back to Subscriptions
+              </Button>
+            </Link>
+          </div>
+        </div>
+      </GradientBackground>
+    );
   }
 
   const getStatusColor = (status: string) => {
