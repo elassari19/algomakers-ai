@@ -1,5 +1,6 @@
 'use server';
 
+import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { getServerSession } from 'next-auth';
 
@@ -197,7 +198,6 @@ export async function getSubscriptionDetails(subscriptionId: string) {
         },
       },
     });
-    console.log('subscription service', subscription);
 
     if (!subscription) {
       throw new Error('Subscription not found');
@@ -207,5 +207,37 @@ export async function getSubscriptionDetails(subscriptionId: string) {
   } catch (error) {
     console.error('Error fetching subscription details:', error);
     throw new Error('Failed to fetch subscription details');
+  }
+}
+
+export async function getUserBillingData() {
+  const session = await getServerSession(authOptions);
+  try {
+    const payments = await prisma.payment.findMany({
+      where: {
+        userId: session?.user?.id,
+      },
+      // include: {
+      //   subscription: {
+      //     select: {
+      //       id: true,
+      //       status: true,
+      //       pair: {
+      //         select: {
+      //           id: true,
+      //           symbol: true,
+      //           version: true,
+      //           timeframe: true,
+      //         },
+      //       },
+      //     },
+      //   },
+      // },
+    });
+
+    return JSON.stringify(payments);
+  } catch (error) {
+    console.error('Error fetching user billing data:', error);
+    throw new Error('Failed to fetch user billing data');
   }
 }

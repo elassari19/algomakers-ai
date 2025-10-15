@@ -17,27 +17,40 @@ import {
 import { SortFilterBar } from '@/components/subscription/SortFilterBar';
 import { OverviewSection } from '@/components/dashboard/DashboardStats';
 import jsPDF from 'jspdf';
+import { getUserBillingData } from '@/app/api/services';
 
 // Payment interface
 interface Payment {
   id: string;
   orderId: string;
   invoiceId: string;
-  pairName: string;
-  amount: number;
+  totalAmount: number;
   actuallyPaid?: number;
   network: string;
   status: 'PENDING' | 'PAID' | 'UNDERPAID' | 'EXPIRED' | 'FAILED';
   txHash?: string;
-  createdAt: Date;
-  expiresAt?: Date;
-  subscription?: {
-    id: string;
+  createdAt: string;
+  expiresAt?: string;
+  updatedAt: string;
+  userId: string;
+  paymentItems: Array<{
+    pairId: string;
     period: string;
-    startDate: Date;
-    expiryDate: Date;
-    status: string;
+    basePrice: number;
+    finalPrice: number;
+    discountRate: number;
+  }>;
+  orderData?: {
+    basketItems: any[];
+    pairIds: string[];
   };
+  pairs: Array<{
+    id: string;
+    symbol: string;
+    basePrice: number;
+    discountRate: number;
+    finalPrice: number;
+  }>;
 }
 
 interface BillingStats {
@@ -58,115 +71,33 @@ export default function BillingPage() {
   const [loading, setLoading] = useState(true);
   const [filterBy, setFilterBy] = useState<string>('all');
 
-  // Mock data for demonstration
-  const mockPayments: Payment[] = [
-    {
-      id: '1',
-      orderId: 'ORD-2024-001',
-      invoiceId: 'INV-001',
-      pairName: 'BTC/USDT',
-      amount: 99.99,
-      actuallyPaid: 99.99,
-      network: 'USDT_TRC20',
-      status: 'PAID',
-      txHash: '0x1234567890abcdef1234567890abcdef12345678',
-      createdAt: new Date('2024-01-15'),
-      subscription: {
-        id: 'sub-1',
-        period: 'ONE_MONTH',
-        startDate: new Date('2024-01-15'),
-        expiryDate: new Date('2024-02-15'),
-        status: 'EXPIRED',
-      },
-    },
-    {
-      id: '2',
-      orderId: 'ORD-2024-002',
-      invoiceId: 'INV-002',
-      pairName: 'ETH/USDT',
-      amount: 199.99,
-      actuallyPaid: 199.99,
-      network: 'USDT_ERC20',
-      status: 'PAID',
-      txHash: '0xabcdef1234567890abcdef1234567890abcdef12',
-      createdAt: new Date('2024-02-20'),
-      subscription: {
-        id: 'sub-2',
-        period: 'THREE_MONTHS',
-        startDate: new Date('2024-02-20'),
-        expiryDate: new Date('2024-05-20'),
-        status: 'ACTIVE',
-      },
-    },
-    {
-      id: '3',
-      orderId: 'ORD-2024-003',
-      invoiceId: 'INV-003',
-      pairName: 'SOL/USDT',
-      amount: 149.99,
-      network: 'USDT_TRC20',
-      status: 'PENDING',
-      createdAt: new Date('2024-03-10'),
-      expiresAt: new Date('2024-03-11'),
-    },
-    {
-      id: '4',
-      orderId: 'ORD-2024-004',
-      invoiceId: 'INV-004',
-      pairName: 'ADA/USDT',
-      amount: 79.99,
-      actuallyPaid: 75.5,
-      network: 'USDT_BEP20',
-      status: 'UNDERPAID',
-      createdAt: new Date('2024-03-05'),
-    },
-    {
-      id: '5',
-      orderId: 'ORD-2024-003',
-      invoiceId: 'INV-003',
-      pairName: 'SOL/USDT',
-      amount: 149.99,
-      network: 'USDT_TRC20',
-      status: 'PENDING',
-      createdAt: new Date('2024-03-10'),
-      expiresAt: new Date('2024-03-11'),
-    },
-    {
-      id: '6',
-      orderId: 'ORD-2024-004',
-      invoiceId: 'INV-004',
-      pairName: 'ADA/USDT',
-      amount: 79.99,
-      actuallyPaid: 75.5,
-      network: 'USDT_BEP20',
-      status: 'UNDERPAID',
-      createdAt: new Date('2024-03-05'),
-    },
-  ];
-
   useEffect(() => {
-    // Simulate loading and set mock data
-    setLoading(true);
-    setTimeout(() => {
-      setPayments(mockPayments);
-
-      // Calculate stats
-      const totalSpent = mockPayments
-        .filter((p) => p.status === 'PAID')
-        .reduce((sum, p) => sum + (p.actuallyPaid || p.amount), 0);
-
-      setStats({
-        totalSpent,
-        totalPayments: mockPayments.length,
-        activeSubscriptions: mockPayments.filter(
-          (p) => p.subscription?.status === 'ACTIVE'
-        ).length,
-        pendingPayments: mockPayments.filter((p) => p.status === 'PENDING')
-          .length,
-      });
-
-      setLoading(false);
-    }, 10);
+    const fetchPayments = async () => {
+      setLoading(true);
+      try {
+        const response = await fetch('/api/billing');
+        if (!response.ok) {
+          throw new Error('Failed to fetch billing data');
+        }
+        const data = await response.json();
+        console.log('data', data)
+        setPayments(data.payments);
+        setStats(data.stats);
+      } catch (error) {
+        console.error('Error fetching billing data:', error);
+        // Fallback to empty data if API fails
+        setPayments([]);
+        setStats({
+          totalSpent: 0,
+          totalPayments: 0,
+          activeSubscriptions: 0,
+          pendingPayments: 0,
+        });
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchPayments();
   }, []);
 
   // Filter payments based on selected filter
@@ -193,11 +124,11 @@ export default function BillingPage() {
         const thirtyDaysAgo = new Date();
         thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
         filtered = payments.filter(
-          (payment) => payment.createdAt >= thirtyDaysAgo
+          (payment) => new Date(payment.createdAt) >= thirtyDaysAgo
         );
         break;
       case 'high-value':
-        filtered = payments.filter((payment) => payment.amount >= 100);
+        filtered = payments.filter((payment) => payment.totalAmount >= 100);
         break;
       default:
         filtered = payments;
@@ -215,11 +146,11 @@ export default function BillingPage() {
       header: 'Date',
       sortable: true,
       width: 'w-32',
-      render: (value: Date) => (
+      render: (value: string) => (
         <div className="flex items-center gap-2">
           <Calendar className="h-4 w-4 text-gray-400" />
           <span className="text-gray-300">
-            {value.toLocaleDateString('en-US', {
+            {new Date(value).toLocaleDateString('en-US', {
               month: 'short',
               day: '2-digit',
               year: 'numeric',
@@ -237,22 +168,23 @@ export default function BillingPage() {
       ),
     },
     {
-      key: 'pairName',
-      header: 'Symbol',
-      sortable: true,
-      render: (value: string, row: Payment) => (
+      key: 'pairs',
+      header: 'Items',
+      sortable: false,
+      render: (value: Array<{id: string; symbol: string; finalPrice: number}>) => (
         <div>
-          <p className="font-medium text-gray-300">{value}</p>
-          {row.subscription && (
+          <p className="font-medium text-gray-300">{value?.length} item{value?.length !== 1 ? 's' : ''}</p>
+          {value?.length > 0 && (
             <p className="text-sm text-gray-400">
-              {row.subscription.period.replace('_', ' ').toLowerCase()}
+              {value[0].symbol}
+              {value?.length > 1 && ` +${value?.length - 1} more`}
             </p>
           )}
         </div>
       ),
     },
     {
-      key: 'amount',
+      key: 'totalAmount',
       header: 'Amount',
       sortable: true,
       align: 'right',
@@ -336,7 +268,7 @@ export default function BillingPage() {
 
   const generateInvoicePDF = (payment: Payment): jsPDF => {
     const currentDate = new Date().toLocaleDateString();
-    const paymentDate = payment.createdAt.toLocaleDateString();
+    const paymentDate = new Date(payment.createdAt).toLocaleDateString();
 
     const pdf = new jsPDF();
 
@@ -422,22 +354,25 @@ export default function BillingPage() {
     yPos += 15;
     pdf.setFontSize(10);
 
-    // Strategy
+    // Items
     pdf.setFont('helvetica', 'normal');
     pdf.setTextColor(...textColor);
-    pdf.text('Strategy:', 20, yPos);
-    pdf.text(payment.pairName, 70, yPos);
+    pdf.text('Items:', 20, yPos);
+    pdf.text(`${payment.pairs?.length} item${payment.pairs?.length !== 1 ? 's' : ''}`, 70, yPos);
 
-    // Subscription details if available
-    if (payment.subscription) {
-      yPos += 8;
-      pdf.text('Subscription Period:', 20, yPos);
-      pdf.text(payment.subscription.period.replace('_', ' '), 70, yPos);
-
-      yPos += 8;
-      pdf.text('Service Period:', 20, yPos);
-      const servicePeriod = `${payment.subscription.startDate.toLocaleDateString()} - ${payment.subscription.expiryDate.toLocaleDateString()}`;
-      pdf.text(servicePeriod, 70, yPos);
+    // Payment items details
+    if (payment.paymentItems && payment.paymentItems?.length > 0) {
+      payment.paymentItems.forEach((item, index) => {
+        yPos += 8;
+        pdf.text(`Item ${index + 1}:`, 20, yPos);
+        pdf.text(`${item.period.replace('_', ' ')} - $${item.finalPrice}`, 70, yPos);
+        if (item.discountRate > 0) {
+          yPos += 6;
+          pdf.setFontSize(8);
+          pdf.text(`(Discount: ${item.discountRate}%)`, 70, yPos);
+          pdf.setFontSize(10);
+        }
+      });
     }
 
     yPos += 8;
@@ -461,22 +396,60 @@ export default function BillingPage() {
     pdf.setFont('helvetica', 'bold');
     pdf.text(payment.status, 70, yPos);
 
+    // Pairs Details Section
+    if (payment.pairs && payment.pairs.length > 0) {
+      yPos += 15;
+      pdf.setFillColor(249, 250, 251);
+      pdf.rect(15, yPos - 5, 180, 40 + (payment.pairs.length * 15), 'F');
+
+      pdf.setFontSize(12);
+      pdf.setFont('helvetica', 'bold');
+      pdf.setTextColor(...primaryColor);
+      pdf.text('Trading Pairs', 20, yPos);
+
+      yPos += 15;
+      pdf.setFontSize(10);
+
+      payment.pairs.forEach((pair, index) => {
+        pdf.setFont('helvetica', 'normal');
+        pdf.setTextColor(...textColor);
+
+        yPos += 8;
+        pdf.text(`Pair ${index + 1}:`, 20, yPos);
+        pdf.text(`${pair.symbol}`, 70, yPos);
+
+        yPos += 6;
+        pdf.setFontSize(8);
+        pdf.text(`Base Price: $${pair.basePrice}`, 25, yPos);
+        pdf.text(`Final Price: $${pair.finalPrice}`, 85, yPos);
+
+        if (pair.discountRate > 0) {
+          yPos += 6;
+          pdf.setTextColor(194, 65, 12); // Orange color for discount
+          pdf.text(`Discount: ${pair.discountRate}%`, 25, yPos);
+        }
+
+        pdf.setTextColor(...textColor);
+        pdf.setFontSize(10);
+      });
+    }
+
     // Amount details
     yPos += 8;
     pdf.setFont('helvetica', 'normal');
     pdf.setTextColor(...textColor);
 
-    if (payment.actuallyPaid && payment.actuallyPaid !== payment.amount) {
+    if (payment.actuallyPaid && payment.actuallyPaid !== payment.totalAmount) {
       pdf.text('Amount Due:', 20, yPos);
-      pdf.text(`$${payment.amount.toFixed(2)}`, 70, yPos);
+      pdf.text(`$${payment.totalAmount}`, 70, yPos);
 
       yPos += 8;
       pdf.text('Amount Paid:', 20, yPos);
-      pdf.text(`$${payment.actuallyPaid.toFixed(2)}`, 70, yPos);
+      pdf.text(`$${payment.actuallyPaid}`, 70, yPos);
     } else {
       pdf.setFont('helvetica', 'bold');
       pdf.text('Total Amount:', 20, yPos);
-      pdf.text(`$${payment.amount.toFixed(2)}`, 70, yPos);
+      pdf.text(`$${payment.totalAmount}`, 70, yPos);
     }
 
     // Transaction hash if available
@@ -486,7 +459,7 @@ export default function BillingPage() {
       pdf.text('Transaction Hash:', 20, yPos);
       // Split long hash into multiple lines if needed
       const hashText = payment.txHash;
-      if (hashText.length > 30) {
+      if (hashText?.length > 30) {
         pdf.setFont('helvetica', 'normal');
         pdf.setFontSize(8);
         pdf.text(hashText.substring(0, 30), 20, yPos + 6);
@@ -596,12 +569,12 @@ export default function BillingPage() {
                 icon={Receipt}
                 isLoading={loading}
                 searchable={true}
-                searchFields={['orderId', 'pairName', 'invoiceId']}
+                searchFields={['orderId', 'invoiceId', 'network']}
                 emptyStateTitle="No payments found"
                 emptyStateDescription="No payments found matching your criteria"
                 enableRowDetails={true}
                 rowDetailTitle={(payment) =>
-                  `Payment Details - ${payment.orderId}`
+                  `${payment.orderId}`
                 }
                 excludeFromDetails={['id']}
                 rowDetailContent={(payment) => (
@@ -614,21 +587,22 @@ export default function BillingPage() {
                       </h3>
                       <div className="grid grid-cols-2 gap-4 text-sm">
                         <div>
-                          <p className="text-white/70">Order ID</p>
-                          <p className="text-white font-mono">
-                            {payment.orderId}
-                          </p>
-                        </div>
-                        <div>
                           <p className="text-white/70">Invoice ID</p>
                           <p className="text-white font-mono">
                             {payment.invoiceId}
                           </p>
                         </div>
                         <div>
-                          <p className="text-white/70">Strategy Pair</p>
+                          {/* <p className="text-white/70">Order ID</p>
+                          <p className="text-white font-mono">
+                            {payment.orderId}
+                          </p> */}
+                        </div>
+                        
+                        <div>
+                          <p className="text-white/70">Items</p>
                           <p className="text-white font-semibold">
-                            {payment.pairName}
+                            {payment.pairs?.length} item{payment.pairs?.length !== 1 ? 's' : ''}
                           </p>
                         </div>
                         <div>
@@ -650,17 +624,17 @@ export default function BillingPage() {
                         <div className="flex justify-between items-center">
                           <span className="text-white/70">Amount Due:</span>
                           <span className="text-white font-semibold text-lg">
-                            ${payment.amount.toFixed(2)}
+                            ${payment.totalAmount}
                           </span>
                         </div>
                         {payment.actuallyPaid &&
-                          payment.actuallyPaid !== payment.amount && (
+                          payment.actuallyPaid !== payment.totalAmount && (
                             <div className="flex justify-between items-center">
                               <span className="text-white/70">
                                 Amount Paid:
                               </span>
                               <span className="text-orange-400 font-semibold">
-                                ${payment.actuallyPaid.toFixed(2)}
+                                ${payment.actuallyPaid}
                               </span>
                             </div>
                           )}
@@ -697,52 +671,102 @@ export default function BillingPage() {
                       </div>
                     )}
 
-                    {/* Subscription Details */}
-                    {payment.subscription && (
+                    {/* Payment Items Details */}
+                    {payment.paymentItems && payment.paymentItems?.length > 0 && (
                       <div className="bg-white/10 p-4 rounded-lg border border-white/20">
                         <h3 className="text-white font-semibold mb-3 flex items-center gap-2">
                           <Users className="h-5 w-5" />
-                          Subscription Details
+                          Payment Items
                         </h3>
-                        <div className="space-y-2 text-sm">
-                          <div className="flex justify-between">
-                            <span className="text-white/70">
-                              Subscription ID:
-                            </span>
-                            <span className="text-white font-mono">
-                              {payment.subscription.id}
-                            </span>
-                          </div>
-                          <div className="flex justify-between">
-                            <span className="text-white/70">Period:</span>
-                            <span className="text-white">
-                              {payment.subscription.period.replace('_', ' ')}
-                            </span>
-                          </div>
-                          <div className="flex justify-between">
-                            <span className="text-white/70">Start Date:</span>
-                            <span className="text-white">
-                              {payment.subscription.startDate.toLocaleDateString()}
-                            </span>
-                          </div>
-                          <div className="flex justify-between">
-                            <span className="text-white/70">Expiry Date:</span>
-                            <span className="text-white">
-                              {payment.subscription.expiryDate.toLocaleDateString()}
-                            </span>
-                          </div>
-                          <div className="flex justify-between">
-                            <span className="text-white/70">Status:</span>
-                            <span
-                              className={`px-2 py-1 rounded text-xs font-semibold ${
-                                payment.subscription.status === 'ACTIVE'
-                                  ? 'bg-green-500/20 text-green-400'
-                                  : 'bg-red-500/20 text-red-400'
-                              }`}
-                            >
-                              {payment.subscription.status}
-                            </span>
-                          </div>
+                        <div className="space-y-3">
+                          {payment.paymentItems.map((item, index) => (
+                            <div key={index} className="bg-white/5 p-3 rounded border border-white/10">
+                              <div className="space-y-2 text-sm">
+                                <div className="flex justify-between">
+                                  <span className="text-white/70">Pair ID:</span>
+                                  <span className="text-white font-mono text-xs">
+                                    {item.pairId}
+                                  </span>
+                                </div>
+                                <div className="flex justify-between">
+                                  <span className="text-white/70">Period:</span>
+                                  <span className="text-white">
+                                    {item.period.replace('_', ' ')}
+                                  </span>
+                                </div>
+                                <div className="flex justify-between">
+                                  <span className="text-white/70">Base Price:</span>
+                                  <span className="text-white">
+                                    ${item.basePrice}
+                                  </span>
+                                </div>
+                                <div className="flex justify-between">
+                                  <span className="text-white/70">Final Price:</span>
+                                  <span className="text-green-400 font-semibold">
+                                    ${item.finalPrice}
+                                  </span>
+                                </div>
+                                {item.discountRate > 0 && (
+                                  <div className="flex justify-between">
+                                    <span className="text-white/70">Discount:</span>
+                                    <span className="text-orange-400">
+                                      {item.discountRate}%
+                                    </span>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Pairs Details */}
+                    {payment.pairs && payment.pairs.length > 0 && (
+                      <div className="bg-white/10 p-4 rounded-lg border border-white/20">
+                        <h3 className="text-white font-semibold mb-3 flex items-center gap-2">
+                          <Users className="h-5 w-5" />
+                          Trading Pairs
+                        </h3>
+                        <div className="space-y-3">
+                          {payment.pairs.map((pair, index) => (
+                            <div key={pair.id} className="bg-white/5 p-3 rounded border border-white/10">
+                              <div className="space-y-2 text-sm">
+                                <div className="flex justify-between">
+                                  <span className="text-white/70">Pair ID:</span>
+                                  <span className="text-white font-mono text-xs">
+                                    {pair.id}
+                                  </span>
+                                </div>
+                                <div className="flex justify-between">
+                                  <span className="text-white/70">Symbol:</span>
+                                  <span className="text-white font-semibold">
+                                    {pair.symbol}
+                                  </span>
+                                </div>
+                                <div className="flex justify-between">
+                                  <span className="text-white/70">Base Price:</span>
+                                  <span className="text-white">
+                                    ${pair.basePrice}
+                                  </span>
+                                </div>
+                                <div className="flex justify-between">
+                                  <span className="text-white/70">Final Price:</span>
+                                  <span className="text-green-400 font-semibold">
+                                    ${pair.finalPrice}
+                                  </span>
+                                </div>
+                                {pair.discountRate > 0 && (
+                                  <div className="flex justify-between">
+                                    <span className="text-white/70">Discount:</span>
+                                    <span className="text-orange-400">
+                                      {pair.discountRate}%
+                                    </span>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          ))}
                         </div>
                       </div>
                     )}
@@ -757,7 +781,7 @@ export default function BillingPage() {
                         <div className="flex justify-between">
                           <span className="text-white/70">Created:</span>
                           <span className="text-white">
-                            {payment.createdAt.toLocaleDateString('en-US', {
+                            {new Date(payment.createdAt).toLocaleDateString('en-US', {
                               year: 'numeric',
                               month: 'long',
                               day: 'numeric',
@@ -770,7 +794,7 @@ export default function BillingPage() {
                           <div className="flex justify-between">
                             <span className="text-white/70">Expires:</span>
                             <span className="text-white">
-                              {payment.expiresAt.toLocaleDateString('en-US', {
+                              {new Date(payment.expiresAt).toLocaleDateString('en-US', {
                                 year: 'numeric',
                                 month: 'long',
                                 day: 'numeric',
