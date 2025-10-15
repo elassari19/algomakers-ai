@@ -31,7 +31,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import Link from 'next/link';
-import { Pair, Subscription } from '@/generated/prisma';
+import { Pair, Subscription, SubscriptionStatus } from '@/generated/prisma';
 
 interface PairData extends Pair {
   name: string;
@@ -78,7 +78,6 @@ function DashboardContent() {
       setLoading(true);
       try {
         const result = await getPairs({ limit: 20 });
-        // console.log('pairs', JSON.parse(result.pairs[0].tradesAnalysis)[9]['All USDT']);
         const mappedPairs: PairData[] = result.pairs.map((pair: any) => {
           const performance = JSON.parse(pair.performance);
           const properties = JSON.parse(pair.properties);
@@ -125,11 +124,17 @@ const columns: Column<PairData>[] = useMemo(() => [
     header: 'Status',
     width: 'w-32',
     render: (value: any, row: PairData) => {
-      const userSubscriptionStatus = row.subscriptions?.some((s: any) => row.id === s.pairId && s.status === 'ACTIVE') ? 'active' : 'none';
+      let userSubscriptionStatus = undefined;
+      if (row.subscriptions?.length && row.subscriptions[0]?.pairId) {
+        const match = row.subscriptions.find((s: any) => row.id === s.pairId);
+        if (match) {
+          userSubscriptionStatus = match.status;
+        }
+      }
       return (
         <div className="flex flex-col gap-1">
           <SubscribeButton
-            userSubscriptionStatus={userSubscriptionStatus}
+            userSubscriptionStatus={userSubscriptionStatus as SubscriptionStatus}
             isUserLoggedIn={true}
             pair={row}
           />
@@ -349,7 +354,7 @@ const columns: Column<PairData>[] = useMemo(() => [
   },
 ], []);
 
-  return (
+return (
     <>
       <Head>
         {/* Force desktop viewport */}

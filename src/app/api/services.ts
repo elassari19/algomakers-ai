@@ -1,25 +1,25 @@
 'use server';
 
 import { prisma } from '@/lib/prisma';
+import { getServerSession } from 'next-auth';
 
 interface GetPairsFilters {
   page?: number;
   limit?: number;
   q?: string;
   type?: string;
-  hasSubscription?: boolean;
   userId?: string; // Add userId to filter subscriptions by user
 }
 
 export async function getPairs(filters: GetPairsFilters = {}) {
+  const session = await getServerSession();
+  const userId = session?.user?.id;
   try {
     const {
       page = 1,
       limit = 20,
       q,
       type,
-      hasSubscription,
-      userId, // Add userId parameter
     } = filters;
 
     // Build where clause
@@ -52,20 +52,6 @@ export async function getPairs(filters: GetPairsFilters = {}) {
       where.type = type;
     }
 
-    if (hasSubscription !== undefined) {
-      if (hasSubscription) {
-        where.subscriptions = {
-          some: {
-            status: 'active',
-          },
-        };
-      } else {
-        where.subscriptions = {
-          none: {},
-        };
-      }
-    }
-
     const skip = (page - 1) * limit;
 
     // Fetch pairs with pagination
@@ -73,15 +59,8 @@ export async function getPairs(filters: GetPairsFilters = {}) {
       where,
       include: {
         subscriptions: {
-          where: { 
-            userId, 
-          },
-          include: {
-            payment: true,
-            pair: true,
-            user: true,
-          }
-        }
+          where: { userId },
+        },
       },
       skip,
       take: limit,
@@ -139,14 +118,6 @@ export async function getUserSubscriptionPairs(userId: string) {
             symbol: true,
             version: true,
             timeframe: true,
-            // priceOneMonth: true,
-            // discountOneMonth: true,
-            // priceThreeMonths: true,
-            // discountThreeMonths: true,
-            // priceSixMonths: true,
-            // discountSixMonths: true,
-            // priceTwelveMonths: true,
-            // discountTwelveMonths: true,
             paymentItems: true,
           },
         },
@@ -154,20 +125,6 @@ export async function getUserSubscriptionPairs(userId: string) {
         commissions: true,
       },
     });
-
-    // Transform the data to match the expected format
-    // const pairs = subscriptions.map(subscription => ({
-    //   ...subscription.pair,
-    //   subscription: {
-    //     id: subscription.id,
-    //     status: subscription.status.toLowerCase(),
-    //     expiryDate: subscription.expiryDate.toISOString(),
-    //     startDate: subscription.startDate.toISOString(),
-    //     period: subscription.period,
-    //     paymentId: subscription.paymentId,
-    //   },
-    // }));
-    console.log('subscriptions pairs', subscriptions);
 
     return JSON.stringify(subscriptions);
   } catch (error) {

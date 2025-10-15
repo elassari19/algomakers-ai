@@ -5,17 +5,10 @@ import { useRouter, usePathname } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { CreditCard, TrendingUp, Lock, Clock, X } from 'lucide-react';
 import { SubscriptionModal } from './SubscriptionModal';
-import { PaymentModal } from './PaymentModal';
-import { mockPairs } from '@/lib/dummy-data';
-import { Pair } from '@/generated/prisma';
+import { Pair, SubscriptionStatus } from '@/generated/prisma';
 
 interface SubscribeButtonProps {
-  userSubscriptionStatus?:
-    | 'none'
-    | 'active'
-    | 'expiring'
-    | 'expired'
-    | 'pending';
+  userSubscriptionStatus?: SubscriptionStatus;
   isUserLoggedIn: boolean;
   pair: Pair; // Add pairs prop
   className?: string;
@@ -23,7 +16,7 @@ interface SubscribeButtonProps {
 }
 
 export function SubscribeButton({
-  userSubscriptionStatus = 'none',
+  userSubscriptionStatus,
   isUserLoggedIn,
   pair,
   className,
@@ -37,13 +30,6 @@ export function SubscribeButton({
   const [paymentModalOpen, setPaymentModalOpen] = useState(false);
   const [subscriptionData, setSubscriptionData] = useState<any>(null);
 
-  const isSubscribed = () => {
-    return (
-      userSubscriptionStatus === 'active' ||
-      userSubscriptionStatus === 'expiring'
-    );
-  };
-
   const getSubscribeButtonConfig = () => {
     if (!isUserLoggedIn) {
       return {
@@ -56,7 +42,7 @@ export function SubscribeButton({
     }
 
     switch (userSubscriptionStatus) {
-      case 'expired':
+      case SubscriptionStatus.EXPIRED:
         return {
           text: 'Resubscribe',
           icon: CreditCard,
@@ -65,7 +51,7 @@ export function SubscribeButton({
           disabled: false,
           className: 'bg-blue-600 hover:bg-blue-700 text-white',
         };
-      case 'pending':
+      case SubscriptionStatus.PENDING:
         return {
           text: 'Payment Pending',
           icon: Clock,
@@ -108,9 +94,21 @@ export function SubscribeButton({
     };
   };
 
+  const getPendingButtonConfig = () => {
+    return {
+      text: 'Pending',
+      icon: Clock,
+      variant: 'outline' as const,
+      action: 'pending' as const,
+      disabled: false,
+      className: 'bg-blue-500/70 text-blue-400 border-blue-400/70',
+    };
+  }
+
   const subscribeConfig = getSubscribeButtonConfig();
   const upgradeConfig = getUpgradeButtonConfig();
   const cancelConfig = getCancelButtonConfig();
+  const pendingConfig = getPendingButtonConfig();
 
   // Modal handlers - memoized to prevent unnecessary re-renders
   const handleSubscribe = useCallback((
@@ -143,19 +141,8 @@ export function SubscribeButton({
     }
   }, [onCancel, pair?.id, pair?.symbol]);
 
-  const handlePaymentSuccess = useCallback(() => {
-    setPaymentModalOpen(false);
-    setSubscriptionData(null);
-    // TODO: Refresh user subscription data
-  }, []);
-
   const handleCloseSubscriptionModal = useCallback(() => {
     setSubscriptionModalOpen(false);
-  }, []);
-
-  const handleClosePaymentModal = useCallback(() => {
-    setPaymentModalOpen(false);
-    setSubscriptionData(null);
   }, []);
 
   const handleSubscribeClick = useCallback(() => {
@@ -179,7 +166,7 @@ export function SubscribeButton({
   return (
     <>
       <div className={`flex flex-col items-center gap-2 ${className}`}>
-        {isSubscribed() ? (
+        {userSubscriptionStatus === SubscriptionStatus.ACTIVE ? (
           // Show Upgrade and Cancel buttons for subscribed users
           <div className="flex flex-col gap-2 w-full">
             <Button
@@ -194,17 +181,19 @@ export function SubscribeButton({
               <upgradeConfig.icon className="h-4 w-4 mr-2" />
               {upgradeConfig.text}
             </Button>
-            <Button
-              onClick={handleCancelClick}
-              variant={cancelConfig.variant}
-              disabled={cancelConfig.disabled}
-              className={`w-full min-w-[120px] ${cancelConfig.className || ''}`}
-              size="sm"
-            >
-              <cancelConfig.icon className="h-4 w-4 mr-2" />
-              {cancelConfig.text}
-            </Button>
           </div>
+        ) : userSubscriptionStatus === SubscriptionStatus.PENDING ?
+        (
+          <Button
+            onClick={handleCancelClick}
+            variant={pendingConfig.variant}
+            disabled={pendingConfig.disabled}
+            className={`w-full min-w-[120px] ${pendingConfig.className || ''}`}
+            size="sm"
+          >
+            <pendingConfig.icon className="h-4 w-4 mr-2" />
+            {pendingConfig.text}
+          </Button>
         ) : (
           // Show Subscribe button for non-subscribed users
           <Button
@@ -228,16 +217,6 @@ export function SubscribeButton({
         onClose={handleCloseSubscriptionModal}
         pair={pair}
       />
-
-      {/* Payment Modal */}
-      {subscriptionData && (
-        <PaymentModal
-          isOpen={paymentModalOpen}
-          onClose={handleClosePaymentModal}
-          subscriptionData={subscriptionData}
-          onPaymentSuccess={handlePaymentSuccess}
-        />
-      )}
     </>
   );
 }
