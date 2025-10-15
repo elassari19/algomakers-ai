@@ -3,6 +3,8 @@ import { GradientBackground } from '@/components/ui/gradient-background';
 import DashboardContent from './DashboardContent';
 import { getPairs } from '@/app/api/services';
 
+export const dynamic = 'force-dynamic';
+
 interface PairData {
   id: string;
   symbol: string;
