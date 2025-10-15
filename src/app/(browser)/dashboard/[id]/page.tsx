@@ -83,13 +83,6 @@ export default async function BacktestDetailPage({
                     ${pair.priceTwelveMonths}
                   </div>
                 </div>
-                <Button
-                  asChild
-                  size="sm"
-                  className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white border-0"
-                >
-                  <Link href={`/console/${id}/backtests`}>Back to Console</Link>
-                </Button>
               </div>
             </div>
           </div>

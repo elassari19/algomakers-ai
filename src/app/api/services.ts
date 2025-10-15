@@ -132,3 +132,80 @@ export async function getUserSubscriptionPairs(userId: string) {
     throw new Error('Failed to fetch user subscription pairs');
   }
 }
+
+export async function getSubscriptionDetails(subscriptionId: string) {
+  try {
+    const subscription = await prisma.subscription.findUnique({
+      where: {
+        id: subscriptionId,
+      },
+      include: {
+        pair: {
+          select: {
+            id: true,
+            symbol: true,
+            version: true,
+            timeframe: true,
+            priceOneMonth: true,
+            priceThreeMonths: true,
+            priceSixMonths: true,
+            priceTwelveMonths: true,
+            discountOneMonth: true,
+            discountThreeMonths: true,
+            discountSixMonths: true,
+            discountTwelveMonths: true,
+            createdAt: true,
+          },
+        },
+        payment: {
+          include: {
+            paymentItems: {
+              include: {
+                pair: {
+                  select: {
+                    id: true,
+                    symbol: true,
+                  },
+                },
+              },
+            },
+          },
+        },
+        user: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            tradingviewUsername: true,
+            createdAt: true,
+          },
+        },
+        commissions: {
+          include: {
+            affiliate: {
+              include: {
+                user: {
+                  select: {
+                    id: true,
+                    name: true,
+                    email: true,
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    });
+    console.log('subscription service', subscription);
+
+    if (!subscription) {
+      throw new Error('Subscription not found');
+    }
+
+    return JSON.stringify(subscription);
+  } catch (error) {
+    console.error('Error fetching subscription details:', error);
+    throw new Error('Failed to fetch subscription details');
+  }
+}

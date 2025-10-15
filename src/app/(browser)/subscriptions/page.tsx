@@ -85,7 +85,6 @@ function SubscriptionsContent() {
 
         const response = await getUserSubscriptionPairs(session.user.id);
         const data = JSON.parse(response)
-        console.log('subscriptions pairs', data);
         setSubscriptionPairs(data);
       } catch (err) {
         console.error('Error fetching subscription pairs:', err);
@@ -98,7 +97,6 @@ function SubscriptionsContent() {
 
     fetchSubscriptionPairs();
   }, [session?.user?.id]);
-        console.log('subscriptions pairs', subscriptionPairs);
 
   // Filter subscribed pairs based on URL params
   function getFilteredPairs() {
@@ -400,7 +398,7 @@ function SubscriptionsContent() {
                           >
                             <DropdownMenuItem asChild>
                               <Link
-                                href={`/pair/${row.pair.id}`}
+                                href={`/subscriptions/${row.id}`}
                                 className="flex items-center cursor-pointer"
                               >
                                 <Eye className="h-4 w-4 mr-2" />
