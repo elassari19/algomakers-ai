@@ -12,22 +12,13 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Label } from '@/components/ui/label';
-import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 
 interface PaymentModalProps {
   isOpen: boolean;
   onClose: () => void;
-  subscriptionData: {
-    pairIds: string[];
-    pairNames: string[];
-    plan: {
-      period: string;
-      months: number;
-      price: number;
-    };
-    tradingViewUsername: string;
-    totalAmount: number;
-  };
+  invoice?: any; // Optional pre-created invoice
+  basketItems: any[]; // Basket items for display
+  totalAmount: number;
   onPaymentSuccess: () => void;
 }
 
@@ -48,88 +39,37 @@ type PaymentStatus =
   | 'expired'
   | 'failed';
 
-const usdtNetworks = [
-  {
-    id: 'trc20',
-    name: 'USDT TRC20',
-    fee: 'Lowest fee',
-    recommended: true,
-  },
-  {
-    id: 'erc20',
-    name: 'USDT ERC20',
-    fee: 'Higher fee',
-  },
-  {
-    id: 'bep20',
-    name: 'USDT BEP20',
-    fee: 'Medium fee',
-  },
-];
-
 export function PaymentModal({
   isOpen,
   onClose,
-  subscriptionData,
+  invoice: preCreatedInvoice,
+  basketItems,
+  totalAmount,
   onPaymentSuccess,
 }: PaymentModalProps) {
-  const [selectedNetwork, setSelectedNetwork] = useState('trc20');
   const [invoice, setInvoice] = useState<PaymentInvoice | null>(null);
   const [paymentStatus, setPaymentStatus] = useState<PaymentStatus>('pending');
   const [timeRemaining, setTimeRemaining] = useState<string>('');
-  const [isCreatingInvoice, setIsCreatingInvoice] = useState(false);
   const [copySuccess, setCopySuccess] = useState<
     'amount' | 'address' | 'link' | null
   >(null);
 
-  // Create payment invoice with NOWPayments
-  const createPaymentInvoice = async () => {
-    setIsCreatingInvoice(true);
-    try {
-      const response = await fetch('/api/payments/create-invoice', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          amount: subscriptionData.totalAmount,
-          currency: 'USDT',
-          network: selectedNetwork.toUpperCase(),
-          orderData: {
-            pairIds: subscriptionData.pairIds,
-            plan: subscriptionData.plan,
-            tradingViewUsername: subscriptionData.tradingViewUsername,
-          },
-        }),
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to create invoice');
-      }
-
-      const invoiceData = await response.json();
-
-      // Use actual invoice data from NOWPayments API
+  // Use pre-created invoice if provided
+  useEffect(() => {
+    if (preCreatedInvoice) {
       const actualInvoice: PaymentInvoice = {
-        id: invoiceData.id,
-        amount: invoiceData.amount, // Use the actual crypto amount from NOWPayments
-        address: invoiceData.address,
-        qrCode: invoiceData.qrCode,
-        expiresAt: new Date(invoiceData.expiresAt),
-        network: selectedNetwork,
-        invoiceUrl: invoiceData.invoiceUrl,
+        id: preCreatedInvoice.id,
+        amount: preCreatedInvoice.amount,
+        address: preCreatedInvoice.address || '', // Invoice uses hosted checkout, no direct address
+        qrCode: preCreatedInvoice.qrCode || '', // Invoice uses hosted checkout, no QR code needed
+        expiresAt: new Date(preCreatedInvoice.expiresAt),
+        network: preCreatedInvoice.network || 'trc20',
+        invoiceUrl: preCreatedInvoice.invoiceUrl,
       };
-
       setInvoice(actualInvoice);
       startPaymentStatusPolling(actualInvoice.id);
-      console.log('Invoice created successfully:', actualInvoice);
-    } catch (error) {
-      console.error('Error creating invoice:', error);
-      // Handle error - show user-friendly message
-    } finally {
-      setIsCreatingInvoice(false);
     }
-  };
+  }, [preCreatedInvoice]);
 
   // Poll payment status
   const startPaymentStatusPolling = (invoiceId: string) => {
@@ -200,7 +140,6 @@ export function PaymentModal({
   const handleClose = () => {
     setInvoice(null);
     setPaymentStatus('pending');
-    setSelectedNetwork('trc20');
     setTimeRemaining('');
     setCopySuccess(null);
     onClose();
@@ -208,7 +147,7 @@ export function PaymentModal({
 
   return (
     <Dialog open={isOpen} onOpenChange={handleClose}>
-      <DialogContent className="max-w-2xl bg-slate-900 border-slate-800">
+      <DialogContent className="max-w-xl bg-slate-900 border-slate-800">
         <DialogHeader className="flex flex-row items-center justify-between space-y-0 pb-6">
           <DialogTitle className="text-2xl font-bold text-white">
             Complete Your Payment
@@ -233,89 +172,31 @@ export function PaymentModal({
                 </CardTitle>
               </CardHeader>
               <CardContent className="h-28 overflow-y-auto space-y-2 scrollbar-thin scrollbar-thumb-slate-600 scrollbar-track-slate-800">
-                <div className="flex justify-between text-sm">
-                  <span className="text-slate-400">Trading Pairs:</span>
-                  <span
-                    className="text-white text-right max-w-[180px] truncate"
-                    title={subscriptionData.pairNames.join(', ')}
-                  >
-                    {subscriptionData.pairNames.join(', ')}
-                  </span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-slate-400">Period:</span>
-                  <span className="text-white">
-                    {subscriptionData.plan.period}
-                  </span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-slate-400">TradingView:</span>
-                  <span
-                    className="text-white max-w-[120px] truncate"
-                    title={subscriptionData.tradingViewUsername}
-                  >
-                    {subscriptionData.tradingViewUsername}
-                  </span>
-                </div>
+                {basketItems.map((item, index) => (
+                  <div key={item.id} className="flex justify-between text-sm">
+                    <span className="text-slate-400">{item.name}:</span>
+                    <span className="text-white">
+                      ${(item.plan.discount || 0) > 0 
+                        ? (item.price * (1 - (item.plan.discount || 0) / 100)).toFixed(2) 
+                        : item.price.toFixed(2)
+                      }
+                    </span>
+                  </div>
+                ))}
                 <div className="flex justify-between font-semibold border-t border-slate-600 pt-2 mt-2">
                   <span className="text-white text-sm">Total (USD):</span>
                   <span className="text-green-400">
-                    ${subscriptionData.totalAmount}
+                    ${totalAmount.toFixed(2)}
                   </span>
                 </div>
                 <div className="flex justify-between font-semibold">
                   <span className="text-white text-sm">Pay (USDT):</span>
                   <span className="text-blue-400">
-                    {subscriptionData.totalAmount} USDT
+                    {totalAmount} USDT
                   </span>
                 </div>
               </CardContent>
             </Card>
-
-            {/* Network Selection */}
-            <div className="space-y-4">
-              <Label className="text-white text-lg">Select USDT Network:</Label>
-              <RadioGroup
-                value={selectedNetwork}
-                onValueChange={setSelectedNetwork}
-                className="space-y-3"
-              >
-                {usdtNetworks.map((network) => (
-                  <div
-                    key={network.id}
-                    className={`flex items-center space-x-3 p-4 rounded-lg border transition-colors ${
-                      selectedNetwork === network.id
-                        ? 'bg-blue-600/20 border-blue-500'
-                        : 'bg-slate-800 border-slate-700 hover:border-slate-600'
-                    }`}
-                  >
-                    <RadioGroupItem
-                      value={network.id}
-                      id={network.id}
-                      className="text-blue-500"
-                    />
-                    <Label
-                      htmlFor={network.id}
-                      className="flex-1 cursor-pointer text-white"
-                    >
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <span className="font-medium">{network.name}</span>
-                          {network.recommended && (
-                            <Badge className="ml-2 bg-blue-600 text-white">
-                              Recommended
-                            </Badge>
-                          )}
-                        </div>
-                        <span className="text-sm text-slate-400">
-                          {network.fee}
-                        </span>
-                      </div>
-                    </Label>
-                  </div>
-                ))}
-              </RadioGroup>
-            </div>
 
             {/* Important Notes */}
             <Card className="bg-slate-800 border-yellow-600/50">
@@ -327,6 +208,7 @@ export function PaymentModal({
                       Important Payment Instructions:
                     </p>
                     <ul className="text-slate-400 space-y-1">
+                      <li>• Click "Open Payment Page" to complete your payment</li>
                       <li>• Only send USDT on the selected network</li>
                       <li>
                         • Sending from exchanges may take longer to confirm
@@ -340,16 +222,6 @@ export function PaymentModal({
                 </div>
               </CardContent>
             </Card>
-
-            <Button
-              onClick={createPaymentInvoice}
-              disabled={isCreatingInvoice}
-              className="w-full bg-blue-600 hover:bg-blue-500 text-lg py-6"
-            >
-              {isCreatingInvoice
-                ? 'Creating Payment...'
-                : 'Create Payment Invoice'}
-            </Button>
           </div>
         ) : (
           <div className="space-y-6 overflow-y-auto max-h-[70vh] pb-4">
@@ -427,30 +299,6 @@ export function PaymentModal({
                   </div>
                 </div>
 
-                {/* Address */}
-                <div className="space-y-2">
-                  <Label className="text-slate-400">Send to address:</Label>
-                  <div className="flex items-center gap-2">
-                    <div className="flex-1 bg-slate-700 p-3 rounded font-mono text-white break-all">
-                      {invoice.address}
-                    </div>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() =>
-                        copyToClipboard(invoice.address, 'address')
-                      }
-                      className="border-slate-600"
-                    >
-                      {copySuccess === 'address' ? (
-                        <CheckCircle className="w-4 h-4 text-green-400" />
-                      ) : (
-                        <Copy className="w-4 h-4" />
-                      )}
-                    </Button>
-                  </div>
-                </div>
-
                 {/* Network */}
                 <div className="space-y-2">
                   <Label className="text-slate-400">Network:</Label>
@@ -459,29 +307,14 @@ export function PaymentModal({
                   </div>
                 </div>
 
-                {/* QR Code */}
-                <div className="text-center">
-                  <Label className="text-slate-400">QR Code:</Label>
-                  <div className="mt-2 inline-block p-4 bg-white rounded-lg">
-                    <img
-                      src={invoice.qrCode}
-                      alt="Payment QR Code"
-                      className="w-32 h-32"
-                    />
-                  </div>
-                  <p className="text-xs text-slate-500 mt-2">
-                    Scan with your wallet app
-                  </p>
-                </div>
-
-                {/* Payment Link */}
+                {/* Payment Link - Primary payment method */}
                 {invoice.invoiceUrl && (
                   <div className="space-y-2">
-                    <Label className="text-slate-400">Payment Link:</Label>
+                    <Label className="text-slate-400">Complete Payment:</Label>
                     <div className="flex items-center gap-2">
                       <Button
                         asChild
-                        className="flex-1 bg-blue-600 hover:bg-blue-500"
+                        className="flex-1 bg-blue-600 hover:bg-blue-500 text-lg py-4"
                       >
                         <a
                           href={invoice.invoiceUrl}
@@ -507,9 +340,55 @@ export function PaymentModal({
                       </Button>
                     </div>
                     <p className="text-xs text-slate-500">
-                      Alternative payment method via NOWPayments
+                      Click to open secure payment page hosted by NOWPayments
                     </p>
                   </div>
+                )}
+
+                {/* Direct payment details (if available) */}
+                {invoice.address && (
+                  <>
+                    {/* Address */}
+                    <div className="space-y-2">
+                      <Label className="text-slate-400">Send to address:</Label>
+                      <div className="flex items-center gap-2">
+                        <div className="flex-1 bg-slate-700 p-3 rounded font-mono text-white break-all">
+                          {invoice.address}
+                        </div>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() =>
+                            copyToClipboard(invoice.address, 'address')
+                          }
+                          className="border-slate-600"
+                        >
+                          {copySuccess === 'address' ? (
+                            <CheckCircle className="w-4 h-4 text-green-400" />
+                          ) : (
+                            <Copy className="w-4 h-4" />
+                          )}
+                        </Button>
+                      </div>
+                    </div>
+
+                    {/* QR Code */}
+                    {invoice.qrCode && (
+                      <div className="text-center">
+                        <Label className="text-slate-400">QR Code:</Label>
+                        <div className="mt-2 inline-block p-4 bg-white rounded-lg">
+                          <img
+                            src={invoice.qrCode}
+                            alt="Payment QR Code"
+                            className="w-32 h-32"
+                          />
+                        </div>
+                        <p className="text-xs text-slate-500 mt-2">
+                          Scan with your wallet app
+                        </p>
+                      </div>
+                    )}
+                  </>
                 )}
               </CardContent>
             </Card>
@@ -563,14 +442,13 @@ export function PaymentModal({
                         Payment window expired
                       </p>
                       <p className="text-slate-400 text-sm mt-1">
-                        This payment window has expired. Please create a new
-                        payment to continue.
+                        This payment window has expired. Please return to your basket and create a new payment.
                       </p>
                       <Button
-                        onClick={createPaymentInvoice}
+                        onClick={handleClose}
                         className="mt-3 bg-blue-600 hover:bg-blue-500"
                       >
-                        Create New Payment
+                        Return to Basket
                       </Button>
                     </div>
                   </div>
