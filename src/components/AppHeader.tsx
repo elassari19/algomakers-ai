@@ -213,7 +213,6 @@ export function AppHeader() {
       }
 
       const invoice = await response.json();
-      console.log('Invoice created:', invoice);
 
       // Close the sheet and open the modal with invoice data
       setSheetOpen(false);

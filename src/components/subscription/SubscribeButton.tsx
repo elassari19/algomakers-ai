@@ -58,7 +58,16 @@ export function SubscribeButton({
           variant: 'outline' as const,
           action: 'subscribe' as const,
           disabled: true,
-          className: 'bg-blue-500/10 text-blue-400 border-blue-400/30',
+          className: 'disabled:opacity-100 bg-blue-500/10 text-blue-400 border-blue-400/30',
+        };
+      case SubscriptionStatus.PAID:
+        return {
+          text: 'Awaiting Invitation',
+          icon: Clock,
+          variant: 'outline' as const,
+          action: 'subscribe' as const,
+          disabled: true,
+          className: 'disabled:opacity-100 bg-amber-500/10 text-amber-400 border-amber-400/30',
         };
       default:
         return {

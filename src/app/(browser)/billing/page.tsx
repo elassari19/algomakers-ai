@@ -80,7 +80,6 @@ export default function BillingPage() {
           throw new Error('Failed to fetch billing data');
         }
         const data = await response.json();
-        console.log('data', data)
         setPayments(data.payments);
         setStats(data.stats);
       } catch (error) {
