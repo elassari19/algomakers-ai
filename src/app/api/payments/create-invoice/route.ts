@@ -261,8 +261,10 @@ export async function POST(request: NextRequest) {
       }
     };
 
-    // Create payment with NOWPayments API (using /v1/invoice endpoint)
-    // The invoice endpoint creates a hosted checkout that handles payment
+    // Create invoice with NOWPayments API using the correct flow:
+    // 1. Create invoice with /v1/invoice
+    // 2. Create payment with /v1/invoice-payment using invoice ID
+
     const nowPaymentsUrl =
       process.env.NOWPAYMENTS_API_URL || 'https://api.nowpayments.io';
 
@@ -277,6 +279,7 @@ export async function POST(request: NextRequest) {
       return 'subscription';
     };
 
+    // Step 1: Create invoice
     const invoiceData = {
       price_amount: body.amount,
       price_currency: 'usd',
@@ -294,7 +297,7 @@ export async function POST(request: NextRequest) {
     const invoiceResponse = await fetch(`${nowPaymentsUrl}/v1/invoice`, {
       method: 'POST',
       headers: {
-        'x-api-key': process.env.NOWPAYMENTS_API_KEY,
+        'x-api-key': process.env.NOWPAYMENTS_API_KEY!,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify(invoiceData),
@@ -322,30 +325,71 @@ export async function POST(request: NextRequest) {
     }
 
     const invoice = await invoiceResponse.json();
+    // Step 2: Create payment using the invoice ID
+    const paymentData = {
+      iid: invoice.id, // Invoice ID from step 1
+      pay_currency: getCurrencyCode(body.network),
+    };
 
-    // Update payment record with invoice ID
-    await prisma.payment.update({
-      where: { id: paymentRecord.id },
-      data: { invoiceId: invoice.id },
+    const paymentResponse = await fetch(`${nowPaymentsUrl}/v1/invoice-payment`, {
+      method: 'POST',
+      headers: {
+        'x-api-key': process.env.NOWPAYMENTS_API_KEY!,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(paymentData),
     });
 
-    // Transform the invoice response for our API
+    if (!paymentResponse.ok) {
+      const errorData = await paymentResponse.text();
+      await createAuditLog({
+        actorId: session?.user?.id || 'system',
+        actorRole: (session?.user?.role as Role) || 'USER',
+        action: AuditAction.CREATE_PAYMENT,
+        targetType: AuditTargetType.PAYMENT,
+        responseStatus: 'FAILURE',
+        details: { reason: 'nowpayments_payment_creation_failed', error: errorData },
+      });
+      console.error(
+        'NOWPayments payment API error:',
+        paymentResponse.status,
+        errorData
+      );
+      return NextResponse.json(
+        { error: 'Failed to create payment' },
+        { status: 500 }
+      );
+    }
+
+    const payment = await paymentResponse.json();
+    // Update payment record with both invoice ID and payment ID
+    await prisma.payment.update({
+      where: { id: paymentRecord.id },
+      data: {
+        invoiceId: invoice.id,
+        txHash: payment.pay_address, // Store payment address as txHash for status checking
+        paymentId: payment.payment_id,
+        status: PaymentStatus.PENDING,
+      },
+    });
+
+    // Transform the payment response for our API
     const transformedInvoice = {
-      id: invoice.id || orderId,
-      amount: parseFloat(invoice.price_amount) || body.amount,
-      currency: invoice.pay_currency || getCurrencyCode(body.network),
+      id: payment.id || invoice.id || orderId,
+      amount: parseFloat(payment.pay_amount || payment.price_amount) || body.amount,
+      currency: payment.pay_currency || getCurrencyCode(body.network),
       network: body.network,
-      address: '', // Invoice uses hosted checkout, no direct address
-      qrCode: '', // Invoice uses hosted checkout, no QR code needed
-      expiresAt: invoice.created_at
-        ? new Date(
-            new Date(invoice.created_at).getTime() + 20 * 60 * 1000
-          ).toISOString()
+      address: payment.pay_address || '', // Payment may have direct address
+      qrCode: '', // Will be generated if needed
+      expiresAt: payment.expiration_estimate
+        ? new Date(payment.expiration_estimate).toISOString()
         : new Date(Date.now() + 20 * 60 * 1000).toISOString(),
       status: 'pending',
-      nowPaymentsId: invoice.id,
+      nowPaymentsId: payment.id,
       orderId: orderId,
       invoiceUrl: invoice.invoice_url,
+      invoiceId: invoice.id,
+      paymentId: payment.payment_id,
     };
 
     // Audit log for all roles
@@ -359,7 +403,8 @@ export async function POST(request: NextRequest) {
       details: {
         createdInvoice: {
           id: paymentRecord.id,
-          invoiceId: transformedInvoice.id,
+          invoiceId: invoice.id,
+          paymentId: payment.payment_id,
           amount: body.amount,
           currency: body.currency,
           network: body.network,

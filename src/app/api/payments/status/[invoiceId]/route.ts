@@ -17,77 +17,64 @@ export async function GET(
         { status: 500 }
       );
     }
-
-    console.log('NOWPAYMENTS_API_KEY found, length:', process.env.NOWPAYMENTS_API_KEY.length);
-    console.log('NOWPAYMENTS_API_URL:', process.env.NOWPAYMENTS_API_URL);
-
     // Get payment status from NOWPayments API
     const nowPaymentsUrl =
       process.env.NOWPAYMENTS_API_URL || 'https://api-sandbox.nowpayments.io';
 
-    console.log('Using NOWPayments URL:', nowPaymentsUrl);
-    console.log('Checking payment status for ID:', invoiceId)
-
-    // For NOWPayments invoices, we need to check status differently
-    // Let's try different endpoints and see what works
-
-    console.log('Trying different NOWPayments endpoints...');
-
-    // Use invoiceId as the payment ID to check
-    const paymentIdToCheck = invoiceId;
-
-    // Fetch payment from database for possible orderId usage
+    // First, look up the payment in our database to get all identifiers
     const dbPayment = await prisma.payment.findFirst({
-      where: { invoiceId: paymentIdToCheck },
-    });
-
-    // First try: payment status
-    let response = await fetch(`${nowPaymentsUrl}/v1/payment/${paymentIdToCheck}`, {
-      method: 'GET',
-      headers: {
-        'x-api-key': process.env.NOWPAYMENTS_API_KEY!,
-        'Content-Type': 'application/json',
+      where: { invoiceId },
+      include: {
+        paymentItems: true,
       },
     });
 
-    console.log('Payment endpoint response status:', response.status, `${nowPaymentsUrl}/v1/payment/${paymentIdToCheck}`);
-
-    // For hosted checkout invoices, if payment doesn't exist yet, it's pending
-    if (response.status === 404) {
-      console.log('Payment not found - likely pending payment on hosted checkout');
+    // If payment doesn't exist in database, it means the invoice was never created
+    if (!dbPayment) {
       return NextResponse.json({
-        status: 'pending',
+        status: 'not_found',
         invoiceId,
-        message: 'Payment not yet initiated',
+        message: 'Invoice not found in database',
         updatedAt: new Date().toISOString(),
       });
     }
 
-    if (!response.ok) {
-      const errorData = await response.text();
-      console.error(
-        'NOWPayments status API error:',
-        response.status,
-        errorData
-      );
+    // Try multiple approaches to check payment status with NOWPayments
+    let paymentStatus = null;
+    let usedIdentifier = '';
 
-      // For invoices that haven't been paid yet, return pending status
-      // This is normal for hosted checkout invoices
-      if (response.status === 404) {
-        console.log('Payment/Invoice not found - likely pending payment');
-        return NextResponse.json({
-          status: 'pending',
-          invoiceId,
-          message: 'Payment not yet initiated',
-          updatedAt: new Date().toISOString(),
+    // Approach 2: Try using paymentId directly
+    if (!paymentStatus && dbPayment.paymentId) {
+      try {
+        const response = await fetch(`${nowPaymentsUrl}/v1/payment/${dbPayment.paymentId}`, {
+          method: 'GET',
+          headers: {
+            'x-api-key': process.env.NOWPAYMENTS_API_KEY!,
+            'Content-Type': 'application/json',
+          },
         });
-      }
 
-      throw new Error(`NOWPayments API error: ${response.status} ${errorData}`);
+        if (response.ok) {
+          paymentStatus = await response.json();
+          usedIdentifier = `paymentId: ${dbPayment.paymentId}`;
+        } else {
+          console.error('PaymentId fallback failed:', response.status);
+        }
+      } catch (error) {
+        console.error('PaymentId fallback error:', error);
+      }
     }
 
-    const paymentStatus = await response.json();
-    console.log('NOWPayments status response:', paymentStatus);
+    // If no payment status found, it might be a pending hosted checkout payment
+    if (!paymentStatus) {
+      return NextResponse.json({
+        status: 'pending',
+        invoiceId,
+        message: 'Payment not yet initiated or pending',
+        updatedAt: new Date().toISOString(),
+        dbStatus: dbPayment.status,
+      });
+    }
 
     // Map NOWPayments status to our internal status
     const mapStatus = (nowPaymentsStatus: string): string => {
@@ -112,16 +99,23 @@ export async function GET(
 
     const status = mapStatus(paymentStatus.payment_status || 'waiting');
 
-    // Update payment status in database
+    // Update payment status in database if status has changed
     try {
-      // Update by the ID we used to check status
-      await prisma.payment.updateMany({
-        where: { invoiceId: paymentIdToCheck },
-        data: {
-          status: mapStatusToEnum(status),
-          txHash: paymentStatus.payment_id || paymentStatus.tx_hash,
-        },
-      });
+      const currentStatus = dbPayment.status;
+      const newStatus = mapStatusToEnum(status);
+
+      if (currentStatus !== newStatus) {
+        await prisma.payment.update({
+          where: { id: dbPayment.id },
+          data: {
+            status: newStatus,
+            txHash: paymentStatus.pay_address || paymentStatus.tx_hash || dbPayment.txHash,
+            actuallyPaid: paymentStatus.actually_paid || dbPayment.actuallyPaid,
+          },
+        });
+      } else {
+        console.error('Payment status unchanged:', currentStatus);
+      }
     } catch (dbError) {
       console.error('Failed to update payment status in database:', dbError);
       // Don't fail the request if DB update fails
@@ -135,6 +129,8 @@ export async function GET(
       amount: paymentStatus.pay_amount,
       currency: paymentStatus.pay_currency,
       actuallyPaid: paymentStatus.actually_paid,
+      usedIdentifier,
+      dbStatus: dbPayment.status,
     });
   } catch (error) {
     console.error('Error getting payment status:', error);

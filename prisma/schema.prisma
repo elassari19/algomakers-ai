@@ -119,6 +119,7 @@ model Payment {
   status       PaymentStatus
   txHash       String?
   invoiceId    String?
+  paymentId    String?
   createdAt    DateTime       @default(now())
   actuallyPaid Decimal?
   expiresAt    DateTime?

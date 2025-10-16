@@ -21,9 +21,10 @@ interface NOWPaymentsWebhook {
   pay_currency: string;
   order_id: string;
   order_description: string;
-  purchase_id: string;
+  purchase_id?: string;
   outcome_amount: number;
   outcome_currency: string;
+  invoice_id?: string; // present for invoice-based flows
   actually_paid?: number;
   created_at: string;
   updated_at: string;
@@ -166,65 +167,45 @@ async function handlePaymentSuccess(webhook: NOWPaymentsWebhook) {
   console.log('Processing webhook payment success:', {
     payment_id: webhook.payment_id,
     order_id: webhook.order_id,
+    invoice_id: webhook.invoice_id,
     purchase_id: webhook.purchase_id,
   });
 
   try {
-    // Try to find payment by invoiceId first, then by orderId
-    let updatedPayments = await prisma.payment.updateMany({
-      where: { invoiceId: webhook.payment_id },
-      data: {
-        status: PaymentStatus.PAID,
-        txHash: webhook.payment_id,
-        actuallyPaid: webhook.actually_paid || webhook.pay_amount,
+    // Identify related payment(s)
+    const whereClause: any = {
+      OR: [
+        webhook.invoice_id ? { invoiceId: webhook.invoice_id } : undefined,
+        webhook.order_id ? { orderId: webhook.order_id } : undefined,
+        webhook.purchase_id ? { orderId: webhook.purchase_id } : undefined,
+      ].filter(Boolean),
+    };
+
+    const payments = await prisma.payment.findMany({
+      where: whereClause,
+      include: {
+        user: true,
+        paymentItems: { include: { pair: true } },
       },
     });
 
-    // If no payment found by invoiceId, try orderId
-    if (updatedPayments.count === 0) {
-      console.log('No payment found by invoiceId, trying orderId:', webhook.order_id);
-      updatedPayments = await prisma.payment.updateMany({
-        where: { orderId: webhook.order_id },
-        data: {
-          status: PaymentStatus.PAID,
-          txHash: webhook.payment_id,
-          actuallyPaid: webhook.actually_paid || webhook.pay_amount,
-        },
-      });
-    }
-
-    // If still no payment found, try purchase_id if available
-    if (updatedPayments.count === 0 && webhook.purchase_id) {
-      console.log('No payment found by orderId, trying purchase_id:', webhook.purchase_id);
-      updatedPayments = await prisma.payment.updateMany({
-        where: { orderId: webhook.purchase_id },
-        data: {
-          status: PaymentStatus.PAID,
-          txHash: webhook.payment_id,
-          actuallyPaid: webhook.actually_paid || webhook.pay_amount,
-        },
-      });
-    }
-
-    if (updatedPayments.count === 0) {
+    if (payments.length === 0) {
       console.warn('No payment records found for webhook:', {
-        payment_id: webhook.payment_id,
+        invoice_id: webhook.invoice_id,
         order_id: webhook.order_id,
         purchase_id: webhook.purchase_id,
+        payment_id: webhook.payment_id,
       });
       return;
     }
 
-    // Get payment records with their subscriptions to update them
-    const payments = await prisma.payment.findMany({
-      where: { invoiceId: webhook.payment_id },
-      include: {
-        user: true,
-        paymentItems: {
-          include: {
-            pair: true,
-          },
-        },
+    // Update matched payments
+    await prisma.payment.updateMany({
+      where: { id: { in: payments.map((p) => p.id) } },
+      data: {
+        status: PaymentStatus.PAID,
+        txHash: webhook.payment_id,
+        actuallyPaid: webhook.actually_paid ?? webhook.pay_amount,
       },
     });
 
@@ -232,17 +213,16 @@ async function handlePaymentSuccess(webhook: NOWPaymentsWebhook) {
     for (const payment of payments) {
       for (const paymentItem of payment.paymentItems) {
         try {
-          // Update existing subscription status to ACTIVE
           await prisma.subscription.updateMany({
             where: {
               userId: payment.userId,
               pairId: paymentItem.pairId,
-              paymentId: payment.id,
-              status: SubscriptionStatus.PENDING, // Only update pending subscriptions
+              status: SubscriptionStatus.PENDING,
             },
             data: {
               status: SubscriptionStatus.ACTIVE,
-              inviteStatus: InviteStatus.PENDING, // Still pending admin action for TradingView invite
+              inviteStatus: InviteStatus.PENDING,
+              paymentId: payment.id,
             },
           });
         } catch (error) {
@@ -259,7 +239,7 @@ async function handlePaymentSuccess(webhook: NOWPaymentsWebhook) {
       type: 'payment_success',
       orderId: webhook.order_id,
       paymentId: webhook.payment_id,
-      amount: webhook.actually_paid || webhook.pay_amount,
+      amount: webhook.actually_paid ?? webhook.pay_amount,
       currency: webhook.pay_currency,
       paymentsCount: payments.length,
     });
@@ -285,15 +265,20 @@ async function handlePaymentConfirmed(webhook: NOWPaymentsWebhook) {
 
 async function handlePaymentExpired(webhook: NOWPaymentsWebhook) {
   try {
-    // Update payment status in database
+    // Identify related payment(s) using multi-field lookup
+    const whereClause: any = {
+      OR: [
+        webhook.invoice_id ? { invoiceId: webhook.invoice_id } : undefined,
+        webhook.order_id ? { orderId: webhook.order_id } : undefined,
+        webhook.purchase_id ? { orderId: webhook.purchase_id } : undefined,
+      ].filter(Boolean),
+    };
+
     await prisma.payment.updateMany({
-      where: { invoiceId: webhook.payment_id },
-      data: {
-        status: 'EXPIRED',
-      },
+      where: whereClause,
+      data: { status: PaymentStatus.EXPIRED },
     });
 
-    // Send expired payment notification
     await notifyAdmin({
       type: 'payment_expired',
       orderId: webhook.order_id,
@@ -306,15 +291,20 @@ async function handlePaymentExpired(webhook: NOWPaymentsWebhook) {
 
 async function handlePaymentFailed(webhook: NOWPaymentsWebhook) {
   try {
-    // Update payment status in database
+    // Identify related payment(s) using multi-field lookup
+    const whereClause: any = {
+      OR: [
+        webhook.invoice_id ? { invoiceId: webhook.invoice_id } : undefined,
+        webhook.order_id ? { orderId: webhook.order_id } : undefined,
+        webhook.purchase_id ? { orderId: webhook.purchase_id } : undefined,
+      ].filter(Boolean),
+    };
+
     await prisma.payment.updateMany({
-      where: { invoiceId: webhook.payment_id },
-      data: {
-        status: 'FAILED',
-      },
+      where: whereClause,
+      data: { status: PaymentStatus.FAILED },
     });
 
-    // Send failed payment notification
     await notifyAdmin({
       type: 'payment_failed',
       orderId: webhook.order_id,
@@ -326,23 +316,25 @@ async function handlePaymentFailed(webhook: NOWPaymentsWebhook) {
 }
 
 async function handlePartialPayment(webhook: NOWPaymentsWebhook) {
-  console.log('Partial payment received:', webhook.payment_id);
   try {
-    // Update payment status in database
+    // Identify related payment(s) using multi-field lookup
+    const whereClause: any = {
+      OR: [
+        webhook.invoice_id ? { invoiceId: webhook.invoice_id } : undefined,
+        webhook.order_id ? { orderId: webhook.order_id } : undefined,
+        webhook.purchase_id ? { orderId: webhook.purchase_id } : undefined,
+      ].filter(Boolean),
+    };
+
     await prisma.payment.updateMany({
-      where: { invoiceId: webhook.payment_id },
-      data: {
-        status: 'UNDERPAID',
-      },
+      where: whereClause,
+      data: { status: PaymentStatus.UNDERPAID },
     });
 
-    // Send partial payment notification
     await notifyAdmin({
-      type: 'payment_partial',
+      type: 'partial_payment',
       orderId: webhook.order_id,
       paymentId: webhook.payment_id,
-      amount: webhook.actually_paid || webhook.pay_amount,
-      expectedAmount: webhook.price_amount,
     });
   } catch (error) {
     console.error('Error handling partial payment:', error);
