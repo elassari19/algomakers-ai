@@ -11,6 +11,7 @@ import {
   Moon,
   Sun,
   Monitor,
+  User2,
 } from 'lucide-react';
 import { useTheme } from 'next-themes';
 
@@ -150,7 +151,8 @@ export function UserAvatarMenu({
             </p>
             {user.role && (
               <div className="pt-1">
-                <RoleBadge role={user.role} size="sm" />
+                <User2 className="mr-2 inline-block h-4 w-4" />
+                <span className="text-xs text-muted-foreground">{user.role}</span>
               </div>
             )}
           </div>
