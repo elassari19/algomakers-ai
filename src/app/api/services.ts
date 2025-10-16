@@ -61,6 +61,9 @@ export async function getPairs(filters: GetPairsFilters = {}) {
       include: {
         subscriptions: {
           where: { userId },
+          include: {
+            payment: true
+          }
         },
       },
       skip,

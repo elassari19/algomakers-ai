@@ -553,7 +553,7 @@ export async function DELETE(request: NextRequest) {
     }
 
     // Check if payment has active subscription
-    if (existingPayment.subscription && existingPayment.subscription.status === 'ACTIVE') {
+    if (existingPayment.subscription && existingPayment.subscription.some(sub => sub.status === 'ACTIVE')) {
       await createAuditLog({
         actorId: session?.user.id || 'unknown',
         actorRole: session?.user.role as Role || 'USER',

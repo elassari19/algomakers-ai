@@ -99,54 +99,6 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Calculate billing statistics
-    const stats = {
-      totalSpent: payments
-        .filter((p) => p.status === 'PAID')
-        .reduce((sum, p) => sum + Number(p.actuallyPaid || p.totalAmount), 0),
-      totalPayments: payments.length,
-      activeSubscriptions: payments.reduce(
-        (count, p) =>
-          count +
-          (p.subscription ? (p.subscription.status === 'ACTIVE' ? 1 : 0) : 0),
-        0
-      ),
-      pendingPayments: payments.filter((p) => p.status === 'PENDING').length,
-    };
-
-    // Transform payments for frontend
-    const transformedPayments = filteredPayments.map((payment) => ({
-      id: payment.id,
-      orderId: payment.orderId,
-      invoiceId: payment.invoiceId,
-      pairs: payment.paymentItems.map((pi) => ({
-        id: pi.pair.id,
-        symbol: pi.pair.symbol,
-        basePrice: Number(pi.basePrice),
-        discountRate: Number(pi.discountRate),
-        finalPrice: Number(pi.finalPrice),
-      })),
-      totalAmount: Number(payment.totalAmount),
-      actuallyPaid: payment.actuallyPaid
-        ? Number(payment.actuallyPaid)
-        : undefined,
-      network: payment.network,
-      status: payment.status,
-      txHash: payment.txHash,
-      createdAt: payment.createdAt,
-      expiresAt: payment.expiresAt,
-      subscriptions: payment.subscription
-        ? [
-            {
-              id: payment.subscription.id,
-              period: payment.subscription.period,
-              startDate: payment.subscription.startDate,
-              expiryDate: payment.subscription.expiryDate,
-              status: payment.subscription.status,
-            },
-          ]
-        : [],
-    }));
     await createAuditLog({
       actorId: session.user.id,
       actorRole: session.user.role as Role || 'USER',
@@ -160,8 +112,7 @@ export async function GET(request: NextRequest) {
       },
     });
     return NextResponse.json({
-      payments: transformedPayments,
-      stats,
+      payments,
     });
   } catch (error) {
     console.error('Error fetching billing data:', error);

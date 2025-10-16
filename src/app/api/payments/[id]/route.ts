@@ -422,9 +422,9 @@ export async function DELETE(
     }
 
     // Check if payment has active subscription
-    if (existingPayment.subscription && existingPayment.subscription.status === 'ACTIVE') {
+    if (existingPayment.subscription && existingPayment.subscription.some(sub => sub.status === 'ACTIVE')) {
       return NextResponse.json(
-        { error: 'Cannot delete payment with active subscription' },
+        { error: 'Cannot delete payment with active subscriptions' },
         { status: 400 }
       );
     }

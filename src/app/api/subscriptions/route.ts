@@ -204,8 +204,7 @@ export async function GET(request: NextRequest) {
         actuallyPaid: true,
       },
       where: {
-        status: 'PAID',
-        subscription: userId ? { userId } : undefined,
+        userId: userId || undefined,
       },
     });
 
@@ -219,7 +218,7 @@ export async function GET(request: NextRequest) {
       },
       stats: {
         byStatus: stats,
-        totalRevenue: totalRevenue._sum.actuallyPaid || 0,
+        totalRevenue: totalRevenue?._sum?.actuallyPaid ?? 0,
       },
     });
 

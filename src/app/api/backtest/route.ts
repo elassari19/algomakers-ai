@@ -166,7 +166,7 @@ export async function GET(request: Request) {
 export async function POST(request: NextRequest) {
   const session = await getServerSession(authOptions);
 
-  if (session?.user?.role === 'USER') {
+  if (session?.user?.id && session?.user?.role === 'USER') {
     await createAuditLog({
       actorId: session.user.id,
       actorRole: session.user.role || 'USER',
@@ -210,6 +210,47 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Check if pair with same symbol, version and timeframe already exists
+    const existingPair = await prisma.pair.findFirst({
+      where: {
+        symbol: symbol,
+        version: version,
+        timeframe: timeframe,
+      },
+    });
+
+    if (existingPair) {
+      await createAuditLog({
+        actorId: session?.user.id!,
+        actorRole: session?.user.role as Role || 'USER',
+        action: AuditAction.CREATE_BACKTEST,
+        targetType: AuditTargetType.BACKTEST,
+        responseStatus: 'FAILURE',
+        details: {
+          reason: 'pair_already_exists',
+          symbol: symbol,
+          timeframe: timeframe,
+          version: version,
+          existingPairId: existingPair.id,
+          userEmail: session?.user.email,
+          user: session?.user.name,
+          timestamp: new Date().toISOString(),
+        },
+      });
+      return NextResponse.json(
+        {
+          error: 'Pair with same symbol, version and timeframe already exists',
+          existingPair: {
+            id: existingPair.id,
+            symbol: existingPair.symbol,
+            version: existingPair.version,
+            timeframe: existingPair.timeframe,
+          }
+        },
+        { status: 409 }
+      );
+    }
+
     const pair = await prisma.pair.create({
       data: {
         symbol,
@@ -219,14 +260,14 @@ export async function POST(request: NextRequest) {
         riskPerformanceRatios,
         listOfTrades,
         properties,
-        priceOneMonth: parseNum(priceOneMonth),
-        priceThreeMonths: parseNum(priceThreeMonths),
-        priceSixMonths: parseNum(priceSixMonths),
-        priceTwelveMonths: parseNum(priceTwelveMonths),
-        discountOneMonth: parseNum(discountOneMonth),
-        discountThreeMonths: parseNum(discountThreeMonths),
-        discountSixMonths: parseNum(discountSixMonths),
-        discountTwelveMonths: parseNum(discountTwelveMonths),
+        priceOneMonth: 20,
+        priceThreeMonths: 60,
+        priceSixMonths: 120,
+        priceTwelveMonths: 240,
+        discountOneMonth: 5,
+        discountThreeMonths: 5,
+        discountSixMonths: 15,
+        discountTwelveMonths: 20,
         timeframe,
       },
     });
