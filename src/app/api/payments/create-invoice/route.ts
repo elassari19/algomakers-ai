@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { PaymentNetwork, PaymentStatus, SubscriptionStatus, InviteStatus } from '@/generated/prisma';
-import type { Role } from '@/generated/prisma';
+import type { PaymentItem, Role, Subscription } from '@/generated/prisma';
 import { createAuditLog, AuditAction, AuditTargetType } from '@/lib/audit';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
@@ -33,20 +33,47 @@ interface CreateInvoiceRequest {
   };
 }
 
+// Map network string to PaymentNetwork enum
+function mapNetworkToEnum(network: string): PaymentNetwork {
+  switch (network.toLowerCase()) {
+    case 'usdt':
+    case 'usdttrc20':
+    case 'trc20':
+      return PaymentNetwork.USDT_TRC20;
+    case 'usdterc20':
+    case 'erc20':
+      return PaymentNetwork.USDT_ERC20;
+    case 'usdtbsc':
+    case 'usdtbep20':
+    case 'bep20':
+      return PaymentNetwork.USDT_BEP20;
+    case 'btc':
+    case 'bitcoin':
+      return PaymentNetwork.BTC;
+    case 'eth':
+    case 'ethereum':
+      return PaymentNetwork.ETH;
+    default:
+      // Default to USDT_TRC20 for unknown networks
+      return PaymentNetwork.USDT_TRC20;
+  }
+}
+
 export async function POST(request: NextRequest) {
-    const session = await getServerSession(authOptions);
-    if(!session?.user?.id) {
-      await createAuditLog({
-        actorId: 'unknown',
-        actorRole: 'USER',
-        action: AuditAction.CREATE_PAYMENT,
-        targetType: AuditTargetType.PAYMENT,
-        responseStatus: 'FAILURE',
-        details: { reason: 'unauthorized' },
-      });
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-    try {
+  const session = await getServerSession(authOptions);
+  if (!session?.user?.id) {
+    await createAuditLog({
+      actorId: 'unknown',
+      actorRole: 'USER',
+      action: AuditAction.CREATE_PAYMENT,
+      targetType: AuditTargetType.PAYMENT,
+      responseStatus: 'FAILURE',
+      details: { reason: 'unauthorized' },
+    });
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  try {
     const body: CreateInvoiceRequest = await request.json();
 
     // Validate request
@@ -63,8 +90,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Missing pairIds' }, { status: 400 });
     }
 
-    // Validate minimum amount (NOWPayments has minimum requirements)
-    // USDT TRC20 minimum is approximately $20+ based on testing
+    // Validate minimum amount
     if (body.amount < 20) {
       return NextResponse.json(
         { error: 'Minimum amount is $20 USD for cryptocurrency payments' },
@@ -72,17 +98,11 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Get user session for audit logging
-    const session = await getServerSession(authOptions);
-    
-    // For now, use a placeholder user ID if no session
-    const userId = session?.user?.id || 'temp-user-id';
-
     // Validate environment variables
     if (!process.env.NOWPAYMENTS_API_KEY) {
       await createAuditLog({
         actorId: session?.user?.id || 'system',
-        actorRole: (session?.user?.role as Role) || 'USER',
+        actorRole: 'USER',
         action: AuditAction.CREATE_PAYMENT,
         targetType: AuditTargetType.PAYMENT,
         responseStatus: 'FAILURE',
@@ -94,308 +114,36 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Generate unique order ID
-    const orderId = `order_${Date.now()}_${Math.random()
-      .toString(36)
-      .substr(2, 9)}`;
+    const userId = session.user.id;
 
-    // Create subscriptions first for each pair
-    const subscriptions = [];
-    
-    // Check if we have detailed payment items from basket
-    if (body.orderData.paymentItems && body.orderData.paymentItems.length > 0) {
-      // Use the detailed payment items from basket
-      for (const paymentItem of body.orderData.paymentItems) {
-        try {
-          // Calculate expiry date based on the period from payment item
-          const months = paymentItem.period === 'ONE_MONTH' ? 1 :
-                        paymentItem.period === 'THREE_MONTHS' ? 3 :
-                        paymentItem.period === 'SIX_MONTHS' ? 6 :
-                        paymentItem.period === 'TWELVE_MONTHS' ? 12 : 1;
-          const expiryDate = calculateExpiryDate(new Date(), months);
-
-          const subscription = await prisma.subscription.create({
-            data: {
-              userId: userId,
-              pairId: paymentItem.pairId,
-              period: paymentItem.period as any, // Map string to enum
-              startDate: new Date(),
-              expiryDate: expiryDate,
-              status: SubscriptionStatus.PENDING, // Will be activated when payment is confirmed
-              inviteStatus: InviteStatus.PENDING,
-              basePrice: paymentItem.basePrice,
-              discountRate: paymentItem.discountRate,
-            },
-          });
-          subscriptions.push(subscription);
-        } catch (error) {
-          console.error(
-            `Failed to create subscription for pair ${paymentItem.pairId}:`,
-            error
-          );
-          await createAuditLog({
-            actorId: session?.user?.id || userId,
-            actorRole: (session?.user?.role as Role) || 'USER',
-            action: AuditAction.CREATE_PAYMENT,
-            targetType: AuditTargetType.PAYMENT,
-            responseStatus: 'FAILURE',
-            details: {
-              reason: `failed_to_create_subscription_for_${paymentItem.pairId}`,
-              error: error instanceof Error ? error.message : 'Unknown error',
-            },
-          });
-        }
-      }
-    } else {
-      // Fallback to old logic for backwards compatibility
-      for (const pairSymbol of pairIds) {
-        try {
-          // Find the pair first
-          let pair = await prisma.pair.findFirst({
-            where: { symbol: pairSymbol },
-          });
-
-          if (!pair) {
-            return NextResponse.json(
-              { error: `Pair not found: ${pairSymbol}` },
-              { status: 400 }
-            );
-          }
-
-          // Calculate expiry date (default to 1 month)
-          const expiryDate = calculateExpiryDate(new Date(), 1);
-
-          const subscription = await prisma.subscription.create({
-            data: {
-              userId: userId,
-              pairId: pair.id,
-              period: (body?.orderData?.paymentItems && body.orderData.paymentItems.length > 0
-                ? body.orderData.paymentItems[0].period
-                : 'ONE_MONTH') as any, // Default period
-              startDate: new Date(),
-              expiryDate: expiryDate,
-              status: SubscriptionStatus.PENDING, // Will be activated when payment is confirmed
-              inviteStatus: InviteStatus.PENDING,
-              basePrice: pair.priceOneMonth || body.amount / pairIds.length,
-              discountRate: pair.discountOneMonth || 0,
-            },
-          });
-          subscriptions.push(subscription);
-        } catch (error) {
-          console.error(
-            `Failed to create subscription for ${pairSymbol}:`,
-            error
-          );
-          await createAuditLog({
-            actorId: session?.user?.id || userId,
-            actorRole: (session?.user?.role as Role) || 'USER',
-            action: AuditAction.CREATE_PAYMENT,
-            targetType: AuditTargetType.PAYMENT,
-            responseStatus: 'FAILURE',
-            details: {
-              reason: `failed_to_create_subscription_for_${pairSymbol}`,
-              error: error instanceof Error ? error.message : 'Unknown error',
-            },
-          });
-        }
-      }
-    }
-
-    // Now create the payment record
-    const paymentRecord = await prisma.payment.create({
-      data: {
-        userId: userId,
-        totalAmount: body.amount,
-        network: mapNetworkToEnum(body.network),
-        status: PaymentStatus.PENDING,
-        orderId: orderId,
-        expiresAt: new Date(Date.now() + 20 * 60 * 1000), // 20 minutes from now
-        orderData: body.orderData,
-      },
-    });
-
-    // Create PaymentItem records for each subscription/pair combination
-    const paymentItems = [];
-    
-    for (const subscription of subscriptions) {
-      try {
-        const pair = await prisma.pair.findUnique({
-          where: { id: subscription.pairId },
-        });
-
-        if (!pair) continue;
-
-        const paymentItem = await prisma.paymentItem.create({
-          data: {
-            paymentId: paymentRecord.id,
-            pairId: subscription.pairId,
-            basePrice: subscription.basePrice || pair.priceOneMonth || body.amount / subscriptions.length,
-            discountRate: subscription.discountRate || pair.discountOneMonth || 0,
-            finalPrice: Number(subscription.basePrice || pair.priceOneMonth || body.amount / subscriptions.length) * (1 - Number(subscription.discountRate || pair.discountOneMonth || 0) / 100),
-            period: subscription.period,
-          },
-        });
-        paymentItems.push(paymentItem);
-
-        // Note: paymentId is no longer set on subscriptions
-        // Subscriptions are linked to payments through paymentItems and pairs
-      } catch (error) {
-        console.error(
-          `Failed to create payment item for subscription ${subscription.id}:`,
-          error
-        );
-      }
-    }
-
-    // Map network to currency code (correct NOWPayments currency codes)
-    const getCurrencyCode = (network: string): string => {
-      switch (network.toLowerCase()) {
-        case 'trc20':
-          return 'usdttrc20';
-        case 'erc20':
-          return 'usdterc20';
-        case 'bep20':
-          return 'usdtbsc';
-        default:
-          return 'usdttrc20';
-      }
-    };
-
-    // Create invoice with NOWPayments API using the correct flow:
-    // 1. Create invoice with /v1/invoice
-    // 2. Create payment with /v1/invoice-payment using invoice ID
-
-    const nowPaymentsUrl =
-      process.env.NOWPAYMENTS_API_URL || 'https://api.nowpayments.io';
-
-    // Create a description based on available data
-    const getPeriodDescription = () => {
-      if (body.orderData.plan?.period) {
-        return body.orderData.plan.period;
-      }
-      if (body.orderData.duration) {
-        return body.orderData.duration;
-      }
-      return 'subscription';
-    };
-
-    // Step 1: Create invoice
-    const invoiceData = {
-      price_amount: body.amount,
-      price_currency: 'usd',
-      pay_currency: getCurrencyCode(body.network),
-      order_id: orderId,
-      order_description: `AlgoMarkers.Ai Subscription: ${pairIds.join(
-        ', '
-      )} - ${getPeriodDescription()}`,
-      ipn_callback_url: `${process.env.NEXTAUTH_URL}/api/payments/webhook`,
-      success_url: `${process.env.NEXTAUTH_URL}/dashboard?payment=success`,
-      cancel_url: `${process.env.NEXTAUTH_URL}/dashboard?payment=cancelled`,
-    };
-
-    // Create invoice with NOWPayments API
-    const invoiceResponse = await fetch(`${nowPaymentsUrl}/v1/invoice`, {
-      method: 'POST',
-      headers: {
-        'x-api-key': process.env.NOWPAYMENTS_API_KEY!,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(invoiceData),
-    });
-
-    if (!invoiceResponse.ok) {
-      const errorData = await invoiceResponse.text();
-      await createAuditLog({
-        actorId: session?.user?.id || 'system',
-        actorRole: (session?.user?.role as Role) || 'USER',
-        action: AuditAction.CREATE_PAYMENT,
-        targetType: AuditTargetType.PAYMENT,
-        responseStatus: 'FAILURE',
-        details: { reason: 'nowpayments_invoice_creation_failed', error: errorData },
-      });
-      console.error(
-        'NOWPayments invoice API error:',
-        invoiceResponse.status,
-        errorData
-      );
+    // Step 1: Create invoice with NOWPayments
+    const invoice = await createNOWPaymentsInvoice(body, pairIds, userId);
+    if (!invoice) {
       return NextResponse.json(
         { error: 'Failed to create invoice' },
         { status: 500 }
       );
     }
 
-    const invoice = await invoiceResponse.json();
-    // Step 2: Create payment using the invoice ID
-    const paymentData = {
-      iid: invoice.id, // Invoice ID from step 1
-      pay_currency: getCurrencyCode(body.network),
-    };
-
-    const paymentResponse = await fetch(`${nowPaymentsUrl}/v1/invoice-payment`, {
-      method: 'POST',
-      headers: {
-        'x-api-key': process.env.NOWPAYMENTS_API_KEY!,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(paymentData),
-    });
-
-    if (!paymentResponse.ok) {
-      const errorData = await paymentResponse.text();
-      await createAuditLog({
-        actorId: session?.user?.id || 'system',
-        actorRole: (session?.user?.role as Role) || 'USER',
-        action: AuditAction.CREATE_PAYMENT,
-        targetType: AuditTargetType.PAYMENT,
-        responseStatus: 'FAILURE',
-        details: { reason: 'nowpayments_payment_creation_failed', error: errorData },
-      });
-      console.error(
-        'NOWPayments payment API error:',
-        paymentResponse.status,
-        errorData
-      );
+    // Step 2: Create invoice payment with NOWPayments
+    const payment = await createNOWPaymentsInvoicePayment(invoice.id, body.network);
+    if (!payment) {
       return NextResponse.json(
         { error: 'Failed to create payment' },
         { status: 500 }
       );
     }
+    // Step 3: Create payment record with subscriptions and payment items in one transaction
+    const paymentRecord = await createPaymentWithSubscriptionsAndItems(body, userId, invoice, payment, pairIds);
 
-    const payment = await paymentResponse.json();
-    // Update payment record with both invoice ID and payment ID
-    await prisma.payment.update({
-      where: { id: paymentRecord.id },
-      data: {
-        invoiceId: invoice.id,
-        txHash: payment.pay_address, // Store payment address as txHash for status checking
-        paymentId: payment.payment_id,
-        status: PaymentStatus.PENDING,
-      },
-    });
+    // Transform response
+    const transformedInvoice = transformInvoiceResponse(invoice, payment, body);
+    console.log('debug:', 1);
 
-    // Transform the payment response for our API
-    const transformedInvoice = {
-      id: payment.id || invoice.id || orderId,
-      amount: parseFloat(payment.pay_amount || payment.price_amount) || body.amount,
-      currency: payment.pay_currency || getCurrencyCode(body.network),
-      network: body.network,
-      address: payment.pay_address || '', // Payment may have direct address
-      qrCode: '', // Will be generated if needed
-      expiresAt: payment.expiration_estimate
-        ? new Date(payment.expiration_estimate).toISOString()
-        : new Date(Date.now() + 20 * 60 * 1000).toISOString(),
-      status: 'pending',
-      nowPaymentsId: payment.id,
-      orderId: orderId,
-      invoiceUrl: invoice.invoice_url,
-      invoiceId: invoice.id,
-      paymentId: payment.payment_id,
-    };
-
-    // Audit log for all roles
+    // Audit log
     await createAuditLog({
-      actorId: session?.user?.id || userId,
-      actorRole: (session?.user?.role as Role) || 'USER',
+      actorId: userId,
+      actorRole: 'USER',
       action: AuditAction.CREATE_PAYMENT,
       targetType: AuditTargetType.PAYMENT,
       targetId: paymentRecord.id,
@@ -416,27 +164,20 @@ export async function POST(request: NextRequest) {
         actorName: session?.user?.name,
       },
     });
+    console.log('debug:', 2);
 
     return NextResponse.json({
       ...transformedInvoice,
       payment: {
         id: paymentRecord.id,
-        pairs: paymentItems.map((pi) => ({
-          pairId: pi.pairId,
-          basePrice: pi.basePrice,
-          discountRate: pi.discountRate,
-          finalPrice: pi.finalPrice,
-          period: pi.period,
-        })),
       },
     });
   } catch (error) {
     console.error('Error creating NOWPayments invoice:', error);
 
-    // Audit log for failure
     await createAuditLog({
-      actorId: session?.user?.id || 'system',
-      actorRole: (session?.user?.role as Role) || 'USER',
+      actorId: 'system',
+      actorRole: 'USER',
       action: AuditAction.CREATE_PAYMENT,
       targetType: AuditTargetType.PAYMENT,
       responseStatus: 'FAILURE',
@@ -455,25 +196,261 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// Map network string to PaymentNetwork enum
-function mapNetworkToEnum(network: string): PaymentNetwork {
+// Helper Functions
+
+async function createNOWPaymentsInvoice(
+  body: CreateInvoiceRequest,
+  pairIds: string[],
+  userId: string
+) {
+  const nowPaymentsUrl = process.env.NOWPAYMENTS_API_URL || 'https://api.nowpayments.io';
+  const orderId = `order_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+
+  const getPeriodDescription = () => {
+    if (body.orderData.plan?.period) return body.orderData.plan.period;
+    if (body.orderData.duration) return body.orderData.duration;
+    return 'subscription';
+  };
+
+  const getCurrencyCode = (network: string): string => {
+    switch (network.toLowerCase()) {
+      case 'trc20': return 'usdttrc20';
+      case 'erc20': return 'usdterc20';
+      case 'bep20': return 'usdtbsc';
+      default: return 'usdttrc20';
+    }
+  };
+
+  const invoiceData = {
+    price_amount: body.amount,
+    price_currency: 'usd',
+    pay_currency: getCurrencyCode(body.network),
+    order_id: orderId,
+    order_description: `AlgoMarkers.Ai Subscription: ${pairIds.join(', ')} - ${getPeriodDescription()}`,
+    ipn_callback_url: `${process.env.NEXTAUTH_URL}/api/payments/webhook`,
+    success_url: `${process.env.NEXTAUTH_URL}/dashboard?payment=success`,
+    cancel_url: `${process.env.NEXTAUTH_URL}/dashboard?payment=cancelled`,
+  };
+
+  const response = await fetch(`${nowPaymentsUrl}/v1/invoice`, {
+    method: 'POST',
+    headers: {
+      'x-api-key': process.env.NOWPAYMENTS_API_KEY!,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(invoiceData),
+  });
+
+  if (!response.ok) {
+    const errorData = await response.text();
+    console.error('NOWPayments invoice creation failed:', response.status, errorData);
+    await createAuditLog({
+      actorId: userId,
+      actorRole: 'USER',
+      action: AuditAction.CREATE_PAYMENT,
+      targetType: AuditTargetType.PAYMENT,
+      responseStatus: 'FAILURE',
+      details: { reason: 'nowpayments_invoice_creation_failed', error: errorData },
+    });
+    return null;
+  }
+
+  return await response.json();
+}
+
+async function createNOWPaymentsInvoicePayment(invoiceId: string, network: string) {
+  const nowPaymentsUrl = process.env.NOWPAYMENTS_API_URL || 'https://api.nowpayments.io';
+
+  const getCurrencyCode = (network: string): string => {
+    switch (network.toLowerCase()) {
+      case 'trc20': return 'usdttrc20';
+      case 'erc20': return 'usdterc20';
+      case 'bep20': return 'usdtbsc';
+      default: return 'usdttrc20';
+    }
+  };
+
+  const paymentData = {
+    iid: invoiceId,
+    pay_currency: getCurrencyCode(network),
+  };
+
+  const response = await fetch(`${nowPaymentsUrl}/v1/invoice-payment`, {
+    method: 'POST',
+    headers: {
+      'x-api-key': process.env.NOWPAYMENTS_API_KEY!,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(paymentData),
+  });
+
+  if (!response.ok) {
+    const errorData = await response.text();
+    console.error('NOWPayments payment creation failed:', response.status, errorData);
+    await createAuditLog({
+      actorId: 'system',
+      actorRole: 'USER',
+      action: AuditAction.CREATE_PAYMENT,
+      targetType: AuditTargetType.PAYMENT,
+      responseStatus: 'FAILURE',
+      details: { reason: 'nowpayments_payment_creation_failed', error: errorData },
+    });
+    return null;
+  }
+
+  return await response.json();
+}
+
+async function createPaymentWithSubscriptionsAndItems(
+  body: CreateInvoiceRequest,
+  userId: string,
+  invoice: any,
+  payment: any,
+  pairIds: string[]
+) {
+  const orderId = `order_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+
+  const subscriptionCreates: any[] = [];
+  const paymentItemCreates: any[] = [];
+
+  // Handle multiple pairs: Create one subscription per pair, all linked to the same payment
+  if (body.orderData.paymentItems && body.orderData.paymentItems.length > 0) {
+    // Use the detailed payment items from basket - each item represents one pair subscription
+    for (const paymentItem of body.orderData.paymentItems) {
+      const months = paymentItem.period === 'ONE_MONTH' ? 1 :
+                    paymentItem.period === 'THREE_MONTHS' ? 3 :
+                    paymentItem.period === 'SIX_MONTHS' ? 6 :
+                    paymentItem.period === 'TWELVE_MONTHS' ? 12 : 1;
+      const expiryDate = calculateExpiryDate(new Date(), months);
+
+      subscriptionCreates.push({
+        userId: userId,
+        pairId: paymentItem.pairId,
+        period: paymentItem.period as any,
+        startDate: new Date(),
+        expiryDate: expiryDate,
+        status: SubscriptionStatus.PENDING,
+        inviteStatus: InviteStatus.PENDING,
+        basePrice: paymentItem.basePrice,
+        discountRate: paymentItem.discountRate,
+      });
+
+      paymentItemCreates.push({
+        pairId: paymentItem.pairId,
+        basePrice: paymentItem.basePrice,
+        discountRate: paymentItem.discountRate,
+        finalPrice: paymentItem.finalPrice,
+        period: paymentItem.period,
+      });
+    }
+  } else {
+    // Fallback to old logic for backwards compatibility
+    for (const pairSymbol of pairIds) {
+      const pair = await prisma.pair.findFirst({ where: { symbol: pairSymbol } });
+      if (!pair) continue;
+
+      const expiryDate = calculateExpiryDate(new Date(), 1);
+      const basePriceNumeric = Number(pair.priceOneMonth ?? (body.amount / pairIds.length));
+      const discountNumeric = Number(pair.discountOneMonth ?? 0);
+
+      subscriptionCreates.push({
+        userId: userId,
+        pairId: pair.id,
+        period: 'ONE_MONTH' as any,
+        startDate: new Date(),
+        expiryDate: expiryDate,
+        status: SubscriptionStatus.PENDING,
+        inviteStatus: InviteStatus.PENDING,
+        basePrice: basePriceNumeric,
+        discountRate: discountNumeric,
+      });
+
+      paymentItemCreates.push({
+        pairId: pair.id,
+        basePrice: basePriceNumeric,
+        discountRate: discountNumeric,
+        finalPrice: basePriceNumeric * (1 - discountNumeric / 100),
+        period: 'ONE_MONTH' as any,
+      });
+    }
+  }
+
+  // Step 1: Create payment record first
+  const paymentRecord = await prisma.payment.create({
+    data: {
+      userId: userId,
+      totalAmount: body.amount,
+      network: mapNetworkToEnum(body.network),
+      status: PaymentStatus.PENDING,
+      orderId: orderId,
+      invoiceId: invoice.id,
+      paymentId: payment.payment_id,
+      txHash: payment.pay_address,
+      expiresAt: new Date(Date.now() + 20 * 60 * 1000), // 20 minutes from now
+      orderData: body.orderData,
+    },
+  });
+
+  // Step 2: Create subscriptions linked to the payment
+  const subscriptions = await Promise.all(
+    subscriptionCreates.map(subscriptionData =>
+      prisma.subscription.create({
+        data: {
+          ...subscriptionData,
+          paymentId: paymentRecord.id,
+        },
+      })
+    )
+  );
+
+  // Step 3: Create payment items linked to the payment
+  const paymentItems = await Promise.all(
+    paymentItemCreates.map(paymentItemData =>
+      prisma.paymentItem.create({
+        data: {
+          ...paymentItemData,
+          paymentId: paymentRecord.id,
+        },
+      })
+    )
+  );
+
+  // Return the payment record with related data
+  return {
+    ...paymentRecord,
+    subscription: subscriptions,
+    paymentItems: paymentItems,
+  };
+}
+
+function transformInvoiceResponse(invoice: any, payment: any, body: CreateInvoiceRequest) {
+  const orderId = `order_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+
+  return {
+    id: payment.id || invoice.id || orderId,
+    amount: parseFloat(payment.pay_amount || payment.price_amount) || body.amount,
+    currency: payment.pay_currency || getCurrencyCode(body.network),
+    network: body.network,
+    address: payment.pay_address || '',
+    qrCode: '',
+    expiresAt: payment.expiration_estimate
+      ? new Date(payment.expiration_estimate).toISOString()
+      : new Date(Date.now() + 20 * 60 * 1000).toISOString(),
+    status: 'pending',
+    nowPaymentsId: payment.id,
+    orderId: orderId,
+    invoiceUrl: invoice.invoice_url,
+    invoiceId: invoice.id,
+    paymentId: payment.payment_id,
+  };
+}
+
+function getCurrencyCode(network: string): string {
   switch (network.toLowerCase()) {
-    case 'trc20':
-      return PaymentNetwork.USDT_TRC20;
-    case 'erc20':
-      return PaymentNetwork.USDT_ERC20;
-    case 'bep20':
-      return PaymentNetwork.USDT_BEP20;
-    case 'usdt':
-      return PaymentNetwork.USDT;
-    case 'btc':
-    case 'bitcoin':
-      return PaymentNetwork.BTC;
-    case 'eth':
-    case 'ethereum':
-      return PaymentNetwork.ETH;
-    default:
-      return PaymentNetwork.USDT_TRC20; // Default to TRC20
+    case 'trc20': return 'usdttrc20';
+    case 'erc20': return 'usdterc20';
+    case 'bep20': return 'usdtbsc';
+    default: return 'usdttrc20';
   }
 }
 

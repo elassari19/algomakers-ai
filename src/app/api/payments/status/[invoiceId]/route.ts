@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { PaymentStatus } from '@/generated/prisma';
+import { PaymentStatus, SubscriptionStatus, InviteStatus } from '@/generated/prisma';
+import { revalidatePath } from 'next/cache';
 
 export async function GET(
   request: NextRequest,
@@ -105,6 +106,15 @@ export async function GET(
       const newStatus = mapStatusToEnum(status);
 
       if (currentStatus !== newStatus) {
+        // Fetch pending subscriptions for this payment to update them
+        const pendingSubscriptions = await prisma.subscription.findMany({
+          where: {
+            paymentId: dbPayment.id,
+            status: SubscriptionStatus.PENDING,
+          },
+        });
+
+        // Update payment and all its pending subscriptions in one transaction
         await prisma.payment.update({
           where: { id: dbPayment.id },
           data: {
@@ -113,8 +123,20 @@ export async function GET(
             actuallyPaid: paymentStatus.actually_paid || dbPayment.actuallyPaid,
           },
         });
+        await prisma.subscription.updateMany({
+          where: {
+            paymentId: dbPayment.id,
+            status: SubscriptionStatus.PENDING,
+          },
+          data: {
+            status: mapPaymentToSubscriptionStatus(newStatus)
+          },
+        });
+
+        // Revalidate relevant paths after status update
+        revalidatePath('/dashboard');
       } else {
-        console.error('Payment status unchanged:', currentStatus);
+        console.log('Payment status unchanged:', currentStatus);
       }
     } catch (dbError) {
       console.error('Failed to update payment status in database:', dbError);
@@ -167,5 +189,22 @@ function mapStatusToEnum(status: string): PaymentStatus {
       return PaymentStatus.FAILED;
     default:
       return PaymentStatus.PENDING;
+  }
+}
+// Map PaymentStatus to SubscriptionStatus
+function mapPaymentToSubscriptionStatus(paymentStatus: PaymentStatus): SubscriptionStatus {
+  console.log('payment status:', paymentStatus)
+  switch (paymentStatus) {
+    case PaymentStatus.PAID:
+      return SubscriptionStatus.PAID;
+    case PaymentStatus.EXPIRED:
+      return SubscriptionStatus.EXPIRED;
+    case PaymentStatus.FAILED:
+      return SubscriptionStatus.FAILED;
+    case PaymentStatus.UNDERPAID:
+      return SubscriptionStatus.PENDING;
+    case PaymentStatus.PENDING:
+    default:
+      return SubscriptionStatus.PENDING;
   }
 }
