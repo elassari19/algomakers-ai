@@ -505,7 +505,7 @@ export default function BillingPage() {
             overviewData={[
               {
                 title: 'Total Spent',
-                currentValue: `$${stats.totalSpent.toFixed(2)}`,
+                currentValue: `$${stats?.totalSpent.toFixed(2)}`,
                 icon: DollarSign,
                 description: 'Total amount spent',
                 pastValue: 'All-time spending',
@@ -514,7 +514,7 @@ export default function BillingPage() {
               },
               {
                 title: 'Total Payments',
-                currentValue: stats.totalPayments,
+                currentValue: stats?.totalPayments,
                 icon: CreditCard,
                 description: 'Payment transactions',
                 pastValue: 'Including all statuses',
@@ -523,7 +523,7 @@ export default function BillingPage() {
               },
               {
                 title: 'Active Subscriptions',
-                currentValue: stats.activeSubscriptions,
+                currentValue: stats?.activeSubscriptions,
                 icon: Users,
                 description: 'Currently active',
                 pastValue: 'Subscription services',
@@ -532,7 +532,7 @@ export default function BillingPage() {
               },
               {
                 title: 'Pending Payments',
-                currentValue: stats.pendingPayments,
+                currentValue: stats?.pendingPayments,
                 icon: Clock,
                 description: 'Awaiting payment',
                 pastValue: 'Requires attention',
