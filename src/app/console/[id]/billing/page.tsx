@@ -95,336 +95,11 @@ interface PaymentFormData {
   userId: string;
   network: string;
   totalAmount: number;
+  status?: string;
   txHash?: string;
   invoiceId?: string;
   orderId?: string;
 }
-
-// Dummy Data for Development
-const mockPayments: Payment[] = [
-  {
-    id: 'pay_001',
-    userId: 'user_001',
-    network: 'USDT_ERC20',
-    status: 'PAID',
-    txHash: '0xa1b2c3d4e5f67890abcdef1234567890abcdef1234567890abcdef1234567890',
-    invoiceId: 'INV-2024-001',
-    createdAt: new Date('2024-09-15T10:30:00Z'),
-    actuallyPaid: 299.99,
-    expiresAt: new Date('2024-09-16T10:30:00Z'),
-    orderId: 'ORD-001',
-    totalAmount: 299.99,
-    updatedAt: new Date('2024-09-15T11:45:00Z'),
-    user: {
-      id: 'user_001',
-      email: 'john.doe@example.com',
-      name: 'John Doe',
-      image: 'https://avatar.vercel.sh/john'
-    },
-    paymentItems: [
-      {
-        id: 'item_001',
-        paymentId: 'pay_001',
-        pairId: 'pair_001',
-        basePrice: 199.99,
-        discountRate: 0.10,
-        finalPrice: 179.99,
-        period: 'THREE_MONTHS',
-        createdAt: new Date('2024-09-15T10:30:00Z'),
-        pair: {
-          id: 'pair_001',
-          symbol: 'EURUSD',
-          version: 'Momentum Trading'
-        }
-      },
-      {
-        id: 'item_002',
-        paymentId: 'pay_001',
-        pairId: 'pair_002',
-        basePrice: 149.99,
-        discountRate: 0.20,
-        finalPrice: 119.99,
-        period: 'ONE_MONTH',
-        createdAt: new Date('2024-09-15T10:30:00Z'),
-        pair: {
-          id: 'pair_002',
-          symbol: 'GBPJPY',
-          version: 'Scalping Strategy'
-        }
-      }
-    ],
-    subscription: {
-      id: 'sub_001',
-      period: 'QUARTERLY',
-      status: 'ACTIVE'
-    }
-  },
-  {
-    id: 'pay_002',
-    userId: 'user_002',
-    network: 'USDT_BEP20',
-    status: 'PENDING',
-    invoiceId: 'INV-2024-002',
-    createdAt: new Date('2024-09-20T14:20:00Z'),
-    expiresAt: new Date('2024-09-21T14:20:00Z'),
-    orderId: 'ORD-002',
-    totalAmount: 499.99,
-    updatedAt: new Date('2024-09-20T14:20:00Z'),
-    user: {
-      id: 'user_002',
-      email: 'sarah.wilson@example.com',
-      name: 'Sarah Wilson',
-      image: 'https://avatar.vercel.sh/sarah'
-    },
-    paymentItems: [
-      {
-        id: 'item_003',
-        paymentId: 'pay_002',
-        pairId: 'pair_003',
-        basePrice: 599.99,
-        discountRate: 0.15,
-        finalPrice: 509.99,
-        period: 'SIX_MONTHS',
-        createdAt: new Date('2024-09-20T14:20:00Z'),
-        pair: {
-          id: 'pair_003',
-          symbol: 'BTCUSD',
-          version: 'Trend Following'
-        }
-      }
-    ]
-  },
-  {
-    id: 'pay_003',
-    userId: 'user_003',
-    network: 'USDT_ERC20',
-    status: 'FAILED',
-    txHash: '0xfailed123456789abcdef1234567890abcdef1234567890abcdef1234567890',
-    invoiceId: 'INV-2024-003',
-    createdAt: new Date('2024-09-18T09:15:00Z'),
-    actuallyPaid: 0,
-    expiresAt: new Date('2024-09-19T09:15:00Z'),
-    orderId: 'ORD-003',
-    totalAmount: 99.99,
-    updatedAt: new Date('2024-09-18T09:30:00Z'),
-    user: {
-      id: 'user_003',
-      email: 'mike.johnson@example.com',
-      name: 'Mike Johnson'
-    },
-    paymentItems: [
-      {
-        id: 'item_004',
-        paymentId: 'pay_003',
-        pairId: 'pair_004',
-        basePrice: 99.99,
-        discountRate: 0,
-        finalPrice: 99.99,
-        period: 'ONE_MONTH',
-        createdAt: new Date('2024-09-18T09:15:00Z'),
-        pair: {
-          id: 'pair_004',
-          symbol: 'AUDUSD',
-          version: 'Range Trading'
-        }
-      }
-    ]
-  },
-  {
-    id: 'pay_004',
-    userId: 'user_004',
-    network: 'USDT_ERC20',
-    status: 'UNDERPAID',
-    txHash: '0xunderpaid789abcdef1234567890abcdef1234567890abcdef1234567890abc',
-    invoiceId: 'INV-2024-004',
-    createdAt: new Date('2024-09-25T16:45:00Z'),
-    actuallyPaid: 245.50,
-    expiresAt: new Date('2024-09-26T16:45:00Z'),
-    orderId: 'ORD-004',
-    totalAmount: 299.99,
-    updatedAt: new Date('2024-09-25T17:00:00Z'),
-    user: {
-      id: 'user_004',
-      email: 'emily.davis@example.com',
-      name: 'Emily Davis',
-      image: 'https://avatar.vercel.sh/emily'
-    },
-    paymentItems: [
-      {
-        id: 'item_005',
-        paymentId: 'pay_004',
-        pairId: 'pair_005',
-        basePrice: 299.99,
-        discountRate: 0,
-        finalPrice: 299.99,
-        period: 'THREE_MONTHS',
-        createdAt: new Date('2024-09-25T16:45:00Z'),
-        pair: {
-          id: 'pair_005',
-          symbol: 'USDJPY',
-          version: 'Breakout Strategy'
-        }
-      }
-    ],
-    subscription: {
-      id: 'sub_002',
-      period: 'QUARTERLY',
-      status: 'PENDING_PAYMENT'
-    }
-  },
-  {
-    id: 'pay_005',
-    userId: 'user_005',
-    network: 'USDT_BEP20',
-    status: 'EXPIRED',
-    invoiceId: 'INV-2024-005',
-    createdAt: new Date('2024-09-10T12:00:00Z'),
-    expiresAt: new Date('2024-09-11T12:00:00Z'),
-    orderId: 'ORD-005',
-    totalAmount: 799.99,
-    updatedAt: new Date('2024-09-11T12:30:00Z'),
-    user: {
-      id: 'user_005',
-      email: 'alex.brown@example.com',
-      name: 'Alex Brown'
-    },
-    paymentItems: [
-      {
-        id: 'item_006',
-        paymentId: 'pay_005',
-        pairId: 'pair_006',
-        basePrice: 999.99,
-        discountRate: 0.20,
-        finalPrice: 799.99,
-        period: 'TWELVE_MONTHS',
-        createdAt: new Date('2024-09-10T12:00:00Z'),
-        pair: {
-          id: 'pair_006',
-          symbol: 'EURGBP',
-          version: 'Arbitrage Strategy'
-        }
-      }
-    ]
-  },
-  {
-    id: 'pay_006',
-    userId: 'user_001',
-    network: 'USDT_ERC20',
-    status: 'PAID',
-    txHash: '0xsecond123456789abcdef1234567890abcdef1234567890abcdef1234567890',
-    invoiceId: 'INV-2024-006',
-    createdAt: new Date('2024-10-01T08:30:00Z'),
-    actuallyPaid: 149.99,
-    expiresAt: new Date('2024-10-02T08:30:00Z'),
-    orderId: 'ORD-006',
-    totalAmount: 149.99,
-    updatedAt: new Date('2024-10-01T09:15:00Z'),
-    user: {
-      id: 'user_001',
-      email: 'john.doe@example.com',
-      name: 'John Doe',
-      image: 'https://avatar.vercel.sh/john'
-    },
-    paymentItems: [
-      {
-        id: 'item_007',
-        paymentId: 'pay_006',
-        pairId: 'pair_007',
-        basePrice: 149.99,
-        discountRate: 0,
-        finalPrice: 149.99,
-        period: 'ONE_MONTH',
-        createdAt: new Date('2024-10-01T08:30:00Z'),
-        pair: {
-          id: 'pair_007',
-          symbol: 'NZDUSD',
-          version: 'Grid Trading'
-        }
-      }
-    ],
-    subscription: {
-      id: 'sub_003',
-      period: 'MONTHLY',
-      status: 'ACTIVE'
-    }
-  },
-  {
-    id: 'pay_007',
-    userId: 'user_006',
-    network: 'USDT_BEP20',
-    status: 'PENDING',
-    invoiceId: 'INV-2024-007',
-    createdAt: new Date('2024-10-05T13:20:00Z'),
-    expiresAt: new Date('2024-10-06T13:20:00Z'),
-    orderId: 'ORD-007',
-    totalAmount: 399.99,
-    updatedAt: new Date('2024-10-05T13:20:00Z'),
-    user: {
-      id: 'user_006',
-      email: 'lisa.taylor@example.com',
-      name: 'Lisa Taylor',
-      image: 'https://avatar.vercel.sh/lisa'
-    },
-    paymentItems: [
-      {
-        id: 'item_008',
-        paymentId: 'pay_007',
-        pairId: 'pair_008',
-        basePrice: 399.99,
-        discountRate: 0,
-        finalPrice: 399.99,
-        period: 'SIX_MONTHS',
-        createdAt: new Date('2024-10-05T13:20:00Z'),
-        pair: {
-          id: 'pair_008',
-          symbol: 'USDCAD',
-          version: 'Mean Reversion'
-        }
-      }
-    ]
-  },
-  {
-    id: 'pay_008',
-    userId: 'user_007',
-    network: 'USDT_ERC20',
-    status: 'PAID',
-    txHash: '0xthird987654321fedcba0987654321fedcba0987654321fedcba0987654321',
-    invoiceId: 'INV-2024-008',
-    createdAt: new Date('2024-09-28T11:10:00Z'),
-    actuallyPaid: 1199.99,
-    expiresAt: new Date('2024-09-29T11:10:00Z'),
-    orderId: 'ORD-008',
-    totalAmount: 1199.99,
-    updatedAt: new Date('2024-09-28T12:05:00Z'),
-    user: {
-      id: 'user_007',
-      email: 'david.martinez@example.com',
-      name: 'David Martinez'
-    },
-    paymentItems: [
-      {
-        id: 'item_009',
-        paymentId: 'pay_008',
-        pairId: 'pair_009',
-        basePrice: 1499.99,
-        discountRate: 0.20,
-        finalPrice: 1199.99,
-        period: 'TWELVE_MONTHS',
-        createdAt: new Date('2024-09-28T11:10:00Z'),
-        pair: {
-          id: 'pair_009',
-          symbol: 'XAUUSD',
-          version: 'Gold Trading Bot'
-        }
-      }
-    ],
-    subscription: {
-      id: 'sub_004',
-      period: 'YEARLY',
-      status: 'ACTIVE'
-    }
-  }
-];
 
 // Action buttons component
 function ActionButtons({
@@ -624,25 +299,16 @@ const BillingPage = () => {
     try {
       setLoading(true);
       
-      // Simulate API delay
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      // Use dummy data instead of API call
-      console.log('Loading dummy payments data:', mockPayments);
-      setPayments(mockPayments);
-      
-      toast.success('Payments loaded successfully', {
-        style: { background: '#10b981', color: 'white' },
-      });
-      
-      /* 
-      // Original API call - uncomment when ready to use real API
-      const response = await fetch('/api/payments');
+      // Use real API call
+      const response = await fetch('/api/billing');
       const data = await response.json();
       
       if (response.ok && data.payments) {
         console.log('Fetched payments:', data.payments);
         setPayments(data.payments);
+        toast.success('Payments loaded successfully', {
+          style: { background: '#10b981', color: 'white' },
+        });
       } else {
         // Handle different error types
         if (response.status === 403) {
@@ -661,7 +327,6 @@ const BillingPage = () => {
         }
         console.error('API Error:', data);
       }
-      */
     } catch (error) {
       console.error('Error fetching payments:', error);
       toast.error('Error loading payments', {
@@ -745,28 +410,64 @@ const BillingPage = () => {
 
     try {
       const isUpdate = !!editingPayment;
-      const url = isUpdate ? `/api/payments/${editingPayment.id}` : '/api/payments';
-      const method = isUpdate ? 'PUT' : 'POST';
-
-      const response = await fetch(url, {
-        method,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData),
-      });
-
-      const result = await response.json();
-
-      if (response.ok) {
-        toast.success(`Payment ${isUpdate ? 'updated' : 'created'} successfully!`, {
-          style: { background: '#22c55e', color: 'white' },
+      
+      if (isUpdate) {
+        // Update payment
+        const response = await fetch('/api/billing', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            paymentId: editingPayment.id,
+            status: formData.status || editingPayment.status,
+            txHash: formData.txHash,
+          }),
         });
-        setIsSheetOpen(false);
-        setEditingPayment(null);
-        fetchPayments();
+
+        const result = await response.json();
+
+        if (response.ok) {
+          toast.success('Payment updated successfully!', {
+            style: { background: '#22c55e', color: 'white' },
+          });
+          setIsSheetOpen(false);
+          setEditingPayment(null);
+          fetchPayments();
+        } else {
+          toast.error(result.error || 'Failed to update payment', {
+            style: { background: '#ef4444', color: 'white' },
+          });
+        }
       } else {
-        toast.error(result.message || `Failed to ${isUpdate ? 'update' : 'create'} payment`, {
-          style: { background: '#ef4444', color: 'white' },
+        // Create payment
+        const response = await fetch('/api/billing', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            paymentData: {
+              network: formData.network,
+              totalAmount: formData.totalAmount,
+              txHash: formData.txHash,
+              invoiceId: formData.invoiceId,
+              orderId: formData.orderId,
+            },
+            subscriptionData: {}, // Add subscription data if needed
+          }),
         });
+
+        const result = await response.json();
+
+        if (response.ok) {
+          toast.success('Payment created successfully!', {
+            style: { background: '#22c55e', color: 'white' },
+          });
+          setIsSheetOpen(false);
+          setEditingPayment(null);
+          fetchPayments();
+        } else {
+          toast.error(result.error || 'Failed to create payment', {
+            style: { background: '#ef4444', color: 'white' },
+          });
+        }
       }
     } catch (error) {
       toast.error(`Error ${editingPayment ? 'updating' : 'creating'} payment`, {
@@ -788,7 +489,7 @@ const BillingPage = () => {
     paidPayments: payments.filter(p => p.status === 'PAID').length,
     totalRevenue: payments
       .filter(p => p.status === 'PAID')
-      .reduce((sum, p) => sum + p.totalAmount, 0),
+      .reduce((sum, p) => Number(sum) + Number(p.totalAmount), 0),
     pendingPayments: payments.filter(p => p.status === 'PENDING').length,
   };
 
@@ -841,22 +542,22 @@ const BillingPage = () => {
       sortable: true,
       render: (_, payment: Payment) => (
         <div className="flex items-center gap-3">
-          {payment.user.image ? (
+          {payment.user?.image ? (
             <img
-              src={payment.user.image}
-              alt={payment.user.name || payment.user.email}
+              src={payment.user?.image}
+              alt={payment.user?.name || payment.user?.email}
               className="w-8 h-8 rounded-full object-cover"
             />
           ) : (
             <div className="w-8 h-8 rounded-full bg-gradient-to-r from-purple-500 to-pink-500 flex items-center justify-center">
               <span className="text-white text-xs font-semibold">
-                {(payment.user.name || payment.user.email).charAt(0).toUpperCase()}
+                {(payment.user?.name || payment.user?.email)?.charAt(0).toUpperCase()}
               </span>
             </div>
           )}
           <div>
-            <p className="font-medium text-white">{payment.user.name || 'Unnamed User'}</p>
-            <p className="text-sm text-gray-400">{payment.user.email}</p>
+            <p className="font-medium text-white">{payment.user?.name || 'Unnamed User'}</p>
+            <p className="text-sm text-gray-400">{payment.user?.email}</p>
           </div>
         </div>
       ),
@@ -890,12 +591,12 @@ const BillingPage = () => {
     },
     {
       key: 'paymentItems',
-      header: 'Items',
+      header: 'Pair',
       align: 'center',
       render: (items: PaymentItem[]) => (
         <div className="text-center">
           <div className="text-white/80 text-sm">
-            {items.length} item{items.length !== 1 ? 's' : ''}
+            {items.length} pair{items.length !== 1 ? 's' : ''}
           </div>
         </div>
       ),
@@ -1071,7 +772,7 @@ const BillingPage = () => {
                 emptyStateTitle="No payments found"
                 emptyStateDescription="No payments found matching your criteria"
                 enableRowDetails={true}
-                rowDetailTitle={(payment) => `Payment ${payment.id.slice(0, 8)} - ${payment.user.email}`}
+                rowDetailTitle={(payment) => `Payment ${payment.id.slice(0, 8)} - ${payment.user?.email}`}
                 excludeFromDetails={['id', 'userId']}
                 rowDetailContent={(payment) => (
                   <div className="space-y-6">
