@@ -23,6 +23,8 @@ import {
 } from '@/components/ui/dropdown-menu';
 import Link from 'next/link';
 import { useSession } from 'next-auth/react';
+import { SubscribeButton } from '@/components/subscription/SubscribeButton';
+import { SubscriptionStatus } from '@/generated/prisma';
 
 interface SubscriptionData {
   id: string;
@@ -78,6 +80,7 @@ export default function SubscriptionsContent({
   useEffect(() => {
     setSubscriptionPairs(initialData);
   }, [initialData]);
+  console.log('Initial subscription pairs:', initialData);
 
   // Filter subscribed pairs based on URL params
   function getFilteredPairs() {
@@ -223,31 +226,20 @@ export default function SubscriptionsContent({
                     width: 'w-32',
                     render: (value: string, row: SubscriptionData) => {
                       const status = row.status;
+                      // Map string status to SubscriptionStatus enum
+                      const subscriptionStatus = status === 'ACTIVE' ? SubscriptionStatus.ACTIVE :
+                                                status === 'PENDING' ? SubscriptionStatus.PENDING :
+                                                status === 'EXPIRED' ? SubscriptionStatus.EXPIRED :
+                                                SubscriptionStatus.ACTIVE; // default fallback
+
                       return (
                         <div className="flex flex-col gap-1">
-                          <Button
-                            size="sm"
-                            variant={
-                              status === 'ACTIVE'
-                                ? 'default'
-                                : status === 'PENDING'
-                                ? 'outline'
-                                : 'destructive'
-                            }
-                            className={`text-xs ${
-                              status === 'ACTIVE'
-                                ? 'bg-green-600 hover:bg-green-700 text-white'
-                                : status === 'PENDING'
-                                ? 'border-blue-500 text-blue-400 hover:bg-blue-500/10'
-                                : 'bg-red-600 hover:bg-red-700 text-white'
-                            }`}
-                          >
-                            {status === 'ACTIVE'
-                              ? 'Active'
-                              : status === 'PENDING'
-                              ? 'Pending'
-                              : 'Expired'}
-                          </Button>
+                          <SubscribeButton
+                            userSubscriptionStatus={subscriptionStatus}
+                            isUserLoggedIn={!!session?.user}
+                            pair={row.pair as any}
+                            currentSubscriptionPeriod={row.period}
+                          />
                         </div>
                       );
                     },
