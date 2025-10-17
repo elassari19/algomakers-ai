@@ -311,7 +311,7 @@ export function PaymentModal({
 
             {/* Payment Details */}
             <Card className="bg-slate-800 border-slate-700">
-              <CardHeader className="bg-slate-700 border-b border-slate-600">
+              <CardHeader className='py-0'>
                 <CardTitle className="text-white flex items-center gap-2">
                   <span className="text-xl">💰</span>
                   <span>Payment Details</span>
@@ -342,6 +342,12 @@ export function PaymentModal({
                         <Copy className="w-4 h-4" />
                       )}
                     </Button>
+                  </div>
+                  {/* Expiry Date */}
+                  <div className="text-center">
+                    <p className="text-xs text-slate-400">
+                      ⏰ Expires: {invoice.expiresAt.toLocaleString()}
+                    </p>
                   </div>
                 </div>
 
