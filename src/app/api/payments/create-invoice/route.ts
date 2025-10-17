@@ -5,6 +5,7 @@ import type { PaymentItem, Role, Subscription } from '@/generated/prisma';
 import { createAuditLog, AuditAction, AuditTargetType } from '@/lib/audit';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
+import { sendEmail } from '@/lib/email-service';
 
 interface CreateInvoiceRequest {
   amount: number;
@@ -138,7 +139,6 @@ export async function POST(request: NextRequest) {
 
     // Transform response
     const transformedInvoice = transformInvoiceResponse(invoice, payment, body);
-    console.log('debug:', 1);
 
     // Audit log
     await createAuditLog({
@@ -164,7 +164,39 @@ export async function POST(request: NextRequest) {
         actorName: session?.user?.name,
       },
     });
-    console.log('debug:', 2);
+
+    // Send payment receipt emails for each subscription
+    try {
+      for (const subscription of paymentRecord.subscription) {
+        const pair = await prisma.pair.findUnique({
+          where: { id: subscription.pairId },
+          select: { symbol: true }
+        });
+
+        if (pair) {
+          await sendEmail({
+            userId: userId,
+            role: 'USER',
+            template: 'payment_receipt',
+            to: session?.user?.email || '',
+            params: {
+              firstName: session?.user?.name?.split(' ')[0] || 'User',
+              pair: pair.symbol,
+              period: subscription.period.toLowerCase().replace('_', ' '),
+              amount: body.amount.toString(),
+              network: body.network.toUpperCase(),
+              txHash: payment.pay_address,
+              expiryDate: subscription.expiryDate.toLocaleDateString(),
+              tradingViewUsername: body.orderData.tradingViewUsername || '',
+              dashboardUrl: `${process.env.NEXTAUTH_URL}/dashboard`,
+            },
+          });
+        }
+      }
+    } catch (emailError) {
+      console.error('Failed to send payment receipt email:', emailError);
+      // Don't fail the payment creation if email fails
+    }
 
     return NextResponse.json({
       ...transformedInvoice,

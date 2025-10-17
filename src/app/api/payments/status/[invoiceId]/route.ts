@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { PaymentStatus, SubscriptionStatus, InviteStatus } from '@/generated/prisma';
 import { revalidatePath } from 'next/cache';
+import { sendEmail } from '@/lib/email-service';
 
 export async function GET(
   request: NextRequest,
@@ -132,6 +133,42 @@ export async function GET(
             status: mapPaymentToSubscriptionStatus(newStatus)
           },
         });
+
+        // Send invite pending emails for subscriptions that are now paid
+        if (newStatus === PaymentStatus.PAID) {
+          try {
+            // Get the updated subscriptions with pair information
+            const updatedSubscriptions = await prisma.subscription.findMany({
+              where: {
+                paymentId: dbPayment.id,
+                status: SubscriptionStatus.PAID,
+              },
+              include: {
+                pair: true,
+                user: true,
+              },
+            });
+
+            for (const subscription of updatedSubscriptions) {
+              await sendEmail({
+                userId: subscription.userId,
+                role: 'USER',
+                template: 'invite_pending',
+                to: subscription.user.email || '',
+                params: {
+                  firstName: subscription.user.name?.split(' ')[0] || 'User',
+                  pair: subscription.pair.symbol,
+                  period: subscription.period.toLowerCase().replace('_', ' '),
+                  tradingViewUsername: subscription.user.tradingviewUsername || '',
+                  dashboardUrl: `${process.env.NEXTAUTH_URL}/dashboard`,
+                },
+              });
+            }
+          } catch (emailError) {
+            console.error('Failed to send invite pending email:', emailError);
+            // Don't fail the payment update if email fails
+          }
+        }
 
         // Revalidate relevant paths after status update
         revalidatePath('/dashboard');
