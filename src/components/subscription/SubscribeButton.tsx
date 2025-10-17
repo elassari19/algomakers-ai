@@ -13,6 +13,7 @@ interface SubscribeButtonProps {
   pair: Pair; // Add pairs prop
   className?: string;
   onCancel?: (pairId: string) => void; // Optional callback for cancel action
+  currentSubscriptionPeriod?: string; // Current active subscription period
 }
 
 export function SubscribeButton({
@@ -21,6 +22,7 @@ export function SubscribeButton({
   pair,
   className,
   onCancel,
+  currentSubscriptionPeriod,
 }: SubscribeButtonProps) {
   const router = useRouter();
   const pathname = usePathname();
@@ -225,6 +227,7 @@ export function SubscribeButton({
         isOpen={subscriptionModalOpen}
         onClose={handleCloseSubscriptionModal}
         pair={pair}
+        currentSubscriptionPeriod={currentSubscriptionPeriod}
       />
     </>
   );

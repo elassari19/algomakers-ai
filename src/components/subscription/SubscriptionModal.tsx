@@ -31,12 +31,14 @@ interface SubscriptionModalProps {
   isOpen: boolean;
   onClose: () => void;
   pair: Pair;
+  currentSubscriptionPeriod?: string;
 }
 
 export function SubscriptionModal({
   isOpen,
   onClose,
   pair,
+  currentSubscriptionPeriod,
 }: SubscriptionModalProps) {
   const dispatch = useDispatch<AppDispatch>();
   
@@ -147,6 +149,29 @@ export function SubscriptionModal({
               Choose your subscription period for {pair.symbol}:
             </div>
 
+            {/* Upgrade Message */}
+            {currentSubscriptionPeriod && (
+              <div className="bg-gradient-to-r from-blue-500/20 to-purple-500/20 border border-blue-400/30 rounded-lg p-4">
+                <div className="flex items-start space-x-3">
+                  <div className="flex-shrink-0">
+                    <div className="w-8 h-8 bg-blue-500/20 rounded-full flex items-center justify-center">
+                      <span className="text-blue-400 text-lg">⏰</span>
+                    </div>
+                  </div>
+                  <div className="flex-1">
+                    <h3 className="text-white font-semibold text-sm mb-1">
+                      Upgrade Your Subscription
+                    </h3>
+                    <p className="text-blue-200 text-sm leading-relaxed">
+                      🎯 <strong>Smart Upgrade:</strong> Your new subscription period will be <span className="text-yellow-300 font-semibold">added to your remaining time</span>!
+                      <br />
+                      💡 This means you'll get <span className="text-green-300 font-semibold">extended access</span> without losing any of your current subscription days.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {subscriptionPlans.map((plan) => (
                 <Card
@@ -166,7 +191,9 @@ export function SubscriptionModal({
                   )}
 
                   <CardHeader className="text-center pb-2">
-                    <CardTitle className="text-white">{plan.period}</CardTitle>
+                    <CardTitle className="text-white">
+                      {plan.period}
+                    </CardTitle>
                     <div className="text-3xl font-bold text-white">
                       ${plan.price}
                       {plan.discount && (

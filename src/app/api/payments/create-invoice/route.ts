@@ -24,6 +24,7 @@ interface CreateInvoiceRequest {
     tier?: string;
     duration?: string;
     userId?: string;
+    isUpgrade?: boolean; // Flag to indicate if this is an upgrade
     paymentItems?: {
       pairId: string;
       basePrice: number;
@@ -144,11 +145,12 @@ export async function POST(request: NextRequest) {
     await createAuditLog({
       actorId: userId,
       actorRole: 'USER',
-      action: AuditAction.CREATE_PAYMENT,
+      action: body.orderData.isUpgrade ? AuditAction.UPDATE_SUBSCRIPTION : AuditAction.CREATE_PAYMENT,
       targetType: AuditTargetType.PAYMENT,
       targetId: paymentRecord.id,
       responseStatus: 'SUCCESS',
       details: {
+        isUpgrade: body.orderData.isUpgrade || false,
         createdInvoice: {
           id: paymentRecord.id,
           invoiceId: invoice.id,
@@ -244,6 +246,8 @@ async function createNOWPaymentsInvoice(
     return 'subscription';
   };
 
+  const orderType = body.orderData.isUpgrade ? 'Upgrade' : 'Subscription';
+
   const getCurrencyCode = (network: string): string => {
     switch (network.toLowerCase()) {
       case 'trc20': return 'usdttrc20';
@@ -258,7 +262,7 @@ async function createNOWPaymentsInvoice(
     price_currency: 'usd',
     pay_currency: getCurrencyCode(body.network),
     order_id: orderId,
-    order_description: `AlgoMarkers.Ai Subscription: ${pairIds.join(', ')} - ${getPeriodDescription()}`,
+    order_description: `AlgoMarkers.Ai ${orderType}: ${pairIds.join(', ')} - ${getPeriodDescription()}`,
     ipn_callback_url: `${process.env.NEXTAUTH_URL}/api/payments/webhook`,
     success_url: `${process.env.NEXTAUTH_URL}/dashboard?payment=success`,
     cancel_url: `${process.env.NEXTAUTH_URL}/dashboard?payment=cancelled`,
@@ -353,13 +357,44 @@ async function createPaymentWithSubscriptionsAndItems(
                     paymentItem.period === 'THREE_MONTHS' ? 3 :
                     paymentItem.period === 'SIX_MONTHS' ? 6 :
                     paymentItem.period === 'TWELVE_MONTHS' ? 12 : 1;
-      const expiryDate = calculateExpiryDate(new Date(), months);
+
+      let startDate: Date;
+      let expiryDate: Date;
+
+      // Handle upgrades: extend existing subscription expiry date
+      if (body.orderData.isUpgrade) {
+        // Find the existing active subscription for this user+pair
+        const existingSubscription = await prisma.subscription.findFirst({
+          where: {
+            userId: userId,
+            pairId: paymentItem.pairId,
+            status: SubscriptionStatus.ACTIVE,
+          },
+          orderBy: {
+            expiryDate: 'desc', // Get the latest expiry date
+          },
+        });
+
+        if (existingSubscription) {
+          // Start the new subscription from the end of the existing one
+          startDate = new Date(existingSubscription.expiryDate);
+          expiryDate = calculateExpiryDate(startDate, months);
+        } else {
+          // Fallback: if no existing subscription found, start from today
+          startDate = new Date();
+          expiryDate = calculateExpiryDate(startDate, months);
+        }
+      } else {
+        // Regular new subscription: start from today
+        startDate = new Date();
+        expiryDate = calculateExpiryDate(startDate, months);
+      }
 
       subscriptionCreates.push({
         userId: userId,
         pairId: paymentItem.pairId,
         period: paymentItem.period as any,
-        startDate: new Date(),
+        startDate: startDate,
         expiryDate: expiryDate,
         status: SubscriptionStatus.PENDING,
         inviteStatus: InviteStatus.PENDING,

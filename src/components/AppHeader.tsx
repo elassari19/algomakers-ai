@@ -26,8 +26,9 @@ import {
   SheetTrigger,
 } from '@/components/ui/sheet';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Toaster } from 'sonner';
+import { toast } from 'sonner';
 import { PaymentModal } from '@/components/subscription/PaymentModal'; // Add this import
+import { Toaster } from './ui/sonner';
 
 interface Notification {
   id: string;
@@ -161,11 +162,33 @@ export function AppHeader() {
     setExpandedItemId(expandedItemId === itemId ? null : itemId);
   };
 
+  // Check if any basket items are upgrades (user has existing active subscription for the pair)
+  const checkForUpgrades = async (items: any[]): Promise<boolean> => {
+    try {
+      for (const item of items) {
+        const response = await fetch(`/api/subscriptions/check-upgrade?pairId=${item.pair.id}`);
+        if (response.ok) {
+          const data = await response.json();
+          if (data.hasActiveSubscription) {
+            return true; // At least one item is an upgrade
+          }
+        }
+      }
+      return false; // No upgrades found
+    } catch (error) {
+      console.error('Error checking for upgrades:', error);
+      return false; // Default to false on error
+    }
+  };
+
   const handleCheckout = async () => {
     if (isProcessingCheckout) return;
     
     setIsProcessingCheckout(true);
     try {
+      // Check if any basket items are upgrades
+      const isUpgrade = await checkForUpgrades(basketItems);
+      
       // Prepare payment items from basket
       const paymentItems = basketItems.map(item => ({
         pairId: item.pair.id,
@@ -194,6 +217,7 @@ export function AppHeader() {
           pairIds: basketItems.map(item => item.pair.id),
           paymentItems: paymentItems,
           userId: 'current-user-id', // This should come from auth context
+          isUpgrade: isUpgrade, // Add upgrade flag
         },
       };
 
@@ -206,9 +230,10 @@ export function AppHeader() {
       });
 
       if (!response.ok) {
-        const error = await response.json();
-        console.error('Checkout failed:', error);
-        // TODO: Show error toast
+        const errorData = await response.json();
+        toast.warning(errorData.error || errorData.message || 'Checkout failed', {
+          style: { background: '#333', color: '#fff' },
+        });
         return;
       }
 
@@ -220,7 +245,10 @@ export function AppHeader() {
       setModalOpen(true);
     } catch (error) {
       console.error('Checkout error:', error);
-      // TODO: Show error toast
+      toast.error('Failed to create invoice. Please try again.', {
+        duration: 3000,
+        style: { background: '#333', color: '#fff' },
+      });
     } finally {
       setIsProcessingCheckout(false);
     }
@@ -264,7 +292,6 @@ export function AppHeader() {
   return (
     <>
       <header className="sticky top-0 z-40 w-full border-b border-white/20 bg-white/5 backdrop-blur-md">
-        <Toaster position="top-center" richColors />
         <div className="flex h-10 items-center justify-between pl-8 px-4 sm:px-6 sm:pl-12">
           {/* Left side - Breadcrumbs */}
           <div className="flex items-center space-x-4">
@@ -557,6 +584,9 @@ export function AppHeader() {
         totalAmount={basketTotal}
         onPaymentSuccess={handlePaymentSuccess}
       />
+
+      {/* Toaster for notifications */}
+      <Toaster position="top-center" richColors duration={3000} />
     </>
   );
 }
