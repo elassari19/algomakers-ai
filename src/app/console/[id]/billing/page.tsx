@@ -45,6 +45,7 @@ import {
   TrendingUp,
 } from 'lucide-react';
 import { formatCurrency } from '@/lib/utils';
+import Link from 'next/link';
 
 // Types based on Prisma schema
 interface Payment {
@@ -104,26 +105,22 @@ interface PaymentFormData {
 // Action buttons component
 function ActionButtons({
   row,
-  onView,
   onUpdate,
-  onDelete,
 }: {
   row: Payment;
-  onView: (row: Payment) => void;
   onUpdate: (row: Payment) => void;
-  onDelete: (row: Payment) => void;
 }) {
   return (
     <div className="flex gap-2 items-center">
-      <Button
-        className="hover:text-white text-white/70"
-        variant={'ghost'}
-        size="icon"
-        onClick={() => onView(row)}
-        title="View Details"
-      >
-        <Eye size={16} />
-      </Button>
+      <Link href={`/console/${2}/billing/${row.id}`}>
+        <Button
+          className="hover:text-white text-white/70"
+          variant={'ghost'}
+          size="icon"
+        >
+          <Eye size={16} />
+        </Button>
+      </Link>
       <Button
         className="hover:text-white text-white/70"
         variant={'ghost'}
@@ -162,7 +159,8 @@ function PaymentForm({
 }) {
   const [formData, setFormData] = useState<PaymentFormData>({
     userId: payment?.userId || '',
-    network: payment?.network || 'USDT',
+    network: payment?.network || 'USDT (TRC20)',
+    status: payment?.status || 'PENDING',
     totalAmount: payment?.totalAmount || 0,
     txHash: payment?.txHash || '',
     invoiceId: payment?.invoiceId || '',
@@ -197,12 +195,25 @@ function PaymentForm({
               <SelectValue />
             </SelectTrigger>
             <SelectContent className="bg-slate-800 border-white/20">
-              <SelectItem value="USDT">USDT</SelectItem>
-              <SelectItem value="BTC">Bitcoin</SelectItem>
-              <SelectItem value="ETH">Ethereum</SelectItem>
               <SelectItem value="USDT_TRC20">USDT (TRC20)</SelectItem>
               <SelectItem value="USDT_ERC20">USDT (ERC20)</SelectItem>
               <SelectItem value="USDT_BEP20">USDT (BEP20)</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div>
+          <Label htmlFor="status" className="text-white/90">Payment Status *</Label>
+          <Select value={formData.status} onValueChange={(value) => setFormData({ ...formData, status: value })}>
+            <SelectTrigger className="bg-white/10 border-white/20 text-white">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent className="bg-slate-800 border-white/20">
+              <SelectItem value="PENDING">Pending</SelectItem>
+              <SelectItem value="PAID">Paid</SelectItem>
+              <SelectItem value="UNDERPAID">Underpaid</SelectItem>
+              <SelectItem value="EXPIRED">Expired</SelectItem>
+              <SelectItem value="FAILED">Failed</SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -304,7 +315,6 @@ const BillingPage = () => {
       const data = await response.json();
       
       if (response.ok && data.payments) {
-        console.log('Fetched payments:', data.payments);
         setPayments(data.payments);
         toast.success('Payments loaded successfully', {
           style: { background: '#10b981', color: 'white' },
@@ -400,11 +410,6 @@ const BillingPage = () => {
     setIsSheetOpen(true);
   };
 
-  const handleViewPayment = (payment: Payment) => {
-    // Navigate to payment details page
-    router.push(`/console/${consoleId}/billing/${payment.id}`);
-  };
-
   const handleFormSubmit = async (formData: PaymentFormData) => {
     setIsFormLoading(true);
 
@@ -449,6 +454,7 @@ const BillingPage = () => {
               txHash: formData.txHash,
               invoiceId: formData.invoiceId,
               orderId: formData.orderId,
+              status: formData.status,
             },
             subscriptionData: {}, // Add subscription data if needed
           }),
@@ -556,7 +562,7 @@ const BillingPage = () => {
             </div>
           )}
           <div>
-            <p className="font-medium text-white">{payment.user?.name || 'Unnamed User'}</p>
+            <p className="font-medium text-white">{payment.user?.name}</p>
             <p className="text-sm text-gray-400">{payment.user?.email}</p>
           </div>
         </div>
@@ -649,9 +655,7 @@ const BillingPage = () => {
       render: (_, payment: Payment) => (
         <ActionButtons
           row={payment}
-          onView={handleViewPayment}
           onUpdate={handleUpdatePayment}
-          onDelete={() => {}} // TODO: Implement delete if needed
         />
       ),
     },
@@ -659,7 +663,7 @@ const BillingPage = () => {
 
   return (
     <GradientBackground>
-      <Toaster position="top-center" />
+      {/* <Toaster position="top-center" /> */}
       <div className="min-h-screen flex flex-col justify-between p-0 md:p-4">
         {/* Billing Stats */}
         <div className="mb-4">

@@ -56,6 +56,13 @@ export async function GET(request: NextRequest) {
     const payments = await prisma.payment.findMany({
       where,
       include: {
+        user: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+          },
+        },
         paymentItems: {
           include: {
             pair: {
