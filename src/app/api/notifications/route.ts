@@ -33,7 +33,6 @@ export async function GET(request: NextRequest) {
         // Support can only see general and non-sensitive notifications
         whereClause = {
           OR: [
-            { adminId: user.id },
             { 
               type: { 
                 in: [NotificationType.GENERAL, NotificationType.RENEWAL_REMINDER] 
@@ -41,18 +40,7 @@ export async function GET(request: NextRequest) {
             }
           ]
         };
-      } else {
-        // Admin and Manager can see all notifications
-        whereClause = {
-          OR: [
-            { adminId: user.id },
-            { userId: null } // System-wide notifications
-          ]
-        };
       }
-    } else {
-      // User view - only their own notifications
-      whereClause = { userId: user.id };
     }
 
     // Add filters
@@ -73,31 +61,11 @@ export async function GET(request: NextRequest) {
         include: {
           user: {
             select: { id: true, name: true, email: true }
-          },
-          admin: {
-            select: { id: true, name: true, email: true }
           }
         }
       }),
       prisma.notification.count({ where: whereClause })
     ]);
-
-    await createAuditLog({
-      actorId: user.id,
-      actorRole: user.role as Role || 'USER',
-      action: AuditAction.GET_NOTIFICATION,
-      targetType: AuditTargetType.NOTIFICATION,
-      responseStatus: 'SUCCESS',
-      details: {
-        count: notifications.length,
-        page,
-        limit,
-        type: type || null,
-        isRead: isRead ?? null,
-        adminView,
-        timestamp: new Date().toISOString(),
-      },
-    });
     return NextResponse.json({
       notifications,
       pagination: {
@@ -139,7 +107,7 @@ export async function POST(request: NextRequest) {
     const user = session.user;
 
     const body = await request.json();
-    const { userId, type, title, message, data } = body;
+    const { userId, targetUsers, targetId, type, title, message, priority, channel, expiresAt, data } = body;
 
     // Validate required fields
     if (!type || !title || !message) {
@@ -160,18 +128,18 @@ export async function POST(request: NextRequest) {
     const notification = await prisma.notification.create({
       data: {
         userId: userId || null,
-        adminId: user.id,
+        targetUsers: targetUsers || [],
+        targetId: targetId || null,
         type,
         title,
         message,
         data: data || null,
-        isRead: false
+        priority: priority || 'MEDIUM',
+        channel: channel || 'IN_APP',
+        expiresAt: expiresAt ? new Date(expiresAt) : null,
       },
       include: {
         user: {
-          select: { id: true, name: true, email: true }
-        },
-        admin: {
           select: { id: true, name: true, email: true }
         }
       }
@@ -248,20 +216,25 @@ export async function PATCH(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { title, message, data, isRead, type } = body;
+    const { userId, targetUsers, targetId, title, message, data, type, priority, channel, expiresAt } = body;
 
     // Only allow updating certain fields
     const updateData: any = {};
+    if (userId !== undefined) updateData.userId = userId;
+    if (targetUsers !== undefined) updateData.targetUsers = targetUsers;
+    if (targetId !== undefined) updateData.targetId = targetId;
     if (title !== undefined) updateData.title = title;
     if (message !== undefined) updateData.message = message;
     if (data !== undefined) updateData.data = data;
-    if (isRead !== undefined) updateData.isRead = isRead;
     if (type !== undefined) {
       if (!Object.values(NotificationType).includes(type)) {
         return NextResponse.json({ error: "Invalid notification type" }, { status: 400 });
       }
       updateData.type = type;
     }
+    if (priority !== undefined) updateData.priority = priority;
+    if (channel !== undefined) updateData.channel = channel;
+    if (expiresAt !== undefined) updateData.expiresAt = expiresAt ? new Date(expiresAt) : null;
 
     if (Object.keys(updateData).length === 0) {
       return NextResponse.json({ error: "No valid fields to update" }, { status: 400 });
@@ -272,7 +245,6 @@ export async function PATCH(request: NextRequest) {
       data: updateData,
       include: {
         user: { select: { id: true, name: true, email: true } },
-        admin: { select: { id: true, name: true, email: true } }
       }
     });
 

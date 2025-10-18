@@ -53,24 +53,24 @@ import {
 } from '@/components/ui/dialog';
 import { NotificationType, Role } from '@/generated/prisma';
 import { AccessDeniedCard } from '@/components/console/AccessDeniedCard';
+import Link from 'next/link';
 
 // Types based on Prisma schema
 interface Notification {
   id: string;
   userId: string | null;
-  adminId: string | null;
+  targetUsers: string[];
+  targetId: string | null;
   type: NotificationType;
   title: string;
   message: string;
   data: any;
-  isRead: boolean;
+  priority: string;
+  channel: string;
+  expiresAt: string | null;
   createdAt: string;
+  updatedAt: string;
   user?: {
-    id: string;
-    name: string | null;
-    email: string;
-  } | null;
-  admin?: {
     id: string;
     name: string | null;
     email: string;
@@ -82,7 +82,11 @@ interface NotificationFormData {
   title: string;
   message: string;
   userId?: string;
-  adminId?: string;
+  targetUsers?: string;
+  targetId?: string;
+  priority?: string;
+  channel?: string;
+  expiresAt?: string;
   data?: any;
 }
 
@@ -92,7 +96,11 @@ const notificationFormSchema = z.object({
   title: z.string().min(1, 'Title is required').max(200, 'Title too long'),
   message: z.string().min(1, 'Message is required').max(1000, 'Message too long'),
   userId: z.string().optional(),
-  adminId: z.string().optional(),
+  targetUsers: z.string().optional(),
+  targetId: z.string().optional(),
+  priority: z.enum(['LOW', 'MEDIUM', 'HIGH', 'URGENT']).optional(),
+  channel: z.enum(['IN_APP', 'EMAIL', 'PUSH', 'SMS']).optional(),
+  expiresAt: z.string().optional(),
   data: z.any().optional(),
 });
 
@@ -146,14 +154,12 @@ const getNotificationColor = (type: NotificationType) => {
 // Action buttons component
 function ActionButtons({
   row,
-  onView,
   onUpdate,
   onDelete,
   canEdit,
   canDelete,
 }: {
   row: Notification;
-  onView: (row: Notification) => void;
   onUpdate: (row: Notification) => void;
   onDelete: (row: Notification) => void;
   canEdit: boolean;
@@ -161,15 +167,16 @@ function ActionButtons({
 }) {
   return (
     <div className="flex gap-2 items-center">
-      <Button
-        className="hover:text-white text-white/70"
-        variant={'ghost'}
-        size="icon"
-        onClick={() => onView(row)}
-        title="View Details"
-      >
-        <Eye size={16} />
-      </Button>
+      <Link href={`/console/2/notifications/${row.id}`}>
+        <Button
+          className="hover:text-white text-white/70"
+          variant={'ghost'}
+          size="icon"
+          title="View Details"
+        >
+          <Eye size={16} />
+        </Button>
+      </Link>
       {canEdit && (
         <Button
           className="hover:text-white text-white/70"
@@ -213,7 +220,11 @@ function NotificationForm({
     title: notification?.title || '',
     message: notification?.message || '',
     userId: notification?.userId || '',
-    adminId: notification?.adminId || '',
+    targetUsers: notification?.targetUsers?.join(', ') || '',
+    targetId: notification?.targetId || '',
+    priority: notification?.priority || 'MEDIUM',
+    channel: notification?.channel || 'IN_APP',
+    expiresAt: notification?.expiresAt ? new Date(notification.expiresAt).toISOString().slice(0, 16) : '',
     data: notification?.data || null,
   });
 
@@ -339,19 +350,100 @@ function NotificationForm({
         </div>
 
         <div>
-          <Label htmlFor="adminId" className="text-white/90">Admin ID (optional)</Label>
-          <Input
-            id="adminId"
-            type="text"
-            value={formData.adminId}
-            onChange={(e) => handleFieldChange('adminId', e.target.value)}
+          <Label htmlFor="targetUsers" className="text-white/90">Target Users (optional)</Label>
+          <Textarea
+            id="targetUsers"
+            value={formData.targetUsers}
+            onChange={(e) => handleFieldChange('targetUsers', e.target.value)}
             className={`bg-white/10 border-white/20 text-white ${
-              errors.adminId ? 'border-red-500 focus:border-red-500' : ''
+              errors.targetUsers ? 'border-red-500 focus:border-red-500' : ''
             }`}
-            placeholder="Admin who created this notification"
+            placeholder="Comma-separated list of user IDs (e.g., user1, user2, user3)"
+            rows={2}
           />
-          {errors.adminId && (
-            <p className="text-red-400 text-sm mt-1">{errors.adminId}</p>
+          {errors.targetUsers && (
+            <p className="text-red-400 text-sm mt-1">{errors.targetUsers}</p>
+          )}
+        </div>
+
+        <div>
+          <Label htmlFor="targetId" className="text-white/90">Target ID (optional)</Label>
+          <Input
+            id="targetId"
+            type="text"
+            value={formData.targetId}
+            onChange={(e) => handleFieldChange('targetId', e.target.value)}
+            className={`bg-white/10 border-white/20 text-white ${
+              errors.targetId ? 'border-red-500 focus:border-red-500' : ''
+            }`}
+            placeholder="ID of related entity (subscription, payment, etc.)"
+          />
+          {errors.targetId && (
+            <p className="text-red-400 text-sm mt-1">{errors.targetId}</p>
+          )}
+        </div>
+
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <Label htmlFor="priority" className="text-white/90">Priority</Label>
+            <Select 
+              value={formData.priority} 
+              onValueChange={(value) => handleFieldChange('priority', value)}
+            >
+              <SelectTrigger className={`bg-white/10 border-white/20 text-white ${
+                errors.priority ? 'border-red-500 focus:border-red-500' : ''
+              }`}>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent className="bg-slate-800 border-white/20">
+                <SelectItem value="LOW" className="text-white hover:bg-white/10">Low</SelectItem>
+                <SelectItem value="MEDIUM" className="text-white hover:bg-white/10">Medium</SelectItem>
+                <SelectItem value="HIGH" className="text-white hover:bg-white/10">High</SelectItem>
+                <SelectItem value="URGENT" className="text-white hover:bg-white/10">Urgent</SelectItem>
+              </SelectContent>
+            </Select>
+            {errors.priority && (
+              <p className="text-red-400 text-sm mt-1">{errors.priority}</p>
+            )}
+          </div>
+
+          <div>
+            <Label htmlFor="channel" className="text-white/90">Channel</Label>
+            <Select 
+              value={formData.channel} 
+              onValueChange={(value) => handleFieldChange('channel', value)}
+            >
+              <SelectTrigger className={`bg-white/10 border-white/20 text-white ${
+                errors.channel ? 'border-red-500 focus:border-red-500' : ''
+              }`}>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent className="bg-slate-800 border-white/20">
+                <SelectItem value="IN_APP" className="text-white hover:bg-white/10">In App</SelectItem>
+                <SelectItem value="EMAIL" className="text-white hover:bg-white/10">Email</SelectItem>
+                <SelectItem value="PUSH" className="text-white hover:bg-white/10">Push</SelectItem>
+                <SelectItem value="SMS" className="text-white hover:bg-white/10">SMS</SelectItem>
+              </SelectContent>
+            </Select>
+            {errors.channel && (
+              <p className="text-red-400 text-sm mt-1">{errors.channel}</p>
+            )}
+          </div>
+        </div>
+
+        <div>
+          <Label htmlFor="expiresAt" className="text-white/90">Expires At (optional)</Label>
+          <Input
+            id="expiresAt"
+            type="datetime-local"
+            value={formData.expiresAt}
+            onChange={(e) => handleFieldChange('expiresAt', e.target.value)}
+            className={`bg-white/10 border-white/20 text-white ${
+              errors.expiresAt ? 'border-red-500 focus:border-red-500' : ''
+            }`}
+          />
+          {errors.expiresAt && (
+            <p className="text-red-400 text-sm mt-1">{errors.expiresAt}</p>
           )}
         </div>
       </div>
@@ -418,106 +510,6 @@ const NotificationsPage = () => {
     }
   };
 
-  // Dummy notifications for demonstration
-  const dummyNotifications: Notification[] = [
-    {
-      id: '1',
-      userId: 'user1',
-      adminId: null,
-      type: NotificationType.SUBSCRIPTION_CONFIRMED,
-      title: 'Subscription Confirmed',
-      message: 'Your premium subscription has been activated successfully. You now have access to all premium features.',
-      data: { subscriptionId: 'sub_123', plan: 'Premium' },
-      isRead: false,
-      createdAt: new Date().toISOString(),
-      user: {
-        id: 'user1',
-        name: 'John Doe',
-        email: 'john.doe@example.com'
-      }
-    },
-    {
-      id: '2',
-      userId: null,
-      adminId: 'admin1',
-      type: NotificationType.ADMIN_ACTION_REQUIRED,
-      title: 'System Maintenance Required',
-      message: 'Database backup and maintenance scheduled for tonight at 2 AM EST. Expected downtime: 30 minutes.',
-      data: { maintenanceWindow: '2024-10-07T02:00:00Z', estimatedDuration: 30 },
-      isRead: true,
-      createdAt: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(), // 2 hours ago
-      admin: {
-        id: 'admin1',
-        name: 'Admin User',
-        email: 'admin@algomarkers.com'
-      }
-    },
-    {
-      id: '3',
-      userId: 'user2',
-      adminId: null,
-      type: NotificationType.PAYMENT_RECEIVED,
-      title: 'Payment Received',
-      message: 'We have successfully received your payment of $29.99 for your monthly subscription.',
-      data: { amount: 29.99, currency: 'USD', paymentMethod: 'card' },
-      isRead: false,
-      createdAt: new Date(Date.now() - 5 * 60 * 60 * 1000).toISOString(), // 5 hours ago
-      user: {
-        id: 'user2',
-        name: 'Jane Smith',
-        email: 'jane.smith@example.com'
-      }
-    },
-    {
-      id: '4',
-      userId: 'user3',
-      adminId: null,
-      type: NotificationType.TRADINGVIEW_INVITE_SENT,
-      title: 'TradingView Invite Sent',
-      message: 'Your TradingView private indicator invite has been sent. Check your email for access instructions.',
-      data: { tradingviewUsername: 'trader123', inviteType: 'private_indicator' },
-      isRead: true,
-      createdAt: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(), // 1 day ago
-      user: {
-        id: 'user3',
-        name: 'Mike Johnson',
-        email: 'mike.johnson@example.com'
-      }
-    },
-    {
-      id: '5',
-      userId: null,
-      adminId: 'admin1',
-      type: NotificationType.GENERAL,
-      title: 'New Feature Release',
-      message: 'We have released a new portfolio optimization feature. Check out the improved analytics dashboard with enhanced backtesting capabilities.',
-      data: { feature: 'portfolio_optimization', version: '2.1.0' },
-      isRead: false,
-      createdAt: new Date(Date.now() - 12 * 60 * 60 * 1000).toISOString(), // 12 hours ago
-      admin: {
-        id: 'admin1',
-        name: 'Admin User',
-        email: 'admin@algomarkers.com'
-      }
-    },
-    {
-      id: '6',
-      userId: 'user4',
-      adminId: null,
-      type: NotificationType.RENEWAL_REMINDER,
-      title: 'Subscription Renewal Reminder',
-      message: 'Your subscription will expire in 3 days. Renew now to continue enjoying premium features without interruption.',
-      data: { expirationDate: '2024-10-10T00:00:00Z', daysRemaining: 3 },
-      isRead: false,
-      createdAt: new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString(), // 6 hours ago
-      user: {
-        id: 'user4',
-        name: 'Sarah Wilson',
-        email: 'sarah.wilson@example.com'
-      }
-    }
-  ];
-
   // Fetch all notifications
   const fetchNotifications = async () => {
     try {
@@ -532,22 +524,14 @@ const NotificationsPage = () => {
       
       if (response.ok && data.notifications) {
         console.log('Fetched notifications:', data.notifications);
-        // If no notifications from API, use dummy data for demonstration
-        if (data.notifications.length === 0) {
-          setNotifications(dummyNotifications);
-        } else {
-          setNotifications(data.notifications);
-        }
+        setNotifications(data.notifications);
       } else {
-        // If API fails, use dummy data for demonstration
-        console.log('Using dummy data for demonstration');
-        setNotifications(dummyNotifications);
+        console.error('Failed to fetch notifications:', data.error || 'Unknown error');
+        setNotifications([]);
       }
     } catch (error) {
       console.error('Error fetching notifications:', error);
-      // If API fails, use dummy data for demonstration
-      console.log('Using dummy data due to API error');
-      setNotifications(dummyNotifications);
+      setNotifications([]);
     } finally {
       setLoading(false);
     }
@@ -564,10 +548,10 @@ const NotificationsPage = () => {
     // Apply category filter first
     switch (filterBy) {
       case 'unread':
-        filtered = notifications.filter((notification) => !notification.isRead);
+        filtered = notifications.filter((notification) => notification.targetUsers.length > 0);
         break;
       case 'read':
-        filtered = notifications.filter((notification) => notification.isRead);
+        filtered = notifications.filter((notification) => notification.targetUsers.length <= 0);
         break;
       case 'subscription':
         filtered = notifications.filter((notification) => 
@@ -614,9 +598,7 @@ const NotificationsPage = () => {
         notification.message.toLowerCase().includes(query) ||
         notification.type.toLowerCase().includes(query) ||
         (notification.user?.email && notification.user.email.toLowerCase().includes(query)) ||
-        (notification.user?.name && notification.user.name.toLowerCase().includes(query)) ||
-        (notification.admin?.email && notification.admin.email.toLowerCase().includes(query)) ||
-        (notification.admin?.name && notification.admin.name.toLowerCase().includes(query))
+        (notification.user?.name && notification.user.name.toLowerCase().includes(query))
       );
     }
 
@@ -634,10 +616,6 @@ const NotificationsPage = () => {
   const handleUpdateNotification = (notification: Notification) => {
     setEditingNotification(notification);
     setIsSheetOpen(true);
-  };
-
-  const handleViewNotification = (notification: Notification) => {
-    setViewingNotification(notification);
   };
 
   const handleDeleteNotification = (notification: Notification) => {
@@ -682,10 +660,22 @@ const NotificationsPage = () => {
       const url = isUpdate ? `/api/notifications/${editingNotification.id}` : '/api/notifications';
       const method = isUpdate ? 'PATCH' : 'POST';
 
+      // Process form data for API
+      const processedData = {
+        ...formData,
+        targetUsers: formData.targetUsers 
+          ? formData.targetUsers.split(',').map(id => id.trim()).filter(id => id.length > 0)
+          : [],
+        expiresAt: formData.expiresAt ? new Date(formData.expiresAt).toISOString() : null,
+        // Remove empty strings for optional fields
+        userId: formData.userId || null,
+        targetId: formData.targetId || null,
+      };
+
       const response = await fetch(url, {
         method,
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData),
+        body: JSON.stringify(processedData),
       });
 
       const result = await response.json();
@@ -719,7 +709,7 @@ const NotificationsPage = () => {
   // Calculate stats
   const stats = {
     totalNotifications: notifications.length,
-    unreadNotifications: notifications.filter(n => !n.isRead).length,
+    unreadNotifications: notifications.filter(n => n.targetUsers.length <= 0).length,
     adminNotifications: notifications.filter(n => n.type === NotificationType.ADMIN_ACTION_REQUIRED).length,
     recentNotifications: notifications.filter(n => {
       const oneDayAgo = new Date();
@@ -818,7 +808,6 @@ const NotificationsPage = () => {
       render: (_, notification: Notification) => (
         <ActionButtons
           row={notification}
-          onView={handleViewNotification}
           onUpdate={handleUpdateNotification}
           onDelete={handleDeleteNotification}
           canEdit={canEdit}
@@ -975,7 +964,6 @@ const NotificationsPage = () => {
               enableRowDetails={true}
               rowDetailTitle={(notification) => `${notification.title}`}
               excludeFromDetails={['id', 'data']}
-              onRowClick={handleViewNotification}
             />
           </div>
         </div>
@@ -1006,87 +994,6 @@ const NotificationsPage = () => {
         </SheetContent>
       </Sheet>
 
-      {/* View Notification Dialog */}
-      <Dialog open={!!viewingNotification} onOpenChange={() => setViewingNotification(null)}>
-        <DialogContent className="max-w-2xl bg-slate-900 border-white/20">
-          <DialogHeader>
-            <DialogTitle className="text-white text-xl">Notification Details</DialogTitle>
-          </DialogHeader>
-          {viewingNotification && (
-            <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label className="text-white/70">Type</Label>
-                  <Badge className={getNotificationColor(viewingNotification.type)}>
-                    <div className="flex items-center gap-1">
-                      {getNotificationIcon(viewingNotification.type)}
-                      {viewingNotification.type.replace(/_/g, ' ')}
-                    </div>
-                  </Badge>
-                </div>
-                <div>
-                  <Label className="text-white/70">Status</Label>
-                  <Badge className={viewingNotification.isRead ? 'bg-green-500/20 text-green-400' : 'bg-yellow-500/20 text-yellow-400'}>
-                    {viewingNotification.isRead ? 'Read' : 'Unread'}
-                  </Badge>
-                </div>
-              </div>
-              
-              <div>
-                <Label className="text-white/70">Title</Label>
-                <p className="text-white mt-1">{viewingNotification.title}</p>
-              </div>
-              
-              <div>
-                <Label className="text-white/70">Message</Label>
-                <p className="text-white/80 mt-1 whitespace-pre-wrap">{viewingNotification.message}</p>
-              </div>
-              
-              {viewingNotification.user && (
-                <div>
-                  <Label className="text-white/70">User</Label>
-                  <div className="text-white/80 mt-1">
-                    <div className="font-medium">{viewingNotification.user.name || 'Unnamed User'}</div>
-                    <div className="text-sm text-gray-400">{viewingNotification.user.email}</div>
-                  </div>
-                </div>
-              )}
-              
-              {viewingNotification.admin && (
-                <div>
-                  <Label className="text-white/70">Created by Admin</Label>
-                  <div className="text-white/80 mt-1">
-                    <div className="font-medium">{viewingNotification.admin.name || 'Unnamed Admin'}</div>
-                    <div className="text-sm text-gray-400">{viewingNotification.admin.email}</div>
-                  </div>
-                </div>
-              )}
-              
-              <div>
-                <Label className="text-white/70">Created</Label>
-                <p className="text-white/80 mt-1">
-                  {new Date(viewingNotification.createdAt).toLocaleString('en-US', {
-                    year: 'numeric',
-                    month: 'long',
-                    day: 'numeric',
-                    hour: '2-digit',
-                    minute: '2-digit',
-                  })}
-                </p>
-              </div>
-              
-              {viewingNotification.data && (
-                <div>
-                  <Label className="text-white/70">Additional Data</Label>
-                  <pre className="text-xs text-white/60 mt-1 bg-white/5 p-2 rounded overflow-auto">
-                    {JSON.stringify(viewingNotification.data, null, 2)}
-                  </pre>
-                </div>
-              )}
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
 
       {/* Delete Confirmation Modal */}
       <Dialog open={deleteModalOpen} onOpenChange={setDeleteModalOpen}>
