@@ -239,38 +239,165 @@ export function SubscriptionModal({
               Review your order and proceed to add to basket:
             </div>
 
-            {/* Order Summary */}
-            <Card className="bg-slate-800 border-slate-700">
-              <CardHeader>
-                <CardTitle className="text-white">Order Summary</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="space-y-2">
-                  <h4 className="font-medium text-white">Selected Pair:</h4>
-                  <Badge variant="secondary" className="bg-slate-700 text-slate-300">
-                    {pair.symbol}
-                  </Badge>
-                </div>
+            {/* Enhanced Order Summary */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* Left Column - Order Details */}
+              <Card className="bg-slate-800 border-slate-700">
+                <CardHeader>
+                  <CardTitle className="text-white flex items-center gap-2">
+                    📋 Order Summary
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="space-y-3">
+                    <div>
+                      <h4 className="font-medium text-white mb-2">Selected Trading Pair:</h4>
+                      <div className="flex items-center gap-3">
+                        <Badge variant="secondary" className="bg-slate-700 text-slate-300 text-lg px-3 py-1">
+                          {pair.symbol}
+                        </Badge>
+                        {pair.symbol && (
+                          <span className="text-slate-400 text-sm">
+                            {pair.symbol}
+                          </span>
+                        )}
+                      </div>
+                    </div>
 
-                <div className="space-y-2">
-                  <div className="flex justify-between">
-                    <span className="text-slate-400">Plan:</span>
-                    <span className="text-white">{selectedPlan.period}</span>
+                    <div className="grid grid-cols-2 gap-4 pt-2">
+                      <div>
+                        <span className="text-slate-400 text-sm">Plan:</span>
+                        <p className="text-white font-medium">{selectedPlan.period}</p>
+                      </div>
+                      <div>
+                        <span className="text-slate-400 text-sm">Duration:</span>
+                        <p className="text-white font-medium">
+                          {selectedPlan.months} month{selectedPlan.months !== 1 ? 's' : ''}
+                        </p>
+                      </div>
+                      <div>
+                        <span className="text-slate-400 text-sm">Base Price:</span>
+                        <p className="text-white font-medium">${selectedPlan.price}</p>
+                      </div>
+                      {selectedPlan.discount && (
+                        <div>
+                          <span className="text-slate-400 text-sm">Discount:</span>
+                          <p className="text-green-400 font-medium">
+                            -{selectedPlan.discount}%
+                          </p>
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="border-t border-slate-600 pt-3">
+                      <div className="flex justify-between items-center">
+                        <span className="text-white font-semibold text-lg">Total Amount:</span>
+                        <span className="text-green-400 font-bold text-xl">${totalPrice}</span>
+                      </div>
+                    </div>
                   </div>
-                  <div className="flex justify-between">
-                    <span className="text-slate-400">Duration:</span>
-                    <span className="text-white">
-                      {selectedPlan.months} month
-                      {selectedPlan.months !== 1 ? 's' : ''}
-                    </span>
+                </CardContent>
+              </Card>
+
+              {/* Right Column - What You Get */}
+              <Card className="bg-slate-800 border-slate-700">
+                <CardHeader>
+                  <CardTitle className="text-white flex items-center gap-2">
+                    🎯 What You Get
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="space-y-3">
+                    <div className="flex items-start gap-3">
+                      <div className="w-6 h-6 bg-green-500/20 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+                        <CheckCircle className="w-4 h-4 text-green-400" />
+                      </div>
+                      <div>
+                        <p className="text-white font-medium">Full Access to {pair.symbol}</p>
+                        <p className="text-slate-400 text-sm">Complete trading signals and analysis for this pair</p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-start gap-3">
+                      <div className="w-6 h-6 bg-blue-500/20 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+                        <CheckCircle className="w-4 h-4 text-blue-400" />
+                      </div>
+                      <div>
+                        <p className="text-white font-medium">{selectedPlan.months} Month{selectedPlan.months !== 1 ? 's' : ''} Access</p>
+                        <p className="text-slate-400 text-sm">Continuous signals and updates for the full period</p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-start gap-3">
+                      <div className="w-6 h-6 bg-purple-500/20 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+                        <CheckCircle className="w-4 h-4 text-purple-400" />
+                      </div>
+                      <div>
+                        <p className="text-white font-medium">Real-time Notifications</p>
+                        <p className="text-slate-400 text-sm">Instant alerts for trading opportunities</p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-start gap-3">
+                      <div className="w-6 h-6 bg-yellow-500/20 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+                        <CheckCircle className="w-4 h-4 text-yellow-400" />
+                      </div>
+                      <div>
+                        <p className="text-white font-medium">Performance Analytics</p>
+                        <p className="text-slate-400 text-sm">Track your subscription performance and ROI</p>
+                      </div>
+                    </div>
                   </div>
-                  <div className="flex justify-between">
-                    <span className="text-slate-400">Price:</span>
-                    <span className="text-white">${selectedPlan.price}</span>
+
+                  {/* Current Subscription Info */}
+                  {currentSubscriptionPeriod && (
+                    <div className="bg-blue-500/10 border border-blue-500/30 rounded-lg p-3 mt-4">
+                      <div className="flex items-start gap-2">
+                        <AlertCircle className="w-4 h-4 text-blue-400 flex-shrink-0 mt-0.5" />
+                        <div>
+                          <p className="text-blue-300 font-medium text-sm">Upgrade Benefit</p>
+                          <p className="text-blue-200 text-xs">
+                            Your new {selectedPlan.period.toLowerCase()} will be added to your remaining {currentSubscriptionPeriod.toLowerCase()} time
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Savings Highlight */}
+                  {selectedPlan.discount && selectedPlan.discount > 0 && (
+                    <div className="bg-green-500/10 border border-green-500/30 rounded-lg p-3">
+                      <div className="flex items-center gap-2">
+                        <span className="text-green-400 text-lg">💰</span>
+                        <div>
+                          <p className="text-green-300 font-medium text-sm">You're Saving!</p>
+                          <p className="text-green-200 text-xs">
+                            ${((selectedPlan.price * selectedPlan.discount) / 100).toFixed(2)} off this subscription
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Payment Information */}
+            <Card className="bg-slate-800/50 border-slate-700">
+              <CardContent className="pt-6">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 bg-green-500/20 rounded-full flex items-center justify-center">
+                      <span className="text-green-400 text-lg">🔒</span>
+                    </div>
+                    <div>
+                      <p className="text-white font-medium">Secure Payment</p>
+                      <p className="text-slate-400 text-sm">Processed securely via crypto payment gateway</p>
+                    </div>
                   </div>
-                  <div className="flex justify-between font-semibold text-lg border-t border-slate-600 pt-2">
-                    <span className="text-white">Total:</span>
-                    <span className="text-green-400">${totalPrice}</span>
+                  <div className="text-right">
+                    <p className="text-slate-400 text-sm">Payment Method</p>
+                    <p className="text-white font-medium">Cryptocurrency</p>
                   </div>
                 </div>
               </CardContent>
@@ -286,7 +413,7 @@ export function SubscriptionModal({
               </Button>
               <Button
                 onClick={handleSubmit}
-                className="bg-green-600 hover:bg-green-500"
+                className="bg-gradient-to-r from-purple-600 to-pink-500 hover:from-purple-500 hover:to-pink-500 text-white px-8 py-2 font-semibold"
               >
                 Add to Basket → ${totalPrice}
               </Button>

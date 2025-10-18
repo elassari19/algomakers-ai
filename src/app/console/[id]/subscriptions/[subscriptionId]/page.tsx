@@ -43,15 +43,17 @@ function StatusBadge({ status }: { status: string }) {
   const getStatusConfig = (status: string) => {
     switch (status.toUpperCase()) {
       case 'ACTIVE':
-        return { color: 'bg-green-500/20 text-green-400 border-green-500/30', icon: CheckCircle };
+        return { color: 'bg-green-500/20 text-green-400 border-green-500/30 px-4', icon: CheckCircle };
+      case 'PAID':
+        return { color: 'bg-yellow-500/80 text-white/90 border-yellow-500/70 px-4', icon: CheckCircle };
       case 'EXPIRED':
-        return { color: 'bg-red-500/20 text-red-400 border-red-500/30', icon: XCircle };
+        return { color: 'bg-red-500/20 text-red-400 border-red-500/30 px-4', icon: XCircle };
       case 'PENDING':
-        return { color: 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30', icon: Clock };
+        return { color: 'bg-blue-500/20 text-blue-400 border-blue-500/30 px-4', icon: Clock };
       case 'CANCELLED':
-        return { color: 'bg-gray-500/20 text-gray-400 border-gray-500/30', icon: XCircle };
+        return { color: 'bg-gray-500/20 text-gray-400 border-gray-500/30 px-4', icon: XCircle };
       default:
-        return { color: 'bg-gray-500/20 text-gray-400 border-gray-500/30', icon: AlertCircle };
+        return { color: 'bg-gray-500/20 text-gray-400 border-gray-500/30 px-4', icon: AlertCircle };
     }
   };
 
@@ -60,7 +62,7 @@ function StatusBadge({ status }: { status: string }) {
 
   return (
     <Badge className={`${config.color} border flex items-center gap-1`}>
-      <Icon size={14} />
+      <Icon size={16} />
       {status}
     </Badge>
   );
