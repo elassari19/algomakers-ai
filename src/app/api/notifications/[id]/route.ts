@@ -24,10 +24,7 @@ export async function GET(
       where: { id: notificationId },
       include: {
         user: {
-          select: { id: true, name: true, email: true }
-        },
-        admin: {
-          select: { id: true, name: true, email: true }
+          select: { id: true, name: true, email: true, role: true }
         }
       }
     });
@@ -42,7 +39,6 @@ export async function GET(
     // Check permissions
     const canAccess = 
       notification.userId === user.id || // User's own notification
-      notification.adminId === user.id || // Admin's notification
       (user.role === Role.ADMIN || user.role === Role.MANAGER); // Admin/Manager can see all
 
     if (!canAccess) {
@@ -102,7 +98,6 @@ export async function PATCH(
     // Check permissions
     const canUpdate =
       existingNotification.userId === session?.user.id || // User's own notification
-      existingNotification.adminId === session?.user.id || // Admin's notification
       (session?.user.role === Role.ADMIN || session?.user.role === Role.MANAGER); // Admin/Manager can update all
 
     if (!canUpdate) {
@@ -129,9 +124,6 @@ export async function PATCH(
       data: updateData,
       include: {
         user: {
-          select: { id: true, name: true, email: true }
-        },
-        admin: {
           select: { id: true, name: true, email: true }
         }
       }

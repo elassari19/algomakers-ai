@@ -93,9 +93,9 @@ export async function POST(request: NextRequest) {
     }
 
     // Validate minimum amount
-    if (body.amount < 20) {
+    if (body.amount < 5) {
       return NextResponse.json(
-        { error: 'Minimum amount is $20 USD for cryptocurrency payments' },
+        { error: 'Minimum amount is $5 USD for cryptocurrency payments' },
         { status: 400 }
       );
     }

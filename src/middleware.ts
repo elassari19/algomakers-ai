@@ -3,8 +3,11 @@ import { NextResponse } from 'next/server';
 
 export default withAuth(
   function middleware(request) {
+    const response = NextResponse.next();
+    const { pathname } = request.nextUrl;
+    response.headers.set('x-pathname', pathname);
     // Middleware logic can be added here if needed
-    return NextResponse.next();
+    return response;
   },
   {
     callbacks: {

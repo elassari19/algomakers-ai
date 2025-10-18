@@ -25,7 +25,6 @@ model User {
   accounts            Account[]
   affiliate           Affiliate?
   auditLogs           AuditLog[]     @relation("UserAuditLogs")
-  adminNotifications  Notification[] @relation("AdminNotifications")
   notifications       Notification[]
   payments            Payment[]
   sessions            Session[]
@@ -186,17 +185,20 @@ model AuditLog {
 }
 
 model Notification {
-  id        String           @id @default(uuid())
-  userId    String?
-  adminId   String?
-  type      NotificationType
-  title     String
-  message   String
-  data      Json?
-  isRead    Boolean          @default(false)
-  createdAt DateTime         @default(now())
-  admin     User?            @relation("AdminNotifications", fields: [adminId], references: [id])
-  user      User?            @relation(fields: [userId], references: [id])
+  id         String              @id @default(uuid())
+  userId     String?
+  targetUsers String[]           // Array of user IDs who should receive this notification (remove IDs when read)
+  targetId   String?             // ID of the related entity (subscription, payment, user, etc.) for navigation
+  type       NotificationType
+  title      String
+  message    String
+  data       Json?
+  priority   NotificationPriority @default(MEDIUM)
+  channel    NotificationChannel  @default(IN_APP)
+  expiresAt  DateTime?           // Optional expiration for temporary notifications
+  createdAt  DateTime            @default(now())
+  updatedAt  DateTime            @updatedAt
+  user       User?               @relation(fields: [userId], references: [id])
 }
 
 enum Role {
@@ -304,5 +306,25 @@ enum NotificationType {
   TRADINGVIEW_INVITE_SENT
   TRADINGVIEW_INVITE_COMPLETED
   RENEWAL_REMINDER
+  SYSTEM_MAINTENANCE
+  NEW_FEATURE_ANNOUNCEMENT
+  SECURITY_ALERT
+  COMMISSION_EARNED
+  PAYOUT_PROCESSED
+  USER_REGISTRATION
   GENERAL
+}
+
+enum NotificationPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+enum NotificationChannel {
+  IN_APP
+  EMAIL
+  PUSH
+  SMS
 }

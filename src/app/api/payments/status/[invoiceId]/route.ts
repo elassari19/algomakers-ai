@@ -3,11 +3,30 @@ import { prisma } from '@/lib/prisma';
 import { PaymentStatus, SubscriptionStatus, InviteStatus } from '@/generated/prisma';
 import { revalidatePath } from 'next/cache';
 import { sendEmail } from '@/lib/email-service';
+import {
+  createPaymentReceivedNotification,
+  createPaymentFailedNotification,
+  createTradingViewInviteSentNotification,
+  createPaymentExpiredNotification,
+  createPaymentUnderpaidNotification,
+  NotificationTemplates,
+  createNotificationForUser,
+  createNotificationForRole
+} from '@/lib/notification-service';
+import { authOptions } from '@/lib/auth';
+import { getServerSession } from 'next-auth';
 
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ invoiceId: string }> }
 ) {
+  const session = await getServerSession(authOptions);
+  if (!session) {
+    return NextResponse.json(
+      { error: 'Unauthorized' },
+      { status: 401 }
+    );
+  }
   try {
     const { invoiceId } = await params;
 
@@ -163,11 +182,45 @@ export async function GET(
                   dashboardUrl: `${process.env.NEXTAUTH_URL}/dashboard`,
                 },
               });
+
+              // Create subscription confirmed notification for user
+              await createNotificationForUser({
+                userId: dbPayment.userId,
+                targetId: subscription.id,
+                template: NotificationTemplates.SUBSCRIPTION_CONFIRMED({
+                  pairName: subscription.pair.symbol,
+                  period: subscription.period.toLowerCase().replace('_', ' '),
+                  startDate: subscription.startDate.toLocaleDateString(),
+                  expiryDate: subscription.expiryDate.toLocaleDateString()
+                })
+              });
+
+              // Create subscription confirmed notification for role
+              await createNotificationForRole({
+                targetRole: 'ADMIN',
+                targetId: subscription.id,
+                template: NotificationTemplates.SUBSCRIPTION_CONFIRMED_ADMIN({
+                  userId: subscription.userId,
+                  userEmail: subscription.user.email,
+                  pairName: subscription.pair.symbol,
+                  period: subscription.period.toLowerCase().replace('_', ' '),
+                  startDate: subscription.startDate.toLocaleDateString(),
+                  expiryDate: subscription.expiryDate.toLocaleDateString()
+                })
+              }); 
             }
           } catch (emailError) {
             console.error('Failed to send invite pending email:', emailError);
-            // Don't fail the payment update if email fails
+            // Create Subscription failed notification for admin
           }
+        } else if (newStatus === PaymentStatus.FAILED) {
+          // Create payment failed notification for admin
+          await createNotificationForRole({
+            targetRole: 'ADMIN',
+            template: NotificationTemplates.PAYMENT_FAILED({
+              message: `Payment for invoice ${invoiceId} has failed. Please check the payment details and take necessary actions.`
+            })
+          });
         }
 
         // Revalidate relevant paths after status update
