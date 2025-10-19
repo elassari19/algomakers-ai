@@ -4,17 +4,12 @@ import { PaymentStatus, SubscriptionStatus, InviteStatus } from '@/generated/pri
 import { revalidatePath } from 'next/cache';
 import { sendEmail } from '@/lib/email-service';
 import {
-  createPaymentReceivedNotification,
-  createPaymentFailedNotification,
-  createTradingViewInviteSentNotification,
-  createPaymentExpiredNotification,
-  createPaymentUnderpaidNotification,
-  NotificationTemplates,
   createNotificationForUser,
   createNotificationForRole
 } from '@/lib/notification-service';
 import { authOptions } from '@/lib/auth';
 import { getServerSession } from 'next-auth';
+import { NotificationTemplates } from '@/lib/notification-constants';
 
 export async function GET(
   request: NextRequest,
@@ -187,7 +182,7 @@ export async function GET(
               await createNotificationForUser({
                 userId: dbPayment.userId,
                 targetId: subscription.id,
-                template: NotificationTemplates.SUBSCRIPTION_CONFIRMED({
+                template: await NotificationTemplates.SUBSCRIPTION_CONFIRMED({
                   pairName: subscription.pair.symbol,
                   period: subscription.period.toLowerCase().replace('_', ' '),
                   startDate: subscription.startDate.toLocaleDateString(),
@@ -199,7 +194,7 @@ export async function GET(
               await createNotificationForRole({
                 targetRole: 'ADMIN',
                 targetId: subscription.id,
-                template: NotificationTemplates.SUBSCRIPTION_CONFIRMED_ADMIN({
+                template: await NotificationTemplates.SUBSCRIPTION_CONFIRMED_ADMIN({
                   userId: subscription.userId,
                   userEmail: subscription.user.email,
                   pairName: subscription.pair.symbol,
@@ -207,7 +202,7 @@ export async function GET(
                   startDate: subscription.startDate.toLocaleDateString(),
                   expiryDate: subscription.expiryDate.toLocaleDateString()
                 })
-              }); 
+              });
             }
           } catch (emailError) {
             console.error('Failed to send invite pending email:', emailError);
@@ -217,14 +212,12 @@ export async function GET(
           // Create payment failed notification for admin
           await createNotificationForRole({
             targetRole: 'ADMIN',
-            template: NotificationTemplates.PAYMENT_FAILED({
+            template: await NotificationTemplates.PAYMENT_FAILED({
               message: `Payment for invoice ${invoiceId} has failed. Please check the payment details and take necessary actions.`
             })
           });
         }
 
-        // Revalidate relevant paths after status update
-        revalidatePath('/dashboard');
       } else {
         console.log('Payment status unchanged:', currentStatus);
       }
@@ -233,6 +226,9 @@ export async function GET(
       // Don't fail the request if DB update fails
     }
 
+    revalidatePath('/', 'layout');
+    revalidatePath('/dashboard', 'layout');
+    revalidatePath('/console', 'layout');
     return NextResponse.json({
       status,
       invoiceId,
