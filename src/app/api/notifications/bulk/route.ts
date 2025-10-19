@@ -15,7 +15,7 @@ export async function PATCH(request: NextRequest) {
   try {
     const user = session.user;
     const body = await request.json();
-    const { action, ids, isRead } = body;
+    const { action, ids, ...updateFields } = body;
 
     // Check if user has admin privileges for bulk operations
     if (user.role !== Role.ADMIN && user.role !== Role.MANAGER) {
@@ -29,53 +29,73 @@ export async function PATCH(request: NextRequest) {
       );
     }
 
+    let updateData: any = {};
+
     if (action === 'markAsRead') {
-      if (typeof isRead !== 'boolean') {
+      // With current schema, "mark as read" means emptying targetUsers array
+      // This indicates all targeted users have read the notification
+      updateData.targetUsers = [];
+    } else if (action === 'updateFields') {
+      // Allow bulk updating of specific fields
+      const allowedFields = ['priority', 'channel', 'expiresAt', 'type'];
+      const filteredFields: any = {};
+
+      for (const [key, value] of Object.entries(updateFields)) {
+        if (allowedFields.includes(key)) {
+          if (key === 'expiresAt' && value) {
+            filteredFields[key] = new Date(value as string);
+          } else {
+            filteredFields[key] = value;
+          }
+        }
+      }
+
+      if (Object.keys(filteredFields).length === 0) {
         return NextResponse.json(
-          { error: "isRead boolean is required for markAsRead action" },
+          { error: "No valid fields to update" },
           { status: 400 }
         );
       }
 
-      const updated = await prisma.notification.updateMany({
-        where: {
-          id: { in: ids }
-        },
-        data: {
-          isRead: isRead
-        }
-      });
-
-      // Log based on user role: ADMIN/MANAGER -> audit, other roles -> event
-      await createAuditLog({
-        actorId: user.id,
-        actorRole: user.role as Role,
-        action: AuditAction.UPDATE_NOTIFICATION,
-        targetType: AuditTargetType.NOTIFICATION,
-        targetId: ids[0] || 'bulk-operation',
-        responseStatus: 'SUCCESS',
-        details: {
-          action: 'markAsRead',
-          targetIds: ids,
-          affectedCount: updated.count,
-          newReadStatus: isRead,
-          adminRole: user.role,
-          adminEmail: user.email,
-          bulkOperationType: 'UPDATE_READ_STATUS',
-          actionType: 'BULK_NOTIFICATION_UPDATE'
-        }
-      });
-
-      return NextResponse.json({
-        message: `${updated.count} notifications updated`,
-        count: updated.count
-      });
+      updateData = filteredFields;
+    } else {
+      return NextResponse.json(
+        { error: "Invalid action. Use 'markAsRead' or 'updateFields'" },
+        { status: 400 }
+      );
     }
 
-    return NextResponse.json(
-      { error: "Invalid action" },
-      { status: 400 }
-    );
+    const updated = await prisma.notification.updateMany({
+      where: {
+        id: { in: ids }
+      },
+      data: updateData
+    });
+
+    // Log based on user role: ADMIN/MANAGER -> audit
+    await createAuditLog({
+      actorId: user.id,
+      actorRole: user.role as Role,
+      action: AuditAction.UPDATE_NOTIFICATION,
+      targetType: AuditTargetType.NOTIFICATION,
+      targetId: ids[0] || 'bulk-operation',
+      responseStatus: 'SUCCESS',
+      details: {
+        action: action,
+        targetIds: ids,
+        affectedCount: updated.count,
+        updateData: updateData,
+        adminRole: user.role,
+        adminEmail: user.email,
+        bulkOperationType: action === 'markAsRead' ? 'MARK_ALL_READ' : 'UPDATE_FIELDS',
+        actionType: 'BULK_NOTIFICATION_UPDATE'
+      }
+    });
+
+    return NextResponse.json({
+      message: `${updated.count} notifications updated`,
+      count: updated.count
+    });
 
   } catch (error) {
     console.error("Error in bulk notification update:", error);

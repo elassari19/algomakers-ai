@@ -12,9 +12,7 @@ import Link from 'next/link';
 import { format } from 'date-fns';
 
 interface PageProps {
-  params: {
-    notificationId: string;
-  };
+  params: Promise<{ notificationId: string }>
 }
 
 function getNotificationIcon(type: NotificationType) {
@@ -108,6 +106,7 @@ function getChannelColor(channel: NotificationChannel) {
 
 export default async function NotificationDetailPage({ params }: PageProps) {
   const session = await getServerSession(authOptions);
+  const { notificationId } = await params;
 
   if (!session?.user?.id) {
     notFound();
@@ -122,7 +121,7 @@ export default async function NotificationDetailPage({ params }: PageProps) {
 
   // Fetch notification with user relation
   const notification = await prisma.notification.findUnique({
-    where: { id: params.notificationId },
+    where: { id: notificationId },
     include: {
       user: {
         select: {
