@@ -13,11 +13,18 @@ import {
   CreditCard,
   Users,
   Clock,
+  CheckCircle,
+  XCircle,
+  AlertCircle,
+  ExternalLink,
 } from 'lucide-react';
-import { SortFilterBar } from '@/components/subscription/SortFilterBar';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { OverviewSection } from '@/components/dashboard/DashboardStats';
+import { SearchInput } from '@/components/SearchInput';
 import jsPDF from 'jspdf';
 import { getUserBillingData } from '@/app/api/services';
+import { SortFilterBar } from '@/components/subscription/SortFilterBar';
+import { formatCurrency } from '@/lib/utils';
 
 // Payment interface
 interface Payment {
@@ -70,86 +77,166 @@ export default function BillingPage() {
   });
   const [loading, setLoading] = useState(true);
   const [filterBy, setFilterBy] = useState<string>('all');
+  const [searchQuery, setSearchQuery] = useState<string>('');
+  const [dateRange, setDateRange] = useState<string>('all');
+
+  const fetchPayments = async (status?: string, dateRangeParam?: string, search?: string) => {
+    setLoading(true);
+    try {
+      const params = new URLSearchParams();
+      if (status && status !== 'all') params.append('status', status);
+      if (dateRangeParam && dateRangeParam !== 'all') params.append('dateRange', dateRangeParam);
+      if (search && search.trim()) params.append('search', search.trim());
+
+      const response = await fetch(`/api/billing?${params.toString()}`);
+      if (!response.ok) {
+        throw new Error('Failed to fetch billing data');
+      }
+      const data = await response.json();
+      setPayments(data.payments || []);
+      setStats({
+        totalSpent: data.payments.map((payment: Payment) => payment.totalAmount).reduce((a: number, b: number) => Number(a) + Number(b), 0),
+        totalPayments: data.payments.length,
+        activeSubscriptions: data.payments.filter((payment: Payment) => payment.status === 'PAID').length,
+        pendingPayments: data.payments.filter((payment: Payment) => payment.status === 'PENDING').length,
+      });
+    } catch (error) {
+      console.error('Error fetching billing data:', error);
+      // Fallback to empty data if API fails
+      setPayments([]);
+      setStats({
+        totalSpent: 0,
+        totalPayments: 0,
+        activeSubscriptions: 0,
+        pendingPayments: 0,
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    const fetchPayments = async () => {
-      setLoading(true);
-      try {
-        const response = await fetch('/api/billing');
-        if (!response.ok) {
-          throw new Error('Failed to fetch billing data');
-        }
-        const data = await response.json();
-        setPayments(data.payments);
-        setStats(data.stats);
-      } catch (error) {
-        console.error('Error fetching billing data:', error);
-        // Fallback to empty data if API fails
-        setPayments([]);
-        setStats({
-          totalSpent: 0,
-          totalPayments: 0,
-          activeSubscriptions: 0,
-          pendingPayments: 0,
-        });
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchPayments();
-  }, []);
-
-  // Filter payments based on selected filter
-  const getFilteredPayments = () => {
-    let filtered = payments;
+    // Map filterBy to API parameters
+    let statusParam = undefined;
+    let dateRangeParam = undefined;
 
     switch (filterBy) {
       case 'paid':
-        filtered = payments.filter((payment) => payment.status === 'PAID');
+        statusParam = 'PAID';
         break;
       case 'pending':
-        filtered = payments.filter((payment) => payment.status === 'PENDING');
+        statusParam = 'PENDING';
         break;
       case 'failed':
-        filtered = payments.filter(
-          (payment) =>
-            payment.status === 'FAILED' || payment.status === 'EXPIRED'
-        );
+        statusParam = 'FAILED';
+        break;
+      case 'expired':
+        statusParam = 'EXPIRED';
         break;
       case 'underpaid':
-        filtered = payments.filter((payment) => payment.status === 'UNDERPAID');
+        statusParam = 'UNDERPAID';
         break;
       case 'recent':
-        const thirtyDaysAgo = new Date();
-        thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-        filtered = payments.filter(
-          (payment) => new Date(payment.createdAt) >= thirtyDaysAgo
-        );
+        dateRangeParam = '30d';
         break;
       case 'high-value':
-        filtered = payments.filter((payment) => payment.totalAmount >= 100);
+        // High-value filtering will be done client-side since API doesn't support amount filtering
         break;
       default:
-        filtered = payments;
+        // 'all' or other values - no filtering
+        break;
     }
 
-    return filtered;
+    fetchPayments(statusParam, dateRangeParam, searchQuery);
+  }, [filterBy, dateRange, searchQuery]);
+
+
+  // Get status badge styling
+  const getStatusBadge = (status: string) => {
+    const statusConfig = {
+      PAID: { bg: 'bg-green-500/20', text: 'text-green-400', icon: CheckCircle },
+      PENDING: { bg: 'bg-yellow-500/20', text: 'text-yellow-400', icon: Clock },
+      FAILED: { bg: 'bg-red-500/20', text: 'text-red-400', icon: XCircle },
+      EXPIRED: { bg: 'bg-gray-500/20', text: 'text-gray-400', icon: XCircle },
+      UNDERPAID: { bg: 'bg-orange-500/20', text: 'text-orange-400', icon: AlertCircle },
+    };
+
+    const config = statusConfig[status as keyof typeof statusConfig] || statusConfig.PENDING;
+    const Icon = config.icon;
+
+    return (
+      <Badge className={`${config.bg} ${config.text} flex items-center gap-1`}>
+        <Icon size={12} />
+        {status}
+      </Badge>
+    );
   };
 
-  const filteredPayments = getFilteredPayments();
+  // Get network badge styling
+  const getNetworkBadge = (network: string) => {
+    const networkConfig = {
+      BTC: { bg: 'bg-orange-500/20', text: 'text-orange-400' },
+      ETH: { bg: 'bg-blue-500/20', text: 'text-blue-400' },
+      USDT: { bg: 'bg-green-500/20', text: 'text-green-400' },
+      USDT_TRC20: { bg: 'bg-green-500/20', text: 'text-green-400' },
+      USDT_ERC20: { bg: 'bg-green-500/20', text: 'text-green-400' },
+      USDT_BEP20: { bg: 'bg-yellow-500/20', text: 'text-yellow-400' },
+    };
+
+    const config = networkConfig[network as keyof typeof networkConfig] || networkConfig.USDT;
+
+    return (
+      <Badge className={`${config.bg} ${config.text}`}>
+        {network}
+      </Badge>
+    );
+  };
+
+  // Apply client-side filtering for high-value filter (API doesn't support amount filtering)
+  const getDisplayedPayments = () => {
+    if (filterBy === 'high-value') {
+      return payments.filter((payment) => payment.totalAmount >= 100);
+    }
+    return payments;
+  };
+
+  const displayedPayments = getDisplayedPayments();
 
   // Column definitions for the ReusableTable
+  // Define columns
   const paymentColumns: Column<Payment>[] = [
     {
-      key: 'createdAt',
-      header: 'Date',
+      key: 'orderId',
+      header: 'Order ID',
       sortable: true,
-      width: 'w-32',
-      render: (value: string) => (
-        <div className="flex items-center gap-2">
-          <Calendar className="h-4 w-4 text-gray-400" />
-          <span className="text-gray-300">
-            {new Date(value).toLocaleDateString('en-US', {
+      render: (orderId: string) => (
+        <div className="font-mono text-sm text-white/80">
+          {orderId}
+        </div>
+      ),
+    },
+    {
+      key: 'totalAmount',
+      header: 'Amount',
+      sortable: true,
+      align: 'center',
+      render: (amount: number) => (
+        <div className="text-center">
+          <div className="text-white font-semibold">
+            {formatCurrency(amount)}
+          </div>
+        </div>
+      ),
+    },
+    {
+      key: 'createdAt',
+      header: 'Created',
+      sortable: true,
+      render: (date: Date) => (
+        <div className="flex items-center gap-2 text-gray-300">
+          <Calendar className="h-4 w-4" />
+          <span className="text-sm">
+            {new Date(date).toLocaleDateString('en-US', {
               month: 'short',
               day: '2-digit',
               year: 'numeric',
@@ -159,77 +246,59 @@ export default function BillingPage() {
       ),
     },
     {
-      key: 'orderId',
-      header: 'Order ID',
-      sortable: true,
-      render: (value: string) => (
-        <span className="font-mono text-sm text-gray-300">{value}</span>
-      ),
-    },
-    {
-      key: 'pairs',
-      header: 'Items',
-      sortable: false,
-      render: (value: Array<{id: string; symbol: string; finalPrice: number}>) => (
-        <div>
-          <p className="font-medium text-gray-300">{value?.length} item{value?.length !== 1 ? 's' : ''}</p>
-          {value?.length > 0 && (
-            <p className="text-sm text-gray-400">
-              {value[0].symbol}
-              {value?.length > 1 && ` +${value?.length - 1} more`}
-            </p>
-          )}
-        </div>
-      ),
-    },
-    {
-      key: 'totalAmount',
-      header: 'Amount',
-      sortable: true,
-      align: 'right',
-      render: (value: number, row: Payment) => (
-        <div>
-          <p className="font-medium text-gray-300">${value}</p>
-          {row.actuallyPaid && row.actuallyPaid !== value && (
-            <p className="text-sm text-orange-400">Paid: ${row.actuallyPaid}</p>
-          )}
-        </div>
-      ),
-    },
-    {
       key: 'network',
       header: 'Network',
       sortable: true,
       align: 'center',
-      render: (value: string) => (
-        <Badge variant="outline" className="text-gray-300 border-gray-500">
-          {value.replace('_', ' ')}
-        </Badge>
-      ),
+      render: (network: string) => getNetworkBadge(network),
     },
     {
       key: 'status',
       header: 'Status',
       sortable: true,
       align: 'center',
-      render: (value: Payment['status']) => {
-        const variants = {
-          PAID: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200',
-          PENDING:
-            'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200',
-          UNDERPAID:
-            'bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200',
-          EXPIRED: 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200',
-          FAILED: 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200',
-        };
-        return <Badge className={variants[value]}>{value}</Badge>;
-      },
+      render: (status: string) => getStatusBadge(status),
+    },
+    {
+      key: 'paymentItems',
+      header: 'Pair',
+      align: 'center',
+      render: (items: PaymentItem[]) => (
+        <div className="text-center">
+          <div className="text-white/80 text-sm">
+            {items.length} pair{items.length !== 1 ? 's' : ''}
+          </div>
+        </div>
+      ),
+    },
+    {
+      key: 'txHash',
+      header: 'Transaction',
+      align: 'center',
+      render: (txHash: string | null) => (
+        <div className="text-center">
+          {txHash ? (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="text-blue-400 hover:text-blue-300 p-0 h-auto"
+              onClick={() => window.open(`https://etherscan.io/tx/${txHash}`, '_blank')}
+            >
+              <span className="font-mono text-xs">
+                {txHash.slice(0, 6)}...{txHash.slice(-4)}
+              </span>
+              <ExternalLink size={12} className="ml-1" />
+            </Button>
+          ) : (
+            <span className="text-gray-500 text-sm">No hash</span>
+          )}
+        </div>
+      ),
     },
     {
       key: 'actions',
       header: 'Actions',
       align: 'center',
-      width: 'w-20',
       render: (_, row: Payment) => (
         <div className="flex items-center gap-2">
           <Button
@@ -505,7 +574,7 @@ export default function BillingPage() {
             overviewData={[
               {
                 title: 'Total Spent',
-                currentValue: `$${stats?.totalSpent.toFixed(2)}`,
+                currentValue: `$${stats?.totalSpent?.toFixed(2)}`,
                 icon: DollarSign,
                 description: 'Total amount spent',
                 pastValue: 'All-time spending',
@@ -556,13 +625,54 @@ export default function BillingPage() {
                 </div>
               }
             >
-              <SortFilterBar
-                filterBy={filterBy}
-                onFilterChange={setFilterBy}
-                totalResults={filteredPayments.length}
-              />
+              
+              <div className="flex flex-col sm:flex-row justify-between items-center gap-4 mb-4">
+                <div className="flex flex-col sm:flex-row items-center gap-4 w-full sm:w-auto">
+                  {/* Results Count */}
+                  <div className="text-sm text-white/80 font-medium">
+                    {payments.length} {payments.length === 1 ? 'payment' : 'payments'} found
+                  </div>
+
+                  {/* Search Input */}
+                  <div className="w-full sm:w-64">
+                    <SearchInput placeholder="Search payments..." />
+                  </div>
+
+                  {/* Filter */}
+                  <Select value={filterBy} onValueChange={setFilterBy}>
+                    <SelectTrigger className="w-full sm:w-40 backdrop-blur-md bg-white/15 border border-white/30 text-white hover:bg-white/20 rounded-xl">
+                      <SelectValue placeholder="Filter by" />
+                    </SelectTrigger>
+                    <SelectContent className="backdrop-blur-xl bg-white/10 border border-white/30 rounded-xl">
+                      <SelectItem value="all" className="text-white hover:bg-white/20 focus:bg-white/20">
+                        All Payments
+                      </SelectItem>
+                      <SelectItem value="paid" className="text-white hover:bg-white/20 focus:bg-white/20">
+                        Paid
+                      </SelectItem>
+                      <SelectItem value="pending" className="text-white hover:bg-white/20 focus:bg-white/20">
+                        Pending
+                      </SelectItem>
+                      <SelectItem value="failed" className="text-white hover:bg-white/20 focus:bg-white/20">
+                        Failed
+                      </SelectItem>
+                      <SelectItem value="expired" className="text-white hover:bg-white/20 focus:bg-white/20">
+                        Expired
+                      </SelectItem>
+                      <SelectItem value="underpaid" className="text-white hover:bg-white/20 focus:bg-white/20">
+                        Underpaid
+                      </SelectItem>
+                      <SelectItem value="recent" className="text-white hover:bg-white/20 focus:bg-white/20">
+                        Recent (7 days)
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+
               <ReusableTable
-                data={filteredPayments}
+                data={displayedPayments}
                 columns={paymentColumns}
                 title="Payment History"
                 icon={Receipt}

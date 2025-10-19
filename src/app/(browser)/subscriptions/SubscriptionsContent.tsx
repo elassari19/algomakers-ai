@@ -10,21 +10,21 @@ import { useSearchParams } from 'next/navigation';
 import {
   TrendingUp,
   Eye,
-  MoreVertical,
   Target,
   Calendar,
   Clock,
+  CopyIcon,
 } from 'lucide-react';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
 import Link from 'next/link';
 import { useSession } from 'next-auth/react';
 import { SubscribeButton } from '@/components/subscription/SubscribeButton';
 import { SubscriptionStatus } from '@/generated/prisma';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
 
 interface SubscriptionData {
   id: string;
@@ -351,43 +351,32 @@ export default function SubscriptionsContent({
                     key: 'actions',
                     header: 'Actions',
                     align: 'center',
-                    width: 'w-20',
+                    width: 'w-32',
                     render: (_, row: SubscriptionData) => (
-                      <div className="flex items-center justify-center">
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              className="p-2 h-8 w-8 rounded-lg bg-slate-700 hover:bg-slate-600 transition-colors"
-                            >
-                              <MoreVertical className="h-4 w-4 text-slate-300" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent
-                            align="end"
-                            className="bg-slate-800 border-slate-700"
-                          >
-                            <DropdownMenuItem asChild>
-                              <Link
-                                href={`/subscriptions/${row.id}`}
-                                className="flex items-center cursor-pointer"
+                      <div className="flex items-center justify-center gap-2">
+                        <Link
+                          href={`/subscriptions/${row.id}`}
+                          className="flex items-center gap-2"
+                        >
+                          <Eye className="h-4 w-4" />
+                        </Link>
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="h-8 px-3 bg-slate-700 border-slate-600 hover:bg-slate-600 text-white"
+                                onClick={() => navigator.clipboard.writeText(row.pair.symbol)}
                               >
-                                <Eye className="h-4 w-4 mr-2" />
-                                View Details
-                              </Link>
-                            </DropdownMenuItem>
-                            <DropdownMenuItem
-                              onClick={() =>
-                                navigator.clipboard.writeText(row.pair.symbol)
-                              }
-                              className="cursor-pointer"
-                            >
-                              <TrendingUp className="h-4 w-4 mr-2" />
-                              Copy Symbol
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
+                                <CopyIcon className="h-4 w-4" />
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              <p>Copy {row.pair.symbol} to clipboard</p>
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
                       </div>
                     ),
                   },
