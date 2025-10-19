@@ -13,8 +13,10 @@ interface GetPairsFilters {
 }
 
 export async function getPairs(filters: GetPairsFilters = {}) {
-  const session = await getServerSession();
-  const userId = session?.user?.id;
+  const session = await getServerSession(authOptions);
+  const userIdFromSession = session?.user?.id;
+  // Prefer an explicit userId passed via filters, otherwise fall back to the current session user
+  const userId = filters.userId ?? userIdFromSession;
   try {
     const {
       page = 1,
@@ -55,16 +57,21 @@ export async function getPairs(filters: GetPairsFilters = {}) {
 
     const skip = (page - 1) * limit;
 
+    // Build subscriptions include so we only include subscriptions for the resolved userId
+    const subscriptionsInclude: any = {
+      include: {
+        payment: true,
+      },
+    };
+    if (userId) {
+      subscriptionsInclude.where = { userId };
+    }
+
     // Fetch pairs with pagination
     const pairs = await prisma.pair.findMany({
       where,
       include: {
-        subscriptions: {
-          where: { userId },
-          include: {
-            payment: true
-          }
-        },
+        subscriptions: subscriptionsInclude,
       },
       skip,
       take: limit,
