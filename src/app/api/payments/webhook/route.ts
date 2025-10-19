@@ -31,17 +31,11 @@ interface NOWPaymentsWebhook {
 }
 
 export async function POST(request: NextRequest) {
-  console.log('=== WEBHOOK RECEIVED ===');
-  console.log('Headers:', Object.fromEntries(request.headers.entries()));
-
   try {
     const body: NOWPaymentsWebhook = await request.json();
 
-    console.log('Webhook body:', JSON.stringify(body, null, 2));
-
     // Verify webhook signature from NOWPayments (skip in development if no keys)
     const signature = request.headers.get('x-nowpayments-sig');
-    console.log('Webhook signature present:', !!signature);
 
     const isDevelopment = process.env.NODE_ENV === 'development';
 
@@ -54,12 +48,10 @@ export async function POST(request: NextRequest) {
 
       if (ipnKey) {
         isValid = verifySignature(signature, JSON.stringify(body), ipnKey);
-        console.log('Signature verification with IPN key:', isValid);
       }
 
       if (!isValid && apiKey) {
         isValid = verifySignature(signature, JSON.stringify(body), apiKey);
-        console.log('Signature verification with API key:', isValid);
       }
 
       if (!isValid && !isDevelopment) {
@@ -164,12 +156,6 @@ function verifySignature(
 
 async function handlePaymentSuccess(webhook: NOWPaymentsWebhook) {
   const session = await getServerSession(authOptions);
-  console.log('Processing webhook payment success:', {
-    payment_id: webhook.payment_id,
-    order_id: webhook.order_id,
-    invoice_id: webhook.invoice_id,
-    purchase_id: webhook.purchase_id,
-  });
 
   try {
     // Identify related payment(s)
@@ -233,19 +219,7 @@ async function handlePaymentSuccess(webhook: NOWPaymentsWebhook) {
         }
       }
     }
-
-    // Send notification to admin
-    await notifyAdmin({
-      type: 'payment_success',
-      orderId: webhook.order_id,
-      paymentId: webhook.payment_id,
-      amount: webhook.actually_paid ?? webhook.pay_amount,
-      currency: webhook.pay_currency,
-      paymentsCount: payments.length,
-    });
-
     // Send confirmation email to user
-    await sendPaymentConfirmationEmail(webhook);
   } catch (error) {
     console.error('Error handling payment success:', error);
     await createAuditLog({
@@ -278,12 +252,6 @@ async function handlePaymentExpired(webhook: NOWPaymentsWebhook) {
       where: whereClause,
       data: { status: PaymentStatus.EXPIRED },
     });
-
-    await notifyAdmin({
-      type: 'payment_expired',
-      orderId: webhook.order_id,
-      paymentId: webhook.payment_id,
-    });
   } catch (error) {
     console.error('Error handling payment expiry:', error);
   }
@@ -303,12 +271,6 @@ async function handlePaymentFailed(webhook: NOWPaymentsWebhook) {
     await prisma.payment.updateMany({
       where: whereClause,
       data: { status: PaymentStatus.FAILED },
-    });
-
-    await notifyAdmin({
-      type: 'payment_failed',
-      orderId: webhook.order_id,
-      paymentId: webhook.payment_id,
     });
   } catch (error) {
     console.error('Error handling payment failure:', error);
@@ -330,30 +292,7 @@ async function handlePartialPayment(webhook: NOWPaymentsWebhook) {
       where: whereClause,
       data: { status: PaymentStatus.UNDERPAID },
     });
-
-    await notifyAdmin({
-      type: 'partial_payment',
-      orderId: webhook.order_id,
-      paymentId: webhook.payment_id,
-    });
   } catch (error) {
     console.error('Error handling partial payment:', error);
   }
-}
-
-// Helper functions
-async function notifyAdmin(notification: any) {
-  console.log('Admin notification:', notification);
-  // TODO: Implement admin notification (email, dashboard, etc.)
-}
-
-async function sendPaymentConfirmationEmail(webhook: NOWPaymentsWebhook) {
-  console.log('Sending payment confirmation email for:', webhook.payment_id);
-  // TODO: Implement email sending
-}
-
-function calculateExpiryDate(startDate: Date, months: number): Date {
-  const expiryDate = new Date(startDate);
-  expiryDate.setMonth(expiryDate.getMonth() + months);
-  return expiryDate;
 }

@@ -279,7 +279,6 @@ function mapStatusToEnum(status: string): PaymentStatus {
 }
 // Map PaymentStatus to SubscriptionStatus
 function mapPaymentToSubscriptionStatus(paymentStatus: PaymentStatus): SubscriptionStatus {
-  console.log('payment status:', paymentStatus)
   switch (paymentStatus) {
     case PaymentStatus.PAID:
       return SubscriptionStatus.PAID;

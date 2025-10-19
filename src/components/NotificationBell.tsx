@@ -108,7 +108,6 @@ export async function NotificationBell({ userId }: NotificationBellProps) {
                 <div
                   key={notification.id}
                   className="p-3 rounded-lg border bg-white/10 border-white/20 transition-all cursor-pointer hover:bg-white/15"
-                  // onClick={() => console.log('Notification clicked:', notification)}
                 >
                   <div className="flex items-start space-x-3">
                     <span className="text-lg">

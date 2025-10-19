@@ -523,7 +523,6 @@ const NotificationsPage = () => {
       const data = await response.json();
       
       if (response.ok && data.notifications) {
-        console.log('Fetched notifications:', data.notifications);
         setNotifications(data.notifications);
       } else {
         console.error('Failed to fetch notifications:', data.error || 'Unknown error');

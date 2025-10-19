@@ -41,7 +41,6 @@ export function ProtectedRoute({
         requiredRole &&
         (!userRole || !hasRolePrivilege(userRole, requiredRole))
       ) {
-        console.log('User role:', userRole, 'Required role:', requiredRole);
         router.push('/unauthorized');
         return;
       }

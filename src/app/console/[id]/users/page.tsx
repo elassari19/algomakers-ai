@@ -461,7 +461,6 @@ const UsersPage = () => {
       const data = await response.json();
       
       if (response.ok && data.users) {
-        console.log('Fetched users:', data.users);
         setUsers(data.users);
       } else {
         toast.error('Failed to fetch users', {
