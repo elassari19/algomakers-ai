@@ -407,8 +407,13 @@ export default function DashboardContent({
                     defaultVisibleColumns={[
                       'subscription',
                       'symbol',
-                      'metrics.roi',
+                      'timeframe',
+                      'metrics.totalTrades',
                       'metrics.winRate',
+                      'metrics.roi',
+                      'metrics.riskReward',
+                      'metrics.maxDrawdown',
+                      'metrics.profit',
                       'actions',
                     ]}
                     rowDetailContent={(pair) => (

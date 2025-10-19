@@ -80,7 +80,6 @@ export default function SubscriptionsContent({
   useEffect(() => {
     setSubscriptionPairs(initialData);
   }, [initialData]);
-  console.log('Initial subscription pairs:', initialData);
 
   // Filter subscribed pairs based on URL params
   function getFilteredPairs() {
