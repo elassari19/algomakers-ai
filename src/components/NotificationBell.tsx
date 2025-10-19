@@ -13,25 +13,14 @@ import {
 } from '@/components/ui/sheet';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { getUserNotifications } from '@/lib/notification-service';
-
-interface Notification {
-  id: string;
-  title: string;
-  message: string;
-  type: string;
-  priority: string;
-  channel: string;
-  data?: any;
-  createdAt: Date;
-  targetId?: string;
-}
+import Link from 'next/link';
 
 interface NotificationBellProps {
   userId: string;
+  role: string;
 }
 
-export async function NotificationBell({ userId }: NotificationBellProps) {
-
+export async function NotificationBell({ userId, role }: NotificationBellProps) {
 
   const [notificationsResult] = await Promise.all([
     getUserNotifications(userId, { limit: 20 })
@@ -105,9 +94,10 @@ export async function NotificationBell({ userId }: NotificationBellProps) {
               </div>
             ) : (
               notificationsResult.notifications.map((notification) => (
-                <div
+                <Link
+                  href={role !== 'USER' ? `/notifications/${notification.id}` : '#'}
                   key={notification.id}
-                  className="p-3 rounded-lg border bg-white/10 border-white/20 transition-all cursor-pointer hover:bg-white/15"
+                  className="block p-3 rounded-lg border bg-white/10 border-white/20 transition-all cursor-pointer hover:bg-white/15"
                 >
                   <div className="flex items-start space-x-3">
                     <span className="text-lg">
@@ -126,7 +116,7 @@ export async function NotificationBell({ userId }: NotificationBellProps) {
                     </div>
                     <NotificationDismissButton notificationId={notification.id} />
                   </div>
-                </div>
+                </Link>
               ))
             )}
           </div>

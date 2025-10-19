@@ -96,7 +96,7 @@ export async function AppHeader() {
 
         {/* Right side - Notifications and Basket */}
         <div className="flex items-center space-x-2">
-          <NotificationBell userId={session.user.id} />
+          <NotificationBell userId={session.user.id} role={session.user.role} />
           <Basket />
         </div>
       </div>
