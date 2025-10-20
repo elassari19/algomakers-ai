@@ -36,6 +36,7 @@ export async function GET(
             name: true,
             email: true,
             image: true,
+            role: true,
           },
         },
         paymentItems: {
@@ -45,6 +46,7 @@ export async function GET(
                 id: true,
                 symbol: true,
                 version: true,
+                timeframe: true,
               },
             },
           },

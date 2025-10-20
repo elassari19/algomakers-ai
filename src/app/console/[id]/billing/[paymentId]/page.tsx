@@ -31,6 +31,7 @@ import {
   TrendingUp,
 } from 'lucide-react';
 import { formatCurrency } from '@/lib/utils';
+import Link from 'next/link';
 
 // Types based on Prisma schema
 interface PaymentDetails {
@@ -60,7 +61,7 @@ interface PaymentDetails {
     status: string;
     startDate?: Date;
     expiryDate?: Date;
-  };
+  }[];
 }
 
 interface PaymentItem {
@@ -78,67 +79,6 @@ interface PaymentItem {
     version?: string;
   };
 }
-
-// Dummy data for development - should match the payment from the billing table
-const mockPaymentDetails: PaymentDetails = {
-  id: 'pay_001',
-  userId: 'user_001',
-  network: 'USDT_ERC20',
-  status: 'PAID',
-  txHash: '0xa1b2c3d4e5f67890abcdef1234567890abcdef1234567890abcdef1234567890',
-  invoiceId: 'INV-2024-001',
-  createdAt: new Date('2024-09-15T10:30:00Z'),
-  actuallyPaid: 299.99,
-  expiresAt: new Date('2024-09-16T10:30:00Z'),
-  orderId: 'ORD-001',
-  totalAmount: 299.99,
-  updatedAt: new Date('2024-09-15T11:45:00Z'),
-  user: {
-    id: 'user_001',
-    email: 'john.doe@example.com',
-    name: 'John Doe',
-    image: 'https://avatar.vercel.sh/john'
-  },
-  paymentItems: [
-    {
-      id: 'item_001',
-      paymentId: 'pay_001',
-      pairId: 'pair_001',
-      basePrice: 199.99,
-      discountRate: 0.10,
-      finalPrice: 179.99,
-      period: 'THREE_MONTHS',
-      createdAt: new Date('2024-09-15T10:30:00Z'),
-      pair: {
-        id: 'pair_001',
-        symbol: 'EURUSD',
-        version: 'Momentum Trading'
-      }
-    },
-    {
-      id: 'item_002',
-      paymentId: 'pay_001',
-      pairId: 'pair_002',
-      basePrice: 149.99,
-      discountRate: 0.20,
-      finalPrice: 119.99,
-      period: 'ONE_MONTH',
-      createdAt: new Date('2024-09-15T10:30:00Z'),
-      pair: {
-        id: 'pair_002',
-        symbol: 'GBPJPY',
-        version: 'Scalping Strategy'
-      }
-    }
-  ],
-  subscription: {
-    id: 'sub_001',
-    period: 'QUARTERLY',
-    status: 'ACTIVE',
-    startDate: new Date('2024-09-15T11:45:00Z'),
-    expiryDate: new Date('2024-12-15T11:45:00Z')
-  }
-};
 
 // Status badge component
 function StatusBadge({ status }: { status: string }) {
@@ -188,33 +128,30 @@ const BillingDetailsPage = () => {
   const [loading, setLoading] = useState(true);
   const paymentId = params.paymentId as string;
 
-  // Fetch payment details
+  // Fetch payment details from /api/billing/[paymentId]
   const fetchPaymentDetails = async () => {
     try {
       setLoading(true);
-      
-      // Simulate API delay
-      await new Promise(resolve => setTimeout(resolve, 800));
-      
-      // Use dummy data for development
-      setPayment(mockPaymentDetails);
-      
-      /* 
-      // Original API call - uncomment when ready to use real API
-      const response = await fetch(`/api/billing/invoice/${paymentId}`);
+      const response = await fetch(`/api/billing/${paymentId}`);
       const data = await response.json();
-      
-      if (response.ok && data.payment) {
-        setPayment(data.payment);
+      if (response.ok && data.success && data.payment) {
+        // Map API response to PaymentDetails type
+        const payment = data.payment;
+        const paymentDetails = {
+          ...payment,
+          paymentItems: payment.paymentItems || [],
+          user: payment.user,
+          subscription: payment.subscription ? (Array.isArray(payment.subscription) ? payment.subscription : [payment.subscription]) : [],
+        };
+        setPayment(paymentDetails);
       } else {
-        toast.error(data.message || 'Failed to fetch payment details');
-        router.push('/billing');
+        toast.error(data.error || data.message || 'Failed to fetch payment details');
+        router.push('/console/billing');
       }
-      */
     } catch (error) {
       console.error('Error fetching payment details:', error);
       toast.error('Error loading payment details');
-      router.push('/billing');
+      router.push('/console/billing');
     } finally {
       setLoading(false);
     }
@@ -283,40 +220,23 @@ const BillingDetailsPage = () => {
 
   return (
     <GradientBackground>
-      <Toaster position="top-center" />
       <div className="min-h-screen p-4 md:p-6 md:pb-16">
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center space-x-4">
-            <Button
-              variant="ghost"
-              onClick={() => router.back()}
-              className="text-white/70 hover:text-white hover:bg-white/10"
-            >
-              <ArrowLeft size={20} className="mr-2" />
-              Back to Billing
-            </Button>
+            <Link href="/console/billing">
+              <Button
+                variant="ghost"
+                className="text-white/70 hover:text-white hover:bg-white/10"
+              >
+                <ArrowLeft size={20} className="mr-2" />
+                <span className='hidden sm:visible'>Back to Billing</span>
+              </Button>
+            </Link>
             <div>
               <h1 className="text-2xl font-bold text-white">Payment Details</h1>
               <p className="text-white/70">Invoice #{payment.invoiceId}</p>
             </div>
-          </div>
-          <div className="flex items-center space-x-3">
-            <Button
-              variant="outline"
-              onClick={handleRefreshPayment}
-              className="border-white/20 text-white hover:bg-white/10"
-            >
-              <RefreshCw size={16} className="mr-2" />
-              Refresh
-            </Button>
-            <Button
-              onClick={handleDownloadInvoice}
-              className="bg-gradient-to-r from-purple-600 to-pink-500 text-white"
-            >
-              <Download size={16} className="mr-2" />
-              Download Invoice
-            </Button>
           </div>
         </div>
 
@@ -348,9 +268,9 @@ const BillingDetailsPage = () => {
                   </div>
                   <div>
                     <p className="text-white/60 text-sm">Network</p>
-                    <p className="text-white font-semibold">{formatNetwork(payment.network)}</p>
+                    <p className="text-white font-semibold">{payment.network}</p>
                   </div>
-                  <div>
+                  <div className='overflow-auto'>
                     <p className="text-white/60 text-sm">Order ID</p>
                     <p className="text-white font-semibold">{payment.orderId || 'N/A'}</p>
                   </div>
@@ -372,7 +292,7 @@ const BillingDetailsPage = () => {
                     <div key={item.id}>
                       <div className="flex items-center justify-between p-4 bg-white/5 rounded-lg">
                         <div className="flex-1">
-                          <div className="flex items-center space-x-3">
+                          <div className="flex flex-col sm:flex-row items-center space-x-3">
                             <div className="w-10 h-10 bg-gradient-to-br from-purple-500 to-pink-500 rounded-lg flex items-center justify-center">
                               <TrendingUp className="text-white" size={20} />
                             </div>
@@ -437,20 +357,24 @@ const BillingDetailsPage = () => {
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-3">
-                    <div className="flex items-center justify-between p-3 bg-white/5 rounded-lg">
+                    <div className="p-3 bg-white/5 rounded-lg">
                       <div>
                         <p className="text-white/60 text-sm">Transaction Hash</p>
                         <p className="text-white font-mono text-sm break-all">{payment.txHash}</p>
                       </div>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={handleViewTransaction}
-                        className="border-white/20 text-white hover:bg-white/10"
-                      >
-                        <ExternalLink size={16} className="mr-2" />
-                        View on Explorer
-                      </Button>
+                      <div className="mt-2">
+                        <a
+                          href={payment.network === 'USDT_ERC20' 
+                            ? `https://etherscan.io/tx/${payment.txHash}`
+                            : `https://bscscan.com/tx/${payment.txHash}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center px-3 py-1 text-sm bg-white/10 hover:bg-white/20 text-white rounded border border-white/20 transition-colors"
+                        >
+                          <ExternalLink size={14} className="mr-1" />
+                          View on Explorer
+                        </a>
+                      </div>
                     </div>
                   </div>
                 </CardContent>
@@ -560,29 +484,29 @@ const BillingDetailsPage = () => {
                 <CardContent className="space-y-3">
                   <div>
                     <p className="text-white/60 text-sm">Subscription ID</p>
-                    <p className="text-white font-mono text-sm">{payment.subscription.id}</p>
+                    <p className="text-white font-mono text-sm">{payment.subscription[0].id}</p>
                   </div>
-                  <div>
+                  <div className="flex justify-between itcems-center">
                     <p className="text-white/60 text-sm">Period</p>
-                    <p className="text-white">{payment.subscription.period}</p>
+                    <p className="text-white">{payment.subscription[0].period}</p>
                   </div>
-                  <div>
+                  <div className="flex justify-between itcems-center">
                     <p className="text-white/60 text-sm">Status</p>
-                    <StatusBadge status={payment.subscription.status} />
+                    <StatusBadge status={payment.subscription[0].status} />
                   </div>
-                  {payment.subscription.startDate && (
-                    <div>
+                  {payment.subscription[0].startDate && (
+                  <div className="flex justify-between itcems-center">
                       <p className="text-white/60 text-sm">Start Date</p>
                       <p className="text-white text-sm">
-                        {new Date(payment.subscription.startDate).toLocaleDateString()}
+                        {new Date(payment.subscription[0].startDate).toLocaleDateString()}
                       </p>
                     </div>
                   )}
-                  {payment.subscription.expiryDate && (
-                    <div>
+                  {payment.subscription[0].expiryDate && (
+                    <div className="flex justify-between itcems-center">
                       <p className="text-white/60 text-sm">Expiry Date</p>
                       <p className="text-white text-sm">
-                        {new Date(payment.subscription.expiryDate).toLocaleDateString()}
+                        {new Date(payment.subscription[0].expiryDate).toLocaleDateString()}
                       </p>
                     </div>
                   )}
