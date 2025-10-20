@@ -95,7 +95,7 @@ export async function NotificationBell({ userId, role }: NotificationBellProps) 
             ) : (
               notificationsResult.notifications.map((notification) => (
                 <Link
-                  href={role !== 'USER' ? `/notifications/${notification.id}` : '#'}
+                  href={role !== 'USER' ? `/console/2/notifications/${notification.id}` : '#'}
                   key={notification.id}
                   className="block p-3 rounded-lg border bg-white/10 border-white/20 transition-all cursor-pointer hover:bg-white/15"
                 >
