@@ -22,7 +22,8 @@ import {
   XCircle,
   AlertCircle,
   Calendar,
-  ExternalLink
+  ExternalLink,
+  CircleCheckBig
 } from 'lucide-react';
 import {
   Dialog,
@@ -67,39 +68,43 @@ interface PairOption {
 import { useSearchParams, useParams } from 'next/navigation';
 
 // Status badge component
-function StatusBadge({ status }: { status: string }) {
-  const getStatusConfig = (status: string) => {
-    switch (status.toUpperCase()) {
-      case 'ACTIVE':
-        return { color: 'bg-green-500/20 text-green-400 border-green-500/30', icon: CheckCircle };
-      case 'EXPIRED':
-        return { color: 'bg-red-500/20 text-red-400 border-red-500/30', icon: XCircle };
-      case 'PENDING':
-        return { color: 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30', icon: Clock };
-      case 'CANCELLED':
-        return { color: 'bg-gray-500/20 text-gray-400 border-gray-500/30', icon: XCircle };
-      default:
-        return { color: 'bg-gray-500/20 text-gray-400 border-gray-500/30', icon: AlertCircle };
-    }
-  };
+// function StatusBadge({ status }: { status: string }) {
+//   const getStatusConfig = (status: string) => {
+//     switch (status.toUpperCase()) {
+//       case 'ACTIVE':
+//         return { color: 'bg-green-500/20 text-green-400 border-green-500/30', icon: CheckCircle };
+//       case 'PAID':
+//         return { color: 'bg-amber-500/20 text-amber-400 border-amber-500/30', icon: CheckCircle };
+//       case 'EXPIRED':
+//         return { color: 'bg-red-500/20 text-red-400 border-red-500/30', icon: XCircle };
+//       case 'PENDING':
+//         return { color: 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30', icon: Clock };
+//       case 'CANCELLED':
+//         return { color: 'bg-gray-500/20 text-gray-400 border-gray-500/30', icon: XCircle };
+//       default:
+//         return { color: 'bg-gray-500/20 text-gray-400 border-gray-500/30', icon: AlertCircle };
+//     }
+//   };
 
-  const config = getStatusConfig(status);
-  const Icon = config.icon;
+//   const config = getStatusConfig(status);
+//   const Icon = config.icon;
 
-  return (
-    <Badge className={`${config.color} border flex items-center gap-1`}>
-      <Icon size={12} />
-      {status}
-    </Badge>
-  );
-}
+//   return (
+//     <Badge className={`${config.color} border flex items-center gap-1`}>
+//       <Icon size={12} />
+//       {status}
+//     </Badge>
+//   );
+// }
 
 // Payment status badge
 function PaymentStatusBadge({ status }: { status: string }) {
   const getStatusConfig = (status: string) => {
     switch (status.toUpperCase()) {
+      case 'ACTIVE':
+        return { color: 'bg-green-500/30 text-green-400 border-green-500/50' };
       case 'PAID':
-        return { color: 'bg-green-500/20 text-green-400 border-green-500/30' };
+        return { color: 'bg-amber-500/20 text-amber-400 border-amber-500/30' };
       case 'PENDING':
         return { color: 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30' };
       case 'FAILED':
@@ -127,13 +132,64 @@ function ActionButtons({
   row,
   onViewDetails,
   consoleId,
+  handleStatusChange,
+  loading
 }: {
   row: any;
   onViewDetails: (row: any) => void;
   consoleId: string;
+  handleStatusChange: (id: string, newStatus: string) => void;
+  loading: boolean;
 }) {
+
   return (
     <div className="flex gap-2 items-center">
+      {/* Slide Sheet Trigger */}
+      <Sheet>
+        <SheetTrigger asChild>
+          <Button
+            className="hover:text-white text-white/70"
+            variant={'ghost'}
+            size="icon"
+            title="Manage Subscription"
+          >
+            <CircleCheckBig size={20} />
+          </Button>
+        </SheetTrigger>
+        <SheetContent className="w-[400px] sm:w-[540px] bg-gradient-to-b from-white/5 to-white/20 backdrop-blur-2xl p-0 flex flex-col justify-end">
+          <SheetHeader className="px-6 pt-6 pb-0">
+            <SheetTitle>
+              <h2 className="text-lg font-semibold">Manage Subscription</h2>
+            </SheetTitle>
+          </SheetHeader>
+          <Content row={row} />
+          <div className="flex gap-2 mt-4 px-6 pb-6">
+            <Button
+              className="bg-amber-600 text-white font-semibold flex-1"
+              disabled={row.inviteStatus === 'SENT' || row.inviteStatus === 'COMPLETED' || loading}
+              onClick={() => handleStatusChange(row.id, 'SENT')}
+            >
+              SENT
+            </Button>
+            <Button
+              className="bg-green-600 text-white font-semibold flex-1"
+              disabled={row.inviteStatus === 'COMPLETED' || row.inviteStatus === 'PENDING' || loading}
+              onClick={() => handleStatusChange(row.id, 'COMPLETED')}
+            >
+              COMPLETED
+            </Button>
+            <Button
+              className="bg-red-600 text-white font-semibold flex-1"
+              disabled={row.inviteStatus === 'PENDING' || loading}
+              onClick={() => handleStatusChange(row.id, 'CANCELLED')}
+            >
+              Deactivate
+            </Button>
+          </div>
+        </SheetContent>
+
+      </Sheet>
+      {/* Existing actions */}
       <Button
         className="hover:text-white text-white/70"
         variant={'ghost'}
@@ -195,6 +251,35 @@ const SubscriptionsPage = () => {
     expiringThisMonth: 0,
   });
 
+
+  // Handler to activate/deactivate subscription
+  const handleStatusChange = async (id: string, newStatus: string) => {
+    setLoading(true);
+    try {
+      const res = await fetch('/api/subscriptions', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, inviteStatus: newStatus }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        toast.success(`Subscription ${newStatus} successfully!`, {
+          style: { background: '#22c55e', color: 'white' },
+        });
+        // Refresh the subscriptions list so UI reflects changes
+        try { await fetchSubscriptions(); } catch (e) { console.warn('Refetch failed', e); }
+      } else {
+        toast.error(data.error || 'Failed to update status', {
+          style: { background: '#ef4444', color: 'white' },
+        });
+      }
+    } catch (err) {
+      toast.error('Error updating status');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   // Table columns definition
   const columns: Column[] = [
     { 
@@ -237,7 +322,7 @@ const SubscriptionsPage = () => {
       key: 'status',
       header: 'Status',
       sortable: true,
-      render: (value) => <StatusBadge status={value} />
+      render: (value) => <PaymentStatusBadge status={value} />
     },
     {
       key: 'startDate',
@@ -295,14 +380,6 @@ const SubscriptionsPage = () => {
       }
     },
     {
-      key: 'paymentStatus',
-      header: 'Payment',
-      sortable: true,
-      render: (_, row) => (
-        <PaymentStatusBadge status={row.payment?.status || 'PENDING'} />
-      )
-    },
-    {
       key: 'inviteStatus',
       header: 'Invite',
       sortable: true,
@@ -313,7 +390,7 @@ const SubscriptionsPage = () => {
           'COMPLETED': 'Completed'
         };
         const color = value === 'COMPLETED' ? 'text-green-400' : 
-                     value === 'SENT' ? 'text-blue-400' : 'text-yellow-400';
+          value === 'SENT' ? 'text-blue-400' : 'text-yellow-400';
         return <span className={color}>{statusMap[value] || value}</span>;
       }
     },
@@ -325,7 +402,9 @@ const SubscriptionsPage = () => {
         <ActionButtons
           row={row}
           onViewDetails={handleViewDetails}
+          handleStatusChange={handleStatusChange}
           consoleId={consoleId}
+          loading={loading}
         />
       ),
     },
@@ -341,8 +420,6 @@ const SubscriptionsPage = () => {
   const handleStatusFilterChange = (value: string) => {
     setStatusFilter(value);
   };
-
-
 
   // Handle new subscription form submission
   const handleNewSubscriptionSubmit = async (data: SubscriptionFormData) => {
@@ -671,7 +748,7 @@ const SubscriptionsPage = () => {
                           <h4 className="font-semibold text-white mb-2">Subscription Details</h4>
                           <div className="grid grid-cols-2 gap-4 text-sm">
                             <div><span className="text-gray-400">Period:</span> {selectedSubscription.period?.replace('_', ' ')}</div>
-                            <div><span className="text-gray-400">Status:</span> <StatusBadge status={selectedSubscription.status} /></div>
+                            <div><span className="text-gray-400">Status:</span> <PaymentStatusBadge status={selectedSubscription.status} /></div>
                             <div><span className="text-gray-400">Start Date:</span> {new Date(selectedSubscription.startDate).toLocaleDateString()}</div>
                             <div><span className="text-gray-400">Expiry Date:</span> {new Date(selectedSubscription.expiryDate).toLocaleDateString()}</div>
                             <div><span className="text-gray-400">Base Price:</span> ${selectedSubscription.basePrice}</div>
@@ -731,3 +808,63 @@ const SubscriptionsPage = () => {
 };
 
 export default SubscriptionsPage;
+const Content = ({ row }: { row: any }) => {
+  return (
+    <div className="flex-1 overflow-y-auto px-6 pb-6 space-y-6 mt-8">
+      <h4 className="font-semibold text-white mb-2">User</h4>
+      <Card className="flex bg-inherent backdrop-blur-md border-white/10 shadow-xl mt-0 p-4 space-y-0">
+        <div className="grid grid-cols-2 justify-between items-center text-sm">
+          <div>id:</div>
+          <div className='text-nowrap overflow-auto'>{row.user?.id}</div>
+          <div className="">{row.user?.email}</div>
+          <div className="">{row.user?.name}</div>
+        </div>
+      </Card>
+      <h4 className="font-semibold text-white mb-2">Trading Pair</h4>
+      <Card className="flex bg-inherent backdrop-blur-md border-white/10 shadow-xl mt-0 p-4 space-y-0">
+        <div className="grid grid-cols-2 justify-between items-center text-sm">
+          <div className="">{row.pair?.symbol} <br /> <span className="text-xs text-gray-400">{row.pair?.timeframe}</span></div>
+          <div className="">{row.pair?.version}</div>
+        </div>
+      </Card>
+      <h4 className="font-semibold text-white mb-2">Status</h4>
+      <Card className="flex bg-inherent backdrop-blur-md border-white/10 shadow-xl mt-0 p-4">
+        <div className="grid grid-cols-2 justify-between items-center space-y-2 text-sm">
+          <h4 className="">Invite Status</h4>
+          <p className="text-xs text-blue-400">{<PaymentStatusBadge status={row.inviteStatus} />}</p>
+          <h4 className="">Period</h4>
+          <div className="">{row.period}</div>
+          <h4 className="">Start Date</h4>
+          <p className="">{row.startDate ? new Date(row.startDate).toLocaleString() : 'N/A'}</p>
+          <h4 className="">Expiry Date</h4>
+          <p className="">{row.expiryDate ? new Date(row.expiryDate).toLocaleString() : 'N/A'}</p>
+          <h4 className="">Base Price</h4>
+          <p className="">${row.basePrice}</p>
+          <h4 className="">Discount Rate</h4>
+          <p className="">{row.discountRate}%</p>
+        </div>
+      </Card>
+      {row.payment && (
+        <div>
+          <h4 className="font-semibold text-white mb-2">Payment Info</h4>
+          <Card className="flex bg-inherent backdrop-blur-md border-white/10 shadow-xl mt-0 p-4">
+            <div className="grid grid-cols-2 justify-between items-center space-y-2 text-sm">
+              <div>Status:</div>
+              <div><PaymentStatusBadge status={row.status} /></div>
+              <div>Network:</div>
+              <div>{row.payment.network}</div>
+              <div>Total Amount:</div>
+              <div>${row.payment.totalAmount}</div>
+              <div>Actually Paid:</div>
+              <div>${row.payment.actuallyPaid || '0'}</div>
+              <div>Tx Hash:</div>
+              <div>{row.payment.txHash ? <span className="font-mono text-xs break-all">{row.payment.txHash}</span> : 'N/A'}</div>
+              <div>Created:</div>
+              <div>{row.payment.createdAt ? new Date(row.payment.createdAt).toLocaleString() : 'N/A'}</div>
+            </div>
+          </Card>
+        </div>
+      )}
+    </div>
+  );
+}

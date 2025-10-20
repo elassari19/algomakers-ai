@@ -4,6 +4,7 @@ import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { createAuditLog, AuditAction, AuditTargetType } from '@/lib/audit';
 import type { Role } from '@/generated/prisma';
+import { sendEmail } from '@/lib/email-service';
 
 export async function GET(request: NextRequest) {
   try {
@@ -591,16 +592,54 @@ export async function PATCH(request: NextRequest) {
       dataToUpdate.status = updateData.status.toUpperCase();
     }
     
-    if (updateData.inviteStatus) {
-      dataToUpdate.inviteStatus = updateData.inviteStatus.toUpperCase();
+    // accept either inviteStatus or inviteState in request body
+    const incomingInvite = updateData.inviteStatus ?? updateData.inviteState;
+    if (incomingInvite) {
+      dataToUpdate.inviteStatus = String(incomingInvite).toUpperCase();
+    }
+
+    // If invite is completed, set startDate to now and compute expiryDate from period
+    if (incomingInvite && String(incomingInvite).toUpperCase() === 'COMPLETED') {
+      const now = new Date();
+      dataToUpdate.startDate = now;
+
+      // Determine period to calculate expiry: prefer updateData.period, fallback to existing subscription
+      const periodValue = (updateData.period ? String(updateData.period).toUpperCase() : existingSubscription.period ? String(existingSubscription.period).toUpperCase() : null);
+      let monthsToAdd = 0;
+      switch (periodValue) {
+        case 'ONE_MONTH':
+          monthsToAdd = 1;
+          break;
+        case 'THREE_MONTHS':
+          monthsToAdd = 3;
+          break;
+        case 'SIX_MONTHS':
+          monthsToAdd = 6;
+          break;
+        case 'TWELVE_MONTHS':
+          monthsToAdd = 12;
+          break;
+        default:
+          monthsToAdd = 0;
+      }
+
+      if (monthsToAdd > 0) {
+        const expiry = new Date(now);
+        expiry.setMonth(expiry.getMonth() + monthsToAdd);
+        dataToUpdate.expiryDate = expiry;
+      }
     }
     
-    if (updateData.startDate) {
-      dataToUpdate.startDate = new Date(updateData.startDate);
-    }
-    
-    if (updateData.expiryDate) {
-      dataToUpdate.expiryDate = new Date(updateData.expiryDate);
+    // Only apply explicit start/expiry from payload when invite was NOT completed.
+    // If invite completed we already computed startDate/expiryDate above and should not override them.
+    if (!(incomingInvite && String(incomingInvite).toUpperCase() === 'COMPLETED')) {
+      if (updateData.startDate) {
+        dataToUpdate.startDate = new Date(updateData.startDate);
+      }
+
+      if (updateData.expiryDate) {
+        dataToUpdate.expiryDate = new Date(updateData.expiryDate);
+      }
     }
     
     if (updateData.basePrice !== undefined) {
@@ -664,6 +703,46 @@ export async function PATCH(request: NextRequest) {
         newValues: dataToUpdate,
         actorEmail: session.user.email,
         actorName: session.user.name,
+      },
+    });
+
+    const inviteStatusUpper = (incomingInvite: string): any => {
+      let template;
+      switch (incomingInvite) {
+        case 'COMPLETED':
+          template = 'invite_completed';
+          break;
+        case 'SENT':
+          template = 'invite_sent';
+          break;
+        case 'PENDING':
+          template = 'invite_pending';
+          break;
+        case 'CANCELED':
+          template = 'invite_canceled';
+          break;
+        default:
+          template = 'invite_pending';
+          break;
+      }
+      return template;
+    };
+
+    await sendEmail({
+      to: subscription.user.email,
+      subject: 'Your Subscription Has Been Updated',
+      template: inviteStatusUpper(subscription.inviteStatus),
+      params: {
+        userId: subscription.user.id,
+        email: subscription.user.email,
+        name: subscription.user.name,
+        pairSymbol: subscription.pair.symbol,
+        pairTimeframe: subscription.pair.timeframe,
+        newStatus: subscription.status,
+        newInviteStatus: subscription.inviteStatus,
+        period: subscription.period,
+        startDate: subscription.startDate.toDateString(),
+        expiryDate: subscription.expiryDate.toDateString(),
       },
     });
 

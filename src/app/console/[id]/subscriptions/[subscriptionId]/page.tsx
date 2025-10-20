@@ -38,36 +38,6 @@ import {
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
 
-// Status badge component
-function StatusBadge({ status }: { status: string }) {
-  const getStatusConfig = (status: string) => {
-    switch (status.toUpperCase()) {
-      case 'ACTIVE':
-        return { color: 'bg-green-500/20 text-green-400 border-green-500/30 px-4', icon: CheckCircle };
-      case 'PAID':
-        return { color: 'bg-yellow-500/80 text-white/90 border-yellow-500/70 px-4', icon: CheckCircle };
-      case 'EXPIRED':
-        return { color: 'bg-red-500/20 text-red-400 border-red-500/30 px-4', icon: XCircle };
-      case 'PENDING':
-        return { color: 'bg-blue-500/20 text-blue-400 border-blue-500/30 px-4', icon: Clock };
-      case 'CANCELLED':
-        return { color: 'bg-gray-500/20 text-gray-400 border-gray-500/30 px-4', icon: XCircle };
-      default:
-        return { color: 'bg-gray-500/20 text-gray-400 border-gray-500/30 px-4', icon: AlertCircle };
-    }
-  };
-
-  const config = getStatusConfig(status);
-  const Icon = config.icon;
-
-  return (
-    <Badge className={`${config.color} border flex items-center gap-1`}>
-      <Icon size={16} />
-      {status}
-    </Badge>
-  );
-}
-
 // Payment status badge
 function PaymentStatusBadge({ status }: { status: string }) {
   const getStatusConfig = (status: string) => {
@@ -197,15 +167,20 @@ const SubscriptionDetailsPage = () => {
   };
 
   // Handle subscription deletion
-  const handleDeleteSubscription = async () => {
+  const handleDesactiveSubscription = async () => {
     setUpdating(true);
     try {
       const res = await fetch(`/api/subscriptions?id=${subscriptionId}`, {
-        method: 'DELETE',
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: subscriptionId,
+          status: 'CANCELLED',
+        }),
       });
 
       if (res.ok) {
-        toast.success('Subscription deleted successfully', {
+        toast.success('Subscription deactivated successfully', {
           style: { background: '#22c55e', color: 'white' },
         });
         router.push(`/console/${params.id}/subscriptions`);
@@ -272,8 +247,25 @@ const SubscriptionDetailsPage = () => {
               {subscription.user?.email} • {subscription.pair?.symbol}
             </p>
           </div>
-          <div className="flex gap-2">
-            <StatusBadge status={subscription.status} />
+          <div className="flex gap-6 items-center justify-center">
+            <div>
+              <p className='text-xs text-white/80'>Payment</p>
+              <PaymentStatusBadge status={subscription.status} />
+            </div>
+            <div>
+              <p className='text-xs text-white/80'>Invitation</p>
+              {(() => {
+                const map: Record<string, string> = {
+                  PENDING: 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30',
+                  SENT: 'bg-blue-500/20 text-blue-400 border-blue-500/30',
+                  COMPLETED: 'bg-green-500/20 text-green-400 border-green-500/30',
+                };
+                const cls = map[subscription.inviteStatus] || 'bg-gray-500/20 text-gray-400 border-gray-500/30';
+                return (
+                  <Badge className={`${cls} border`}>{subscription.inviteStatus}</Badge>
+                );
+              })()}
+            </div>
           </div>
         </div>
 
@@ -313,6 +305,59 @@ const SubscriptionDetailsPage = () => {
                   <label className="text-sm text-gray-400">User ID</label>
                   <div className="text-white font-mono text-sm">
                     {subscription.user?.id}
+                  </div>
+                </div>
+              </div>
+            </Card>
+
+            {/* Subscription Status */}
+            <Card className="bg-white/5 backdrop-blur-md border-white/20 p-6">
+              <div className="flex items-center gap-3 mb-4">
+                <Calendar className="text-orange-400" size={24} />
+                <h2 className="text-lg font-semibold text-white">Subscription Status</h2>
+              </div>
+              <div className="flex justify-between items-center space-y-4">
+                <div>
+                  <label className="text-sm text-gray-400">Current Status</label>
+                  <div className="mt-1">
+                    <PaymentStatusBadge status={subscription.status} />
+                  </div>
+                </div>
+                <div>
+                  <label className="text-sm text-gray-400">Period</label>
+                  <div className="text-white font-medium">
+                    {subscription.period?.replace('_', ' ')}
+                  </div>
+                </div>
+                <div>
+                  <label className="text-sm text-gray-400">Start Date</label>
+                  <div className="text-white font-medium">
+                    {new Date(subscription.startDate).toLocaleDateString('en-US', {
+                      year: 'numeric',
+                      month: 'long',
+                      day: 'numeric',
+                    })}
+                  </div>
+                </div>
+                <div>
+                  <label className="text-sm text-gray-400">Expiry Date</label>
+                  <div className={`font-medium ${isExpired ? 'text-red-400' : daysUntilExpiry <= 7 ? 'text-orange-400' : 'text-white'}`}>
+                    {new Date(subscription.expiryDate).toLocaleDateString('en-US', {
+                      year: 'numeric',
+                      month: 'long',
+                      day: 'numeric',
+                    })}
+                    {!isExpired && (
+                      <div className="text-xs text-gray-400 mt-1">
+                        {daysUntilExpiry > 0 ? `${daysUntilExpiry} days remaining` : 'Expires today'}
+                      </div>
+                    )}
+                  </div>
+                </div>
+                <div>
+                  <label className="text-sm text-gray-400">Invite Status</label>
+                  <div className="text-white font-medium">
+                    {subscription.inviteStatus}
                   </div>
                 </div>
               </div>
@@ -429,58 +474,6 @@ const SubscriptionDetailsPage = () => {
                 )}
               </Card>
             )}
-            {/* Subscription Status */}
-            <Card className="bg-white/5 backdrop-blur-md border-white/20 p-6">
-              <div className="flex items-center gap-3 mb-4">
-                <Calendar className="text-orange-400" size={24} />
-                <h2 className="text-lg font-semibold text-white">Subscription Status</h2>
-              </div>
-              <div className="flex justify-between items-center space-y-4">
-                <div>
-                  <label className="text-sm text-gray-400">Current Status</label>
-                  <div className="mt-1">
-                    <StatusBadge status={subscription.status} />
-                  </div>
-                </div>
-                <div>
-                  <label className="text-sm text-gray-400">Period</label>
-                  <div className="text-white font-medium">
-                    {subscription.period?.replace('_', ' ')}
-                  </div>
-                </div>
-                <div>
-                  <label className="text-sm text-gray-400">Start Date</label>
-                  <div className="text-white font-medium">
-                    {new Date(subscription.startDate).toLocaleDateString('en-US', {
-                      year: 'numeric',
-                      month: 'long',
-                      day: 'numeric',
-                    })}
-                  </div>
-                </div>
-                <div>
-                  <label className="text-sm text-gray-400">Expiry Date</label>
-                  <div className={`font-medium ${isExpired ? 'text-red-400' : daysUntilExpiry <= 7 ? 'text-orange-400' : 'text-white'}`}>
-                    {new Date(subscription.expiryDate).toLocaleDateString('en-US', {
-                      year: 'numeric',
-                      month: 'long',
-                      day: 'numeric',
-                    })}
-                    {!isExpired && (
-                      <div className="text-xs text-gray-400 mt-1">
-                        {daysUntilExpiry > 0 ? `${daysUntilExpiry} days remaining` : 'Expires today'}
-                      </div>
-                    )}
-                  </div>
-                </div>
-                <div>
-                  <label className="text-sm text-gray-400">Invite Status</label>
-                  <div className="text-white font-medium">
-                    {subscription.inviteStatus}
-                  </div>
-                </div>
-              </div>
-            </Card>
           </div>
 
           {/* Sidebar */}
@@ -519,68 +512,26 @@ const SubscriptionDetailsPage = () => {
             <Card className="bg-white/5 backdrop-blur-md border-white/20 p-6">
               <h2 className="text-lg font-semibold text-white mb-4">Actions</h2>
               <div className="space-y-3">
-                {/* Status Update Actions */}
-                <div className="flex flex-wrap gap-2">
-                  {subscription.status !== 'ACTIVE' && (
-                    <Button
-                      onClick={() => handleStatusUpdate('ACTIVE')}
-                      disabled={updating}
-                      size="sm"
-                      className="bg-green-600 hover:bg-green-700 text-white"
-                    >
-                      <CheckCircle size={16} className="mr-1" />
-                      Activate
-                    </Button>
-                  )}
-                  {subscription.status !== 'CANCELLED' && (
-                    <Button
-                      onClick={() => handleStatusUpdate('CANCELLED')}
-                      disabled={updating}
-                      size="sm"
-                      variant="outline"
-                      className="border-red-500 text-red-400 hover:bg-red-500/10"
-                    >
-                      <XCircle size={16} className="mr-1" />
-                      Cancel
-                    </Button>
-                  )}
-                  {subscription.status === 'EXPIRED' && (
-                    <Button
-                      onClick={() => handleStatusUpdate('ACTIVE')}
-                      disabled={updating}
-                      size="sm"
-                      className="bg-blue-600 hover:bg-blue-700 text-white"
-                    >
-                      <RefreshCw size={16} className="mr-1" />
-                      Renew
-                    </Button>
-                  )}
-                </div>
-
                 {/* Invite Status Actions */}
                 <div className="flex flex-wrap gap-2">
-                  {subscription.inviteStatus !== 'SENT' && (
                     <Button
                       onClick={() => handleInviteStatusUpdate('SENT')}
-                      disabled={updating}
+                      disabled={subscription.inviteStatus !== 'SENT' || subscription.inviteStatus !== 'COMPLETED' || updating}
                       size="sm"
                       variant="outline"
                       className="border-blue-500 text-blue-400 hover:bg-blue-500/10"
                     >
                       Send Invite
                     </Button>
-                  )}
-                  {subscription.inviteStatus !== 'COMPLETED' && (
                     <Button
                       onClick={() => handleInviteStatusUpdate('COMPLETED')}
-                      disabled={updating}
+                      disabled={subscription.inviteStatus === 'SENT' || subscription.inviteStatus === 'COMPLETED' || updating}
                       size="sm"
                       variant="outline"
                       className="border-green-500 text-green-400 hover:bg-green-500/10"
                     >
                       Mark Complete
                     </Button>
-                  )}
                 </div>
 
                 <Separator className="bg-white/20" />
@@ -593,10 +544,10 @@ const SubscriptionDetailsPage = () => {
                         variant="outline"
                         size="sm"
                         className="w-full border-red-500 text-red-400 hover:bg-red-500/10"
-                        disabled={updating}
+                        disabled={subscription.inviteStatus === 'SENT' || subscription.inviteStatus !== 'COMPLETED' || updating}
                       >
                         <Trash2 size={16} className="mr-2" />
-                        Delete Subscription
+                        Desactive Subscription
                       </Button>
                     </AlertDialogTrigger>
                     <AlertDialogContent>
@@ -610,10 +561,10 @@ const SubscriptionDetailsPage = () => {
                       <AlertDialogFooter>
                         <AlertDialogCancel>Cancel</AlertDialogCancel>
                         <AlertDialogAction
-                          onClick={handleDeleteSubscription}
+                          onClick={() => handleInviteStatusUpdate('CANCELLED')}
                           className="bg-red-600 hover:bg-red-700"
                         >
-                          Delete
+                          Deactivate
                         </AlertDialogAction>
                       </AlertDialogFooter>
                     </AlertDialogContent>
