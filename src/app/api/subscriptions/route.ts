@@ -736,6 +736,7 @@ export async function PATCH(request: NextRequest) {
         userId: subscription.user.id,
         email: subscription.user.email,
         name: subscription.user.name,
+        tradingViewUsername: subscription.user.tradingviewUsername,
         pairSymbol: subscription.pair.symbol,
         pairTimeframe: subscription.pair.timeframe,
         newStatus: subscription.status,

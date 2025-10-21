@@ -33,10 +33,9 @@ export function affiliateCreatedEmail({ name, email, referralCode, commissionRat
 export interface VerifyEmailParams {
   code: string;
   name?: string;
-  url: string;
 }
 
-export function verifyEmail({ name, url }: VerifyEmailParams) {
+export function verifyEmail({ name }: VerifyEmailParams) {
   const subject = 'Verify your AlgoMakers.Ai email address';
   const html = `
     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto;">
@@ -44,7 +43,7 @@ export function verifyEmail({ name, url }: VerifyEmailParams) {
       <p>Hello${name ? ` ${name}` : ''},</p>
       <p>Thank you for signing up! Please verify your email address to activate your account.</p>
       <div style="margin: 32px 0; text-align: center;">
-        <a href="${url}" style="background: #3182CE; color: #fff; padding: 12px 24px; border-radius: 6px; text-decoration: none; font-weight: bold; display: inline-block;">Verify Email</a>
+        <a href="${process.env.NEXTAUTH_URL}/dashboard" style="background: #3182CE; color: #fff; padding: 12px 24px; border-radius: 6px; text-decoration: none; font-weight: bold; display: inline-block;">Verify Email</a>
       </div>
       <hr style="margin: 32px 0; border: none; border-top: 1px solid #E2E8F0;">
       <div style="color: #4A5568; font-size: 0.95em; margin-bottom: 16px;">
@@ -59,10 +58,9 @@ export function verifyEmail({ name, url }: VerifyEmailParams) {
 
 export interface WelcomeEmailParams {
   tradingViewUsername: string;
-  url: string;
 }
 
-export function welcomeEmail({ tradingViewUsername, url }: WelcomeEmailParams) {
+export function welcomeEmail({ tradingViewUsername}: WelcomeEmailParams) {
   const subject = '🎉 Welcome to AlgoMakers.Ai – Let’s get started';
   const html = `
     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto;">
@@ -80,7 +78,7 @@ export function welcomeEmail({ tradingViewUsername, url }: WelcomeEmailParams) {
       </ol>
       <p>Thank you for signing up! Please verify your email address to activate your account.</p>
       <div style="margin: 32px 0; text-align: center;">
-        <a href="${url}" style="background: #3182CE; color: #fff; padding: 12px 24px; border-radius: 6px; text-decoration: none; font-weight: bold; display: inline-block;">Verify Email</a>
+        <a href="${process.env.NEXTAUTH_URL}/dashboard" style="background: #3182CE; color: #fff; padding: 12px 24px; border-radius: 6px; text-decoration: none; font-weight: bold; display: inline-block;">Verify Email</a>
       </div>
       <p>If you have any questions, just reply to this email. Happy trading!</p>
       <hr style="margin: 32px 0; border: none; border-top: 1px solid #E2E8F0;">
@@ -91,7 +89,7 @@ export function welcomeEmail({ tradingViewUsername, url }: WelcomeEmailParams) {
 }
 
 export interface PaymentReceiptEmailParams {
-  firstName: string;
+  name: string;
   pair: string;
   period: string;
   amount: string;
@@ -99,15 +97,14 @@ export interface PaymentReceiptEmailParams {
   txHash: string;
   expiryDate: string;
   tradingViewUsername: string;
-  dashboardUrl: string;
 }
 
-export function paymentReceiptEmail({ firstName, pair, period, amount, network, txHash, expiryDate, tradingViewUsername, dashboardUrl }: PaymentReceiptEmailParams) {
+export function paymentReceiptEmail({ name, pair, period, amount, network, txHash, expiryDate, tradingViewUsername }: PaymentReceiptEmailParams) {
   const subject = `✅ Payment received for ${pair} subscription`;
   const html = `
     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto;">
       <h1 style="color: #2D3748;">Your payment was successful!</h1>
-      <p>Hello ${firstName},</p>
+      <p>Hello ${name},</p>
       <p>We’ve received your payment for <strong>${pair}</strong> – <strong>${period}</strong>.</p>
       <h2 style="color: #4A5568; font-size: 1.1em;">Details:</h2>
       <ul style="list-style: none; padding: 0;">
@@ -119,7 +116,7 @@ export function paymentReceiptEmail({ firstName, pair, period, amount, network, 
       </ul>
       <p>Next step: 🎯 Our admin will send your TradingView invite shortly to <strong>${tradingViewUsername}</strong>.</p>
       <div style="margin: 32px 0;">
-        <a href="${dashboardUrl}" style="background: #3182CE; color: #fff; padding: 12px 24px; border-radius: 6px; text-decoration: none; font-weight: bold;">Go to Dashboard</a>
+        <a href="${process.env.NEXTAUTH_URL}/dashboard" style="background: #3182CE; color: #fff; padding: 12px 24px; border-radius: 6px; text-decoration: none; font-weight: bold;">Go to Dashboard</a>
       </div>
       <hr style="margin: 32px 0; border: none; border-top: 1px solid #E2E8F0;">
       <div style="color: #4A5568; font-size: 0.95em; margin-bottom: 16px;">
@@ -133,24 +130,23 @@ export function paymentReceiptEmail({ firstName, pair, period, amount, network, 
 }
 
 export interface InvitePendingEmailParams {
-  firstName: string;
-  pair: string;
+  name: string;
+  pairSymbol: string;
   period: string;
   tradingViewUsername: string;
-  dashboardUrl: string;
 }
 
-export function invitePendingEmail({ firstName, pair, period, tradingViewUsername, dashboardUrl }: InvitePendingEmailParams) {
+export function invitePendingEmail({ name, pairSymbol, period, tradingViewUsername}: InvitePendingEmailParams) {
   const subject = '⏳ Your TradingView invite is being processed';
   const html = `
     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto;">
       <h1 style="color: #2D3748;">We’re preparing your access</h1>
-      <p>Hello ${firstName},</p>
-      <p>Your subscription to <strong>${pair}</strong> – <strong>${period}</strong> is confirmed.</p>
+      <p>Hello ${name},</p>
+      <p>Your subscription to <strong>${pairSymbol}</strong> – <strong>${period}</strong> is confirmed.</p>
       <p>Our admin is now processing your TradingView invite for username: <span style="color: #3182CE;">${tradingViewUsername}</span>.</p>
       <p>You’ll get another email once the invite is completed.</p>
       <div style="margin: 32px 0;">
-        <a href="${dashboardUrl}" style="background: #3182CE; color: #fff; padding: 12px 24px; border-radius: 6px; text-decoration: none; font-weight: bold;">Check Subscription Status</a>
+        <a href="${process.env.NEXTAUTH_URL}/dashboard" style="background: #3182CE; color: #fff; padding: 12px 24px; border-radius: 6px; text-decoration: none; font-weight: bold;">Check Subscription Status</a>
       </div>
       <hr style="margin: 32px 0; border: none; border-top: 1px solid #E2E8F0;">
       <div style="color: #4A5568; font-size: 0.95em; margin-bottom: 16px;">
@@ -162,24 +158,23 @@ export function invitePendingEmail({ firstName, pair, period, tradingViewUsernam
   return { subject, html };
 }
 export interface InviteSentEmailParams {
-  firstName: string;
+  name: string;
   tradingViewUsername: string;
-  pair: string;
+  pairSymbol: string;
   period: string;
   tradingViewUrl?: string;
-  dashboardUrl?: string;
 }
 
-export function inviteSentEmail({ firstName, tradingViewUsername, pair, period, tradingViewUrl, dashboardUrl }: InviteSentEmailParams) {
+export function inviteSentEmail({ name, tradingViewUsername, pairSymbol, period, tradingViewUrl}: InviteSentEmailParams) {
   const subject = '📨 Your TradingView invite was sent';
   const html = `
     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto;">
       <h1 style="color: #2D3748;">Invite sent</h1>
-      <p>Hello ${firstName},</p>
-      <p>We’ve sent a TradingView invite to <strong>${tradingViewUsername}</strong> for <strong>${pair}</strong> (${period}).</p>
+      <p>Hello ${name},</p>
+      <p>We’ve sent a TradingView invite to <strong>${tradingViewUsername}</strong> for <strong>${pairSymbol}</strong> (${period}).</p>
       <p>Please check your TradingView notifications and accept the invite to start using your indicators.</p>
       ${tradingViewUrl ? `<div style="margin: 32px 0;"><a href="${tradingViewUrl}" style="background: #3182CE; color: #fff; padding: 12px 24px; border-radius: 6px; text-decoration: none; font-weight: bold;">Open TradingView</a></div>` : ''}
-      ${dashboardUrl ? `<div style="margin: 16px 0;"><a href="${dashboardUrl}" style="background: #EDF2F7; color: #2D3748; padding: 10px 18px; border-radius: 6px; text-decoration: none; font-weight: 600;">View Subscription</a></div>` : ''}
+      <div style="margin: 16px 0;"><a href="${process.env.NEXTAUTH_URL}/subscriptions" style="background: #EDF2F7; color: #2D3748; padding: 10px 18px; border-radius: 6px; text-decoration: none; font-weight: 600;">View Subscription</a></div>
       <hr style="margin: 32px 0; border: none; border-top: 1px solid #E2E8F0;">
       <small style="color: #A0AEC0;">&copy; ${new Date().getFullYear()} AlgoMakers.Ai</small>
     </div>
@@ -188,30 +183,29 @@ export function inviteSentEmail({ firstName, tradingViewUsername, pair, period, 
 }
 
 export interface InviteCompletedEmailParams {
-  firstName: string;
+  name: string;
   tradingViewUsername: string;
-  pair: string;
+  pairSymbol: string;
   period: string;
   expiryDate: string;
-  tradingViewUrl: string;
 }
 
-export function inviteCompletedEmail({ firstName, tradingViewUsername, pair, period, expiryDate, tradingViewUrl }: InviteCompletedEmailParams) {
+export function inviteCompletedEmail({ name, tradingViewUsername, pairSymbol, period, expiryDate }: InviteCompletedEmailParams) {
   const subject = '🎉 Your TradingView invite is ready!';
   const html = `
     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto;">
       <h1 style="color: #2D3748;">Start using your subscription today</h1>
-      <p>Hello ${firstName},</p>
+      <p>Hello ${name},</p>
       <p>Great news! We’ve sent a TradingView invite to your account: <span style="color: #3182CE;">${tradingViewUsername}</span>.</p>
       <h2 style="color: #4A5568; font-size: 1.1em;">Subscription details:</h2>
       <ul style="list-style: none; padding: 0;">
-        <li><strong>Pair:</strong> ${pair}</li>
+        <li><strong>Pair:</strong> ${pairSymbol}</li>
         <li><strong>Period:</strong> ${period}</li>
         <li><strong>Active until:</strong> ${expiryDate}</li>
       </ul>
       <p>👉 Please log in to your TradingView account and accept the invite to begin.</p>
       <div style="margin: 32px 0;">
-        <a href="${tradingViewUrl}" style="background: #3182CE; color: #fff; padding: 12px 24px; border-radius: 6px; text-decoration: none; font-weight: bold;">Open TradingView</a>
+        <a href="https://www.tradingview.com" style="background: #3182CE; color: #fff; padding: 12px 24px; border-radius: 6px; text-decoration: none; font-weight: bold;">Open TradingView</a>
       </div>
       <hr style="margin: 32px 0; border: none; border-top: 1px solid #E2E8F0;">
       <div style="color: #4A5568; font-size: 0.95em; margin-bottom: 16px;">
@@ -224,22 +218,21 @@ export function inviteCompletedEmail({ firstName, tradingViewUsername, pair, per
 }
 
 export interface InviteCanceledEmailParams {
-  firstName: string;
+  name: string;
   pair: string;
   period: string;
-  dashboardUrl: string;
 }
 
-export function inviteCanceledEmail({ firstName, pair, period, dashboardUrl }: InviteCanceledEmailParams) {
+export function inviteCanceledEmail({ name, pair, period}: InviteCanceledEmailParams) {
   const subject = '❌ Your TradingView invite was canceled';
   const html = `
     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto;">
       <h1 style="color: #2D3748;">Invite canceled</h1>
-      <p>Hello ${firstName},</p>
+      <p>Hello ${name},</p>
       <p>We wanted to inform you that your TradingView invite for <strong>${pair}</strong> – <strong>${period}</strong> has been canceled.</p>
       <p>If this was a mistake or you have any questions, please contact our support team.</p>
       <div style="margin: 32px 0;">
-        <a href="${dashboardUrl}" style="background: #3182CE; color: #fff; padding: 12px 24px; border-radius: 6px; text-decoration: none; font-weight: bold;">View Subscription</a>
+        <a href="${process.env.NEXTAUTH_URL}/dashboard" style="background: #3182CE; color: #fff; padding: 12px 24px; border-radius: 6px; text-decoration: none; font-weight: bold;">View Subscription</a>
       </div>
       <hr style="margin: 32px 0; border: none; border-top: 1px solid #E2E8F0;">
       <div style="color: #4A5568; font-size: 0.95em; margin-bottom: 16px;">
@@ -252,19 +245,19 @@ export function inviteCanceledEmail({ firstName, pair, period, dashboardUrl }: I
 }
 
 export interface RenewalReminderEmailParams {
-  firstName: string;
+  name: string;
   pair: string;
   period: string;
   expiryDate: string;
   renewalUrl: string;
 }
 
-export function renewalReminderEmail({ firstName, pair, period, expiryDate, renewalUrl }: RenewalReminderEmailParams) {
+export function renewalReminderEmail({ name, pair, period, expiryDate, renewalUrl }: RenewalReminderEmailParams) {
   const subject = '⏳ Your subscription is expiring soon – renew today';
   const html = `
     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto;">
       <h1 style="color: #2D3748;">Don't lose your access</h1>
-      <p>Hello ${firstName},</p>
+      <p>Hello ${name},</p>
       <p>Your subscription to <strong>${pair}</strong> – <strong>${period}</strong> will expire on <strong>${expiryDate}</strong>.</p>
       <p>Renew now to continue uninterrupted access to backtests and live performance updates.</p>
       <div style="margin: 32px 0;">
@@ -281,17 +274,17 @@ export function renewalReminderEmail({ firstName, pair, period, expiryDate, rene
 }
 
 export interface PasswordResetEmailParams {
-  firstName: string;
+  name: string;
   resetUrl: string;
   expiryTime: string;
 }
 
-export function passwordResetEmail({ firstName, resetUrl, expiryTime }: PasswordResetEmailParams) {
+export function passwordResetEmail({ name, resetUrl, expiryTime }: PasswordResetEmailParams) {
   const subject = '🔐 Reset your AlgoMakers.Ai password';
   const html = `
     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto;">
       <h1 style="color: #2D3748;">Reset your password</h1>
-      <p>Hello ${firstName || 'there'},</p>
+      <p>Hello ${name || 'there'},</p>
       <p>We received a request to reset your password for your AlgoMakers.Ai account.</p>
       <p>Click the button below to create a new password:</p>
       <div style="margin: 32px 0; text-align: center;">
@@ -359,8 +352,16 @@ async function generateEmailContent(options: SendEmailOptions): Promise<EmailCon
       const { subject, html } = invitePendingEmail(options.params);
       return { subject, html };
     }
+    case 'invite_sent': {
+      const { subject, html } = inviteSentEmail(options.params);
+      return { subject, html };
+    }
     case 'invite_completed': {
       const { subject, html } = inviteCompletedEmail(options.params);
+      return { subject, html };
+    }
+    case 'invite_canceled': {
+      const { subject, html } = inviteCanceledEmail(options.params);
       return { subject, html };
     }
     case 'renewal_reminder': {
