@@ -29,8 +29,6 @@ export function SubscribeButton({
 
   // Modal state
   const [subscriptionModalOpen, setSubscriptionModalOpen] = useState(false);
-  const [paymentModalOpen, setPaymentModalOpen] = useState(false);
-  const [subscriptionData, setSubscriptionData] = useState<any>(null);
 
   const getSubscribeButtonConfig = () => {
     if (!isUserLoggedIn) {

@@ -136,7 +136,7 @@ export function SubscriptionModal({
   return (
     <Dialog open={isOpen} onOpenChange={handleClose}>
       <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto bg-gradient-to-b from-white/30 to-black/40 backdrop-blur-3xl border-slate-800">
-                <DialogHeader className="flex flex-row items-center justify-between space-y-0 pb-6">
+        <DialogHeader className="flex flex-row items-center justify-between space-y-0">
           <DialogTitle className="text-2xl font-bold text-white">
             Subscribe to {pair.symbol}
           </DialogTitle>

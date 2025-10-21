@@ -225,10 +225,7 @@ export async function GET(
       console.error('Failed to update payment status in database:', dbError);
       // Don't fail the request if DB update fails
     }
-
-    revalidatePath('/', 'layout');
-    revalidatePath('/dashboard', 'layout');
-    revalidatePath('/console', 'layout');
+    
     return NextResponse.json({
       status,
       invoiceId,
