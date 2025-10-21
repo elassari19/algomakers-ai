@@ -892,10 +892,15 @@ const NotificationsPage = () => {
           <div className="flex-1 min-h-0 space-y-4">
             <div className="flex flex-col sm:flex-row justify-between items-center gap-4 mb-4">
               <div className="flex flex-col sm:flex-row items-center gap-4 w-full sm:w-auto">
-                {/* Results Count */}
-                <div className="text-sm text-white/80 font-medium">
-                  {filteredNotifications.length} {filteredNotifications.length === 1 ? 'notification' : 'notifications'} found
-                </div>
+                {/* Refresh Button */}
+                <Button
+                  onClick={fetchNotifications}
+                  variant="outline"
+                  className="bg-white/10 backdrop-blur-md border-white/20 text-white hover:bg-white/20"
+                >
+                  <RefreshCw className="h-4 w-4 mr-2" />
+                  Refresh
+                </Button>
 
                 {/* Search Input */}
                 <div className="w-full sm:w-64">

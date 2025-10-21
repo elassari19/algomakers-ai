@@ -516,7 +516,7 @@ const SubscriptionDetailsPage = () => {
                 <div className="flex flex-wrap gap-2">
                     <Button
                       onClick={() => handleInviteStatusUpdate('SENT')}
-                      disabled={subscription.inviteStatus !== 'SENT' || subscription.inviteStatus !== 'COMPLETED' || updating}
+                      disabled={subscription.inviteStatus === 'SENT' || subscription.inviteStatus === 'COMPLETED' || updating}
                       size="sm"
                       variant="outline"
                       className="border-blue-500 text-blue-400 hover:bg-blue-500/10"
@@ -525,7 +525,7 @@ const SubscriptionDetailsPage = () => {
                     </Button>
                     <Button
                       onClick={() => handleInviteStatusUpdate('COMPLETED')}
-                      disabled={subscription.inviteStatus === 'SENT' || subscription.inviteStatus === 'COMPLETED' || updating}
+                      disabled={subscription.inviteStatus !== 'SENT' || subscription.inviteStatus === 'COMPLETED' || updating}
                       size="sm"
                       variant="outline"
                       className="border-green-500 text-green-400 hover:bg-green-500/10"
