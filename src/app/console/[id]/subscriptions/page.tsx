@@ -67,36 +67,6 @@ interface PairOption {
 }
 import { useSearchParams, useParams } from 'next/navigation';
 
-// Status badge component
-// function StatusBadge({ status }: { status: string }) {
-//   const getStatusConfig = (status: string) => {
-//     switch (status.toUpperCase()) {
-//       case 'ACTIVE':
-//         return { color: 'bg-green-500/20 text-green-400 border-green-500/30', icon: CheckCircle };
-//       case 'PAID':
-//         return { color: 'bg-amber-500/20 text-amber-400 border-amber-500/30', icon: CheckCircle };
-//       case 'EXPIRED':
-//         return { color: 'bg-red-500/20 text-red-400 border-red-500/30', icon: XCircle };
-//       case 'PENDING':
-//         return { color: 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30', icon: Clock };
-//       case 'CANCELLED':
-//         return { color: 'bg-gray-500/20 text-gray-400 border-gray-500/30', icon: XCircle };
-//       default:
-//         return { color: 'bg-gray-500/20 text-gray-400 border-gray-500/30', icon: AlertCircle };
-//     }
-//   };
-
-//   const config = getStatusConfig(status);
-//   const Icon = config.icon;
-
-//   return (
-//     <Badge className={`${config.color} border flex items-center gap-1`}>
-//       <Icon size={12} />
-//       {status}
-//     </Badge>
-//   );
-// }
-
 // Payment status badge
 function PaymentStatusBadge({ status }: { status: string }) {
   const getStatusConfig = (status: string) => {
@@ -591,9 +561,19 @@ const SubscriptionsPage = () => {
       <div className="min-h-screen flex flex-col justify-between p-0 md:p-4">
         {/* Page Title & Stats */}
         <div className="mb-4">
-          <h1 className="text-3xl font-bold mb-2 text-white drop-shadow-lg">
-            Subscription Management
-          </h1>
+          <div className='flex justify-between items-center mb-2'>
+            <h1 className="text-3xl font-bold mb-2 text-white drop-shadow-lg">
+              Subscription Management
+            </h1>
+            <Button
+              variant={'outline'}
+              onClick={fetchSubscriptions}
+              className="bg-white/10 backdrop-blur-md border-white/20 text-white hover:bg-white/20"
+            >
+              <RefreshCw className="h-4 w-4 mr-2" />
+              Refresh
+            </Button>
+          </div>
           <OverviewSection overviewData={[
             {
               title: 'Total Subscriptions',

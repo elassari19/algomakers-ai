@@ -17,7 +17,7 @@ import { GradientBackground } from '@/components/ui/gradient-background';
 
 // Table columns definition
 import Link from 'next/link';
-import { Eye, Pencil, Trash2, BarChart3, Target, DollarSign, Award, TrendingUp } from 'lucide-react';
+import { Eye, Pencil, Trash2, BarChart3, Target, DollarSign, Award, TrendingUp, RefreshCw } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -637,9 +637,19 @@ const ConsolePage = () => {
       <div className="min-h-screen flex flex-col justify-between p-0 md:p-4">
         {/* Page Title & Stats */}
         <div className="mb-4">
-          <h1 className="text-3xl font-bold mb-2 text-white drop-shadow-lg">
-            Backtest Data Management
-          </h1>
+          <div className='flex justify-between items-center mb-2'>
+            <h1 className="text-3xl font-bold mb-2 text-white drop-shadow-lg">
+              Backtest Data Management
+            </h1>
+            <Button
+              variant={'outline'}
+              onClick={fetchAllBacktests}
+              className="bg-white/10 backdrop-blur-md border-white/20 text-white hover:bg-white/20"
+            >
+              <RefreshCw className="h-4 w-4 mr-2" />
+              Refresh
+            </Button>
+          </div>
           <OverviewSection overviewData={[
             {
               title: 'Total Backtests',

@@ -36,7 +36,8 @@ import {
   Calendar,
   Pencil,
   Settings,
-  UserCheck
+  UserCheck,
+  Filter
 } from 'lucide-react';
 import {
   Sheet,
@@ -893,14 +894,10 @@ const NotificationsPage = () => {
             <div className="flex flex-col sm:flex-row justify-between items-center gap-4 mb-4">
               <div className="flex flex-col sm:flex-row items-center gap-4 w-full sm:w-auto">
                 {/* Refresh Button */}
-                <Button
-                  onClick={fetchNotifications}
-                  variant="outline"
-                  className="bg-white/10 backdrop-blur-md border-white/20 text-white hover:bg-white/20"
-                >
-                  <RefreshCw className="h-4 w-4 mr-2" />
-                  Refresh
-                </Button>
+                <p className="flex items-center text-sm text-gray-200">
+                  <Filter className="h-4 w-4 mr-2" />
+                  Filter
+                </p>
 
                 {/* Search Input */}
                 <div className="w-full sm:w-64">
