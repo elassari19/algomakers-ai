@@ -19,6 +19,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { useRouter } from 'next/navigation';
 
 interface PaymentModalProps {
   isOpen: boolean;
@@ -54,6 +55,7 @@ export function PaymentModal({
   totalAmount,
   onPaymentSuccess,
 }: PaymentModalProps) {
+  const router = useRouter();
   const [invoice, setInvoice] = useState<PaymentInvoice | null>(null);
   const [paymentStatus, setPaymentStatus] = useState<PaymentStatus>('pending');
   const [timeRemaining, setTimeRemaining] = useState<string>('');
@@ -93,7 +95,7 @@ export function PaymentModal({
           clearInterval(pollInterval);
           onPaymentSuccess();
           onClose();
-        } else if (status === 'expired' || status === 'failed') {
+          router.push('/subscriptions');
           clearInterval(pollInterval);
         }
       } catch (error) {
@@ -101,6 +103,7 @@ export function PaymentModal({
       }
     }, 10000); // Poll every 10 seconds
 
+    router.refresh();
     // Clean up interval on component unmount
     return () => clearInterval(pollInterval);
   };
