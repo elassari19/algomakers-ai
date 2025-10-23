@@ -114,7 +114,6 @@ export default async function DashboardPage({
 }) {
   const resolvedSearchParams = await searchParams;
   const data = await getDashboardData(resolvedSearchParams);
-  console.log('Dashboard data:', data);
 
   return (
     <Suspense

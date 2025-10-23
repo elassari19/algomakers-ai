@@ -15,11 +15,11 @@ import {
   ChevronUp,
   ChevronDown,
   ChevronsUpDown,
-  X,
   Settings,
   Eye,
   EyeOff,
   ChevronRight,
+  Download,
 } from 'lucide-react';
 import { useState, useEffect, ReactNode } from 'react';
 import { PaginationControls } from '../ui/pagination-controls';
@@ -27,10 +27,8 @@ import { useSearchParams, useRouter, usePathname } from 'next/navigation';
 import {
   Sheet,
   SheetContent,
-  SheetDescription,
   SheetHeader,
   SheetTitle,
-  SheetTrigger,
 } from '@/components/ui/sheet';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Button } from '@/components/ui/button';
@@ -43,6 +41,8 @@ import {
   DropdownMenuLabel,
 } from '@/components/ui/dropdown-menu';
 import { Checkbox } from '@/components/ui/checkbox';
+import * as XLSX from 'xlsx';
+import { useSession } from 'next-auth/react';
 
 export interface Column<T = any> {
   key: string;
@@ -113,6 +113,7 @@ export function ReusableTable<T = any>({
   const searchParams = useSearchParams();
   const router = useRouter();
   const pathname = usePathname();
+  const { data: session } = useSession();
 
   const [sortField, setSortField] = useState<string>('');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
@@ -168,6 +169,54 @@ export function ReusableTable<T = any>({
     } else {
       // Keep at least one column visible
       setVisibleColumns([columns[0].key]);
+    }
+  };
+
+  // Export table data to Excel
+  const exportToExcel = () => {
+    try {
+      // Prepare data for export - only include visible columns
+      const exportData = data.map((row) => {
+        const exportRow: any = {};
+        displayColumns.forEach((column) => {
+          const value = column.accessor
+            ? column.accessor(row)
+            : getNestedValue(row, column.key);
+
+          // Format the value for Excel
+          if (value instanceof Date) {
+            exportRow[column.header] = value.toLocaleDateString();
+          } else if (typeof value === 'object' && value !== null) {
+            exportRow[column.header] = JSON.stringify(value);
+          } else {
+            exportRow[column.header] = String(value || '');
+          }
+        });
+        return exportRow;
+      });
+
+      // Create workbook and worksheet
+      const wb = XLSX.utils.book_new();
+      const ws = XLSX.utils.json_to_sheet(exportData);
+
+      // Auto-size columns
+      const colWidths = displayColumns.map((col) => ({
+        wch: Math.max(col.header.length, 15) // Minimum width of 15 characters
+      }));
+      ws['!cols'] = colWidths;
+
+      // Add worksheet to workbook
+      XLSX.utils.book_append_sheet(wb, ws, title || 'Data');
+
+      // Generate filename with timestamp
+      const timestamp = new Date().toISOString().split('T')[0];
+      const filename = `${title || 'table-data'}_${timestamp}.xlsx`;
+
+      // Save file
+      XLSX.writeFile(wb, filename);
+    } catch (error) {
+      console.error('Error exporting to Excel:', error);
+      alert('Failed to export data. Please try again.');
     }
   };
 
@@ -442,69 +491,84 @@ export function ReusableTable<T = any>({
             </span>
           </div>
 
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
+          <div className='flex items-center gap-4'>
+            {
+              session?.user?.role === 'ADMIN' || session?.user?.role === 'MANAGER' &&
               <Button
-                variant="ghost"
-                size="sm"
-                className="h-8 w-8 p-0 text-white/70 hover:text-white hover:bg-white/10"
-              >
-                <Settings className="h-4 w-4" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent
-              align="end"
-              className="w-56 bg-slate-900/95 backdrop-blur-md border-white/20"
+              variant="ghost"
+              size="sm"
+              onClick={exportToExcel}
+              className="h-8 px-3 text-white/70 hover:text-white hover:bg-white/10 flex items-center gap-2"
+              disabled={data.length === 0}
             >
-              <DropdownMenuLabel className="text-white/90">
-                Toggle Columns
-              </DropdownMenuLabel>
-              <DropdownMenuSeparator className="bg-white/20" />
+              <Download className="h-4 w-4" />
+              Export
+            </Button>}
 
-              <div className="px-2 py-1">
-                <div className="flex items-center gap-2 mb-2">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => toggleAllColumns(true)}
-                    className="h-6 px-2 text-xs text-white/70 hover:text-white hover:bg-white/10"
-                  >
-                    <Eye className="h-3 w-3 mr-1" />
-                    Show All
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => toggleAllColumns(false)}
-                    className="h-6 px-2 text-xs text-white/70 hover:text-white hover:bg-white/10"
-                  >
-                    <EyeOff className="h-3 w-3 mr-1" />
-                    Hide All
-                  </Button>
-                </div>
-              </div>
-
-              <DropdownMenuSeparator className="bg-white/20" />
-
-              {columns.map((column) => (
-                <DropdownMenuItem
-                  key={column.key}
-                  className="flex items-center gap-2 text-white/80 cursor-pointer"
-                  onSelect={(e) => {
-                    e.preventDefault();
-                    toggleColumnVisibility(column.key);
-                  }}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-8 w-8 p-0 text-white/70 hover:text-white hover:bg-white/10"
                 >
-                  <Checkbox
-                    checked={visibleColumns.includes(column.key)}
-                    onChange={() => {}} // Handled by the parent onSelect
-                    className="border-white/30 data-[state=checked]:bg-blue-600 data-[state=checked]:border-blue-600"
-                  />
-                  <span className="flex-1">{column.header}</span>
-                </DropdownMenuItem>
-              ))}
-            </DropdownMenuContent>
-          </DropdownMenu>
+                  <Settings className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent
+                align="end"
+                className="w-56 bg-slate-900/95 backdrop-blur-md border-white/20"
+              >
+                <DropdownMenuLabel className="text-white/90">
+                  Toggle Columns
+                </DropdownMenuLabel>
+                <DropdownMenuSeparator className="bg-white/20" />
+
+                <div className="px-2 py-1">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => toggleAllColumns(true)}
+                      className="h-6 px-2 text-xs text-white/70 hover:text-white hover:bg-white/10"
+                    >
+                      <Eye className="h-3 w-3 mr-1" />
+                      Show All
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => toggleAllColumns(false)}
+                      className="h-6 px-2 text-xs text-white/70 hover:text-white hover:bg-white/10"
+                    >
+                      <EyeOff className="h-3 w-3 mr-1" />
+                      Hide All
+                    </Button>
+                  </div>
+                </div>
+
+                <DropdownMenuSeparator className="bg-white/20" />
+
+                {columns.map((column) => (
+                  <DropdownMenuItem
+                    key={column.key}
+                    className="flex items-center gap-2 text-white/80 cursor-pointer"
+                    onSelect={(e) => {
+                      e.preventDefault();
+                      toggleColumnVisibility(column.key);
+                    }}
+                  >
+                    <Checkbox
+                      checked={visibleColumns.includes(column.key)}
+                      onChange={() => {}} // Handled by the parent onSelect
+                      className="border-white/30 data-[state=checked]:bg-blue-600 data-[state=checked]:border-blue-600"
+                    />
+                    <span className="flex-1">{column.header}</span>
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
         </CardTitle>
         {subtitle && <p className="text-white/70 text-sm">{subtitle}</p>}
       </CardHeader>

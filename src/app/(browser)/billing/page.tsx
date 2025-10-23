@@ -324,11 +324,6 @@ export default function BillingPage() {
 
       // Download the PDF
       pdf.save(`invoice-${payment.invoiceId}-${payment.orderId}.pdf`);
-
-      console.log(
-        'Invoice PDF downloaded successfully for payment:',
-        payment.id
-      );
     } catch (error) {
       console.error('Error downloading invoice PDF:', error);
     }
