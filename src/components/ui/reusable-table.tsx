@@ -493,7 +493,7 @@ export function ReusableTable<T = any>({
 
           <div className='flex items-center gap-4'>
             {
-              session?.user?.role === 'ADMIN' || session?.user?.role === 'MANAGER' &&
+              (session?.user?.role == 'ADMIN' || session?.user?.role == 'MANAGER') &&
               <Button
               variant="ghost"
               size="sm"

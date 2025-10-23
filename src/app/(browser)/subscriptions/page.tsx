@@ -4,19 +4,9 @@ import SubscriptionsContent from './SubscriptionsContent';
 import { getUserSubscriptionPairs } from '@/app/api/services';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
+import { Subscription } from '@/generated/prisma';
 
-interface SubscriptionData {
-  id: string;
-  period: string;
-  startDate: string;
-  expiryDate: string;
-  status: 'ACTIVE' | 'PENDING' | 'EXPIRED';
-  paymentId: string | null;
-  inviteStatus: string;
-  basePrice: number;
-  discountRate: number;
-  createdAt: string;
-  updatedAt: string;
+interface SubscriptionData extends Subscription {
   pair: {
     id: string;
     symbol: string;
