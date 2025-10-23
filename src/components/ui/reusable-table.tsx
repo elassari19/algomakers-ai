@@ -19,6 +19,7 @@ import {
   Settings,
   Eye,
   EyeOff,
+  ChevronRight,
 } from 'lucide-react';
 import { useState, useEffect, ReactNode } from 'react';
 import { PaginationControls } from '../ui/pagination-controls';
@@ -77,6 +78,10 @@ export interface ReusableTableProps<T = any> {
   enableColumnSelector?: boolean; // Enable column visibility selector
   defaultVisibleColumns?: string[]; // Default visible columns (if not specified, all columns are visible)
   frozenColumnKey?: string; // Key of the column to freeze (sticky left)
+  // Accordion props
+  enableAccordion?: boolean; // Enable accordion functionality
+  accordionContent?: (row: T) => ReactNode; // Content to show in accordion
+  accordionTitle?: (row: T) => string; // Title for accordion trigger
 }
 
 export function ReusableTable<T = any>({
@@ -101,6 +106,9 @@ export function ReusableTable<T = any>({
   enableColumnSelector = false,
   defaultVisibleColumns,
   frozenColumnKey,
+  enableAccordion = false,
+  accordionContent,
+  accordionTitle,
 }: ReusableTableProps<T>) {
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -110,6 +118,9 @@ export function ReusableTable<T = any>({
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
   const [selectedRow, setSelectedRow] = useState<T | null>(null);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
+
+  // Accordion state - track which rows have open accordions
+  const [openAccordions, setOpenAccordions] = useState<Set<number>>(new Set());
 
   // Column visibility state
   const [visibleColumns, setVisibleColumns] = useState<string[]>(() => {
@@ -123,6 +134,19 @@ export function ReusableTable<T = any>({
   const displayColumns = columns.filter((col) =>
     visibleColumns.includes(col.key)
   );
+
+  // Handle accordion toggle
+  const toggleAccordion = (rowIndex: number) => {
+    setOpenAccordions((prev) => {
+      const newSet = new Set(prev);
+      if (newSet.has(rowIndex)) {
+        newSet.delete(rowIndex);
+      } else {
+        newSet.add(rowIndex);
+      }
+      return newSet;
+    });
+  };
 
   // Handle column visibility toggle
   const toggleColumnVisibility = (columnKey: string) => {
@@ -490,6 +514,11 @@ export function ReusableTable<T = any>({
             <Table className="min-w-[600px] w-full">
               <TableHeader className="sticky top-0 z-10 bg-white/5 backdrop-blur-sm">
                 <TableRow className="border-white/20 bg-white/5 backdrop-blur-sm">
+                  {enableAccordion && (
+                    <TableHead className="w-12 text-center">
+                      {/* Accordion column header - empty */}
+                    </TableHead>
+                  )}
                   {displayColumns.map((column, colIdx) => (
                     <TableHead
                       key={column.key}
@@ -502,7 +531,7 @@ export function ReusableTable<T = any>({
                       }`}
                       style={
                         frozenColumnKey && column.key === frozenColumnKey
-                          ? { left: 0, zIndex: 20 }
+                          ? { left: enableAccordion ? '3rem' : 0, zIndex: 20 }
                           : undefined
                       }
                     >
@@ -528,43 +557,130 @@ export function ReusableTable<T = any>({
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {paginatedData.map((row, index) => (
-                  <TableRow
-                    key={index}
-                    className={`border-white/10 ${
-                      onRowClick || enableRowDetails ? 'cursor-pointer' : ''
-                    } ${rowClassName ? rowClassName(row, index) : ''}`}
-                    onClick={(event) => handleRowClick(row, index, event)}
-                  >
-                    {displayColumns.map((column, colIdx) => {
-                      const value = column.accessor
-                        ? column.accessor(row)
-                        : getNestedValue(row, column.key);
+                {paginatedData.map((row, index) => {
+                  const globalIndex = startIndex + index; // Global index for accordion state
+                  const isAccordionOpen = openAccordions.has(globalIndex);
 
-                      return (
-                        <TableCell
-                          key={column.key}
-                          className={`text-white/80 ${
-                            column.width || ''
-                          } ${getAlignmentClass(column.align)} ${
-                            frozenColumnKey && column.key === frozenColumnKey
-                              ? 'sticky left-0 z-10 bg-muted/30 backdrop-blur-md'
-                              : ''
-                          }`}
-                          style={
-                            frozenColumnKey && column.key === frozenColumnKey
-                              ? { left: 0, zIndex: 10 }
-                              : undefined
-                          }
+                  if (enableAccordion) {
+                    return (
+                      <>
+                        <TableRow
+                          className={`border-white/10 ${
+                            onRowClick || enableRowDetails ? 'cursor-pointer' : ''
+                          } ${rowClassName ? rowClassName(row, index) : ''}`}
+                          onClick={(event) => handleRowClick(row, index, event)}
                         >
-                          {column.render
-                            ? column.render(value, row, index)
-                            : String(value || '')}
-                        </TableCell>
-                      );
-                    })}
-                  </TableRow>
-                ))}
+                          <TableCell className="w-12 text-center">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-6 w-6 p-0 text-white/70 hover:text-white hover:bg-white/10"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                toggleAccordion(globalIndex);
+                              }}
+                            >
+                              <ChevronRight
+                                className={`h-4 w-4 transition-transform ${
+                                  isAccordionOpen ? 'rotate-90' : ''
+                                }`}
+                              />
+                            </Button>
+                          </TableCell>
+                          {displayColumns.map((column, colIdx) => {
+                            const value = column.accessor
+                              ? column.accessor(row)
+                              : getNestedValue(row, column.key);
+
+                            return (
+                              <TableCell
+                                key={column.key}
+                                className={`text-white/80 ${
+                                  column.width || ''
+                                } ${getAlignmentClass(column.align)} ${
+                                  frozenColumnKey && column.key === frozenColumnKey
+                                    ? 'sticky left-0 z-10 bg-muted/30 backdrop-blur-md'
+                                    : ''
+                                }`}
+                                style={
+                                  frozenColumnKey && column.key === frozenColumnKey
+                                    ? { left: '3rem', zIndex: 10 }
+                                    : undefined
+                                }
+                              >
+                                {column.render
+                                  ? column.render(value, row, index)
+                                  : String(value || '')}
+                              </TableCell>
+                            );
+                          })}
+                        </TableRow>
+                        {isAccordionOpen && (
+                          <tr>
+                            <td
+                              colSpan={displayColumns.length + 1}
+                              className="bg-white/5 border-white/10"
+                            >
+                              <div className="p-4">
+                                {accordionTitle && (
+                                  <h4 className="text-white font-medium mb-2">
+                                    {accordionTitle(row)}
+                                  </h4>
+                                )}
+                                {accordionContent ? (
+                                  accordionContent(row)
+                                ) : (
+                                  <div className="text-white/70">
+                                    No content provided
+                                  </div>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                        )}
+                      </>
+                    );
+                  }
+
+                  // Regular row without accordion
+                  return (
+                    <TableRow
+                      key={globalIndex}
+                      className={`border-white/10 ${
+                        onRowClick || enableRowDetails ? 'cursor-pointer' : ''
+                      } ${rowClassName ? rowClassName(row, index) : ''}`}
+                      onClick={(event) => handleRowClick(row, index, event)}
+                    >
+                      {displayColumns.map((column, colIdx) => {
+                        const value = column.accessor
+                          ? column.accessor(row)
+                          : getNestedValue(row, column.key);
+
+                        return (
+                          <TableCell
+                            key={column.key}
+                            className={`text-white/80 ${
+                              column.width || ''
+                            } ${getAlignmentClass(column.align)} ${
+                              frozenColumnKey && column.key === frozenColumnKey
+                                ? 'sticky left-0 z-10 bg-muted/30 backdrop-blur-md'
+                                : ''
+                            }`}
+                            style={
+                              frozenColumnKey && column.key === frozenColumnKey
+                                ? { left: 0, zIndex: 10 }
+                                : undefined
+                            }
+                          >
+                            {column.render
+                              ? column.render(value, row, index)
+                              : String(value || '')}
+                          </TableCell>
+                        );
+                      })}
+                    </TableRow>
+                  );
+                })}
               </TableBody>
             </Table>
           </div>

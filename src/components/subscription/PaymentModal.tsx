@@ -95,7 +95,7 @@ export function PaymentModal({
           clearInterval(pollInterval);
           onPaymentSuccess();
           onClose();
-          router.push('/subscriptions');
+          router.push(`/billing/`);
           clearInterval(pollInterval);
         }
       } catch (error) {

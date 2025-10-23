@@ -54,8 +54,9 @@ async function getDashboardData(searchParams: { [key: string]: string | string[]
         ...pair,
         performance: [],
         properties: [],
-        riskPerfRatios: [],
+        riskPerformanceRatios: [],
         tradesAnalysis: [],
+        listOfTrades: [],
         name: pair.symbol.split('/')[0] || pair.symbol, // Simple name extraction
         metrics: {
           roi: performance[1]?.['All USDT'] ? (10000 / performance[1]['All USDT']) * 100 : 0,
@@ -113,6 +114,7 @@ export default async function DashboardPage({
 }) {
   const resolvedSearchParams = await searchParams;
   const data = await getDashboardData(resolvedSearchParams);
+  console.log('Dashboard data:', data);
 
   return (
     <Suspense
