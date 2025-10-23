@@ -84,22 +84,10 @@ export async function getPairs(filters: GetPairsFilters = {}) {
 
     // Get total count for pagination
     const total = await prisma.pair.count({ where });
-    const totalSubscriptions = await prisma.subscription.count({
-      where: { userId, status: 'PAID', inviteStatus: { in: ['SENT', 'COMPLETED'] }, },
-    });
-    const totalCancelled = await prisma.subscription.count({
-      where: { userId, OR: [ { status: { in: ['CANCELLED', 'EXPIRED', 'FAILED'] } }, { inviteStatus: { in: ['CANCELLED'] } } ] },
-    });
-    const totalPending = await prisma.subscription.count({
-      where: { userId, OR: [ { status: 'PENDING' }, { inviteStatus: { in: ['PENDING', 'SENT'] } } ] },
-    });
 
     return {
       pairs: JSON.parse(JSON.stringify(pairs)),
       total,
-      totalSubscriptions,
-      totalCancelled,
-      totalPending,
       page,
       limit,
       totalPages: Math.ceil(total / limit),
@@ -239,6 +227,50 @@ export async function getSubscriptionDetails(subscriptionId: string) {
   } catch (error) {
     console.error('Error fetching subscription details:', error);
     throw new Error('Failed to fetch subscription details');
+  }
+}
+
+export async function getPaymentDetails(paymentId: string) {
+  try {
+    const payment = await prisma.payment.findUnique({
+      where: {
+        id: paymentId,
+      },
+      include: {
+        subscription: true,
+        paymentItems: {
+          include: {
+            pair: {
+              select: {
+                id: true,
+                symbol: true,
+                version: true,
+                timeframe: true,
+              },
+            },
+          },
+        },
+        user: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            tradingviewUsername: true,
+            image: true,
+            status: true,
+          },
+        },
+      },
+    });
+
+    if (!payment) {
+      throw new Error('Payment not found');
+    }
+
+    return JSON.stringify(payment);
+  } catch (error) {
+    console.error('Error fetching payment details:', error);
+    throw new Error('Failed to fetch payment details');
   }
 }
 

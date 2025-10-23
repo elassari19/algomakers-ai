@@ -17,6 +17,7 @@ import {
   XCircle,
   AlertCircle,
   ExternalLink,
+  Eye,
 } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { OverviewSection } from '@/components/dashboard/DashboardStats';
@@ -25,6 +26,7 @@ import jsPDF from 'jspdf';
 import { getUserBillingData } from '@/app/api/services';
 import { SortFilterBar } from '@/components/subscription/SortFilterBar';
 import { formatCurrency } from '@/lib/utils';
+import Link from 'next/link';
 
 // Payment interface
 interface Payment {
@@ -301,6 +303,9 @@ export default function BillingPage() {
       align: 'center',
       render: (_, row: Payment) => (
         <div className="flex items-center gap-2">
+          <Link href={`/billing/${row.id}`} title='billing details'>
+            <Eye className="h-5 w-5 text-gray-300 hover:text-white" />
+          </Link>
           <Button
             size="sm"
             variant="outline"

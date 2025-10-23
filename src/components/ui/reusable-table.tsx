@@ -633,6 +633,7 @@ export function ReusableTable<T = any>({
                             onRowClick || enableRowDetails ? 'cursor-pointer' : ''
                           } ${rowClassName ? rowClassName(row, index) : ''}`}
                           onClick={(event) => handleRowClick(row, index, event)}
+                          key={index}
                         >
                           <TableCell className="w-12 text-center">
                             <Button

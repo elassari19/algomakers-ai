@@ -476,7 +476,7 @@ export default function DashboardContent({
                                     {subscription.status}
                                   </Badge>
                                 </div>
-                                <div className="grid grid-cols-9 items-center gap-4 text-sm pl-2">
+                                <div className="grid grid-cols-9 [&>div]:col-span-1 items-center gap-4 text-sm pl-2">
                                   <div className="grid items-center gap-1">
                                     <span className="text-white/70">Created At:</span>
                                     <span className="text-white">
@@ -522,14 +522,14 @@ export default function DashboardContent({
                                   <div className="grid items-center gap-1">
                                     <span className="text-white/70">Discount:</span>
                                     <span className="text-blue-400">
-                                      {subscription.discountRate ? `${(Number(subscription.discountRate) * 100).toFixed(1)}%` : '0%'}
+                                      {subscription.discountRate ? `${(Number(subscription.discountRate)).toFixed(1)}%` : '0%'}
                                     </span>
                                   </div>
                                   <div className="grid items-center gap-1">
                                     <span className="text-white/70">Final Price:</span>
                                     <span className="text-green-400 font-medium">
                                       ${subscription.basePrice && subscription.discountRate
-                                        ? (Number(subscription.basePrice) * (1 - Number(subscription.discountRate))).toFixed(2)
+                                        ? (Number(subscription.basePrice) - (Number(subscription.basePrice) * (Number(subscription.discountRate) / 100))).toFixed(2)
                                         : subscription.basePrice ? Number(subscription.basePrice).toFixed(2) : 'N/A'}
                                     </span>
                                   </div>
