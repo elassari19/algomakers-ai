@@ -18,7 +18,7 @@ import {
 import Link from 'next/link';
 import { useSession } from 'next-auth/react';
 import { SubscribeButton } from '@/components/subscription/SubscribeButton';
-import { SubscriptionStatus } from '@/generated/prisma';
+import { Pair, PaymentStatus, Subscription, SubscriptionStatus } from '@/generated/prisma';
 import {
   Tooltip,
   TooltipContent,
@@ -26,18 +26,7 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip';
 
-interface SubscriptionData {
-  id: string;
-  period: string;
-  startDate: string;
-  expiryDate: string;
-  status: 'ACTIVE' | 'PENDING' | 'EXPIRED';
-  paymentId: string | null;
-  inviteStatus: string;
-  basePrice: number;
-  discountRate: number;
-  createdAt: string;
-  updatedAt: string;
+interface SubscriptionData extends Subscription {
   pair: {
     id: string;
     symbol: string;
@@ -100,7 +89,7 @@ export default function SubscriptionsContent({
       switch (filterBy) {
         case 'active':
           filtered = filtered.filter(
-            (subscription) => subscription.status === 'ACTIVE'
+            (subscription) => subscription.status === 'PAID'
           );
           break;
         case 'pending':
@@ -224,17 +213,23 @@ export default function SubscriptionsContent({
                     header: 'Status',
                     width: 'w-32',
                     render: (value: string, row: SubscriptionData) => {
-                      const status = row.status;
-                      // Map string status to SubscriptionStatus enum
-                      const subscriptionStatus = status === 'ACTIVE' ? SubscriptionStatus.ACTIVE :
-                                                status === 'PENDING' ? SubscriptionStatus.PENDING :
-                                                status === 'EXPIRED' ? SubscriptionStatus.EXPIRED :
-                                                SubscriptionStatus.ACTIVE; // default fallback
-
+                      const paymentStatus = row.status!;
+                      const inviteStatus = row.inviteStatus!;
+                      const expiryDate = row.expiryDate!;
+                      const expiryTs = expiryDate ? (expiryDate instanceof Date ? expiryDate.getTime() : new Date(expiryDate).getTime()) : undefined;
+                      let userSubscriptionStatus = paymentStatus === 'PAID' && inviteStatus === 'CANCELLED' ? 'CANCELLED'
+                        : paymentStatus === 'PAID' && inviteStatus === 'COMPLETED' ? SubscriptionStatus.ACTIVE
+                        : paymentStatus === 'PAID' && inviteStatus === 'SENT' ? 'INVITED'
+                        : inviteStatus === 'PENDING' ? SubscriptionStatus.PENDING
+                        : expiryTs !== undefined && Date.now() > expiryTs ? SubscriptionStatus.EXPIRED
+                        : expiryTs !== undefined && Math.floor((expiryTs - Date.now()) / (24 * 60 * 60 * 1000)) <= 3 ? SubscriptionStatus.RENEWING
+                        : paymentStatus === 'FAILED' ? SubscriptionStatus.FAILED
+                        : SubscriptionStatus.TRIAL;
+              
                       return (
                         <div className="flex flex-col gap-1">
                           <SubscribeButton
-                            userSubscriptionStatus={subscriptionStatus}
+                            userSubscriptionStatus={userSubscriptionStatus as SubscriptionStatus}
                             isUserLoggedIn={!!session?.user}
                             pair={row.pair as any}
                             currentSubscriptionPeriod={row.period}
@@ -435,13 +430,13 @@ export default function SubscriptionsContent({
                         <div>
                           <p className="text-white/70">Base Price</p>
                           <p className="text-green-400 font-semibold">
-                            ${subscription.basePrice}
+                            ${subscription.basePrice as any}
                           </p>
                         </div>
                         <div>
                           <p className="text-white/70">Discount Rate</p>
                           <p className="text-blue-400 font-semibold">
-                            {subscription.discountRate}%
+                            {subscription.discountRate as any}%
                           </p>
                         </div>
                       </div>

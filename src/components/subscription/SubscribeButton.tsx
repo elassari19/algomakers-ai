@@ -30,7 +30,7 @@ export function SubscribeButton({
   // Modal state
   const [subscriptionModalOpen, setSubscriptionModalOpen] = useState(false);
 
-  const getSubscribeButtonConfig = () => {
+  const getButtonConfig = () => {
     if (!isUserLoggedIn) {
       return {
         text: 'Sign In to Subscribe',
@@ -38,36 +38,82 @@ export function SubscribeButton({
         variant: 'outline' as const,
         action: 'subscribe' as const,
         disabled: false,
+        className: '',
       };
     }
 
     switch (userSubscriptionStatus) {
+      case 'INVITED':
+        return {
+          text: 'Invitations Sent',
+          icon: TrendingUp,
+          variant: 'default' as const,
+          action: 'upgrade' as const,
+          disabled: true,
+          className: 'disabled:opacity-100 bg-lime-400/20 hover:bg-lime-700/50 text-lime-400',
+        };
+      case SubscriptionStatus.ACTIVE:
+        return {
+          text: 'Extend',
+          icon: TrendingUp,
+          variant: 'default' as const,
+          action: 'upgrade' as const,
+          disabled: false,
+          className: 'bg-purple-600 hover:bg-purple-700 text-white',
+        };
+      case SubscriptionStatus.RENEWING:
+        return {
+          text: 'Renewing',
+          icon: Clock,
+          variant: 'default' as const,
+          action: 'upgrade' as const,
+          disabled: false,
+          className: 'bg-amber-600 hover:bg-green-700 text-white',
+        };
+      case SubscriptionStatus.PENDING:
+        return {
+          text: 'Awaiting Invitations',
+          icon: Clock,
+          variant: 'default' as const,
+          action: 'subscribe' as const,
+          disabled: true,
+          className: 'disabled:opacity-100 bg-amber-500/20 text-amber-400 border-amber-400/50',
+        };
       case SubscriptionStatus.EXPIRED:
         return {
-          text: 'Resubscribe',
+          text: 'Expired',
           icon: CreditCard,
           variant: 'default' as const,
           action: 'subscribe' as const,
           disabled: false,
-          className: 'bg-blue-600 hover:bg-blue-700 text-white',
+          className: 'bg-gray-600 hover:bg-gray-700 text-white',
+        };
+      case SubscriptionStatus.CANCELLED:
+        return {
+          text: 'Cancelled',
+          icon: X,
+          variant: 'default' as const,
+          action: 'subscribe' as const,
+          disabled: true,
+          className: 'disabled:opacity-100 bg-gray-600 hover:bg-gray-700 text-white',
+        };
+      case SubscriptionStatus.FAILED:
+        return {
+          text: 'Failed',
+          icon: X,
+          variant: 'default' as const,
+          action: 'subscribe' as const,
+          disabled: true,
+          className: 'disabled:opacity-100 bg-red-700 hover:bg-red-800 text-white',
         };
       case SubscriptionStatus.PENDING:
         return {
-          text: 'Payment Pending',
+          text: 'Pending',
           icon: Clock,
-          variant: 'outline' as const,
+          variant: 'default' as const,
           action: 'subscribe' as const,
           disabled: true,
-          className: 'disabled:opacity-100 bg-blue-500/10 text-blue-400 border-blue-400/30',
-        };
-      case SubscriptionStatus.PAID:
-        return {
-          text: 'Awaiting Invitation',
-          icon: Clock,
-          variant: 'outline' as const,
-          action: 'subscribe' as const,
-          disabled: true,
-          className: 'disabled:opacity-100 bg-amber-500/10 text-amber-400 border-amber-400/30',
+          className: 'disabled:opacity-100 bg-blue-400/30 hover:bg-blue-800/30 text-blue-400',
         };
       default:
         return {
@@ -81,43 +127,7 @@ export function SubscribeButton({
     }
   };
 
-  const getUpgradeButtonConfig = () => {
-    return {
-      text: 'Upgrade',
-      icon: TrendingUp,
-      variant: 'default' as const,
-      action: 'upgrade' as const,
-      disabled: false,
-      className: 'bg-purple-600 hover:bg-purple-700 text-white',
-    };
-  };
-
-  const getCancelButtonConfig = () => {
-    return {
-      text: 'Cancel',
-      icon: X,
-      variant: 'default' as const,
-      action: 'cancel' as const,
-      disabled: false,
-      className: 'bg-red-600 hover:bg-red-700 text-white',
-    };
-  };
-
-  const getPendingButtonConfig = () => {
-    return {
-      text: 'Pending',
-      icon: Clock,
-      variant: 'outline' as const,
-      action: 'pending' as const,
-      disabled: false,
-      className: 'bg-blue-500/70 text-blue-400 border-blue-400/70',
-    };
-  }
-
-  const subscribeConfig = getSubscribeButtonConfig();
-  const upgradeConfig = getUpgradeButtonConfig();
-  const cancelConfig = getCancelButtonConfig();
-  const pendingConfig = getPendingButtonConfig();
+  const buttonConfig = getButtonConfig();
 
   // Modal handlers - memoized to prevent unnecessary re-renders
   const handleSubscribe = useCallback((
@@ -154,70 +164,31 @@ export function SubscribeButton({
     setSubscriptionModalOpen(false);
   }, []);
 
-  const handleSubscribeClick = useCallback(() => {
+  const handleButtonClick = useCallback(() => {
     if (!isUserLoggedIn) {
       // Redirect to sign in (only on client side)
       router.push(`/signin?callbackUrl=${encodeURIComponent(pathname)}`);
       return;
     }
 
-    handleSubscribe(pair?.id || '', subscribeConfig.action);
-  }, [isUserLoggedIn, router, pathname, handleSubscribe, pair?.id, subscribeConfig.action]);
-
-  const handleUpgradeClick = useCallback(() => {
-    handleSubscribe(pair?.id || '', upgradeConfig.action);
-  }, [handleSubscribe, pair?.id, upgradeConfig.action]);
-
-  const handleCancelClick = useCallback(() => {
-    handleSubscribe(pair?.id || '', cancelConfig.action);
-  }, [handleSubscribe, pair?.id, cancelConfig.action]);
+    handleSubscribe(pair?.id || '', buttonConfig.action);
+  }, [isUserLoggedIn, router, pathname, handleSubscribe, pair?.id, buttonConfig.action]);
 
   return (
     <>
       <div className={`flex flex-col items-center gap-2 ${className}`}>
-        {userSubscriptionStatus === SubscriptionStatus.ACTIVE ? (
-          // Show Upgrade and Cancel buttons for subscribed users
-          <div className="flex flex-col gap-2 w-full">
-            <Button
-              onClick={handleUpgradeClick}
-              variant={upgradeConfig.variant}
-              disabled={upgradeConfig.disabled}
-              className={`w-full min-w-[120px] ${
-                upgradeConfig.className || ''
-              }`}
-              size="sm"
-            >
-              <upgradeConfig.icon className="h-4 w-4 mr-2" />
-              {upgradeConfig.text}
-            </Button>
-          </div>
-        ) : userSubscriptionStatus === SubscriptionStatus.PENDING ?
-        (
-          <Button
-            onClick={handleCancelClick}
-            variant={pendingConfig.variant}
-            disabled={pendingConfig.disabled}
-            className={`w-full min-w-[120px] ${pendingConfig.className || ''}`}
-            size="sm"
-          >
-            <pendingConfig.icon className="h-4 w-4 mr-2" />
-            {pendingConfig.text}
-          </Button>
-        ) : (
-          // Show Subscribe button for non-subscribed users
-          <Button
-            onClick={handleSubscribeClick}
-            variant={subscribeConfig.variant}
-            disabled={subscribeConfig.disabled}
-            className={`w-full min-w-[120px] ${
-              subscribeConfig.className || ''
-            }`}
-            size="sm"
-          >
-            <subscribeConfig.icon className="h-4 w-4 mr-2" />
-            {subscribeConfig.text}
-          </Button>
-        )}
+        <Button
+          onClick={handleButtonClick}
+          variant={buttonConfig.variant}
+          disabled={buttonConfig.disabled}
+          className={`w-full min-w-[120px] ${
+            buttonConfig.className || ''
+          }`}
+          size="sm"
+        >
+          <buttonConfig.icon className="h-4 w-4 mr-2" />
+          {buttonConfig.text}
+        </Button>
       </div>
 
       {/* Subscription Modal */}
@@ -225,6 +196,7 @@ export function SubscribeButton({
         isOpen={subscriptionModalOpen}
         onClose={handleCloseSubscriptionModal}
         pair={pair}
+        action={buttonConfig.action}
         currentSubscriptionPeriod={currentSubscriptionPeriod}
       />
     </>

@@ -30,7 +30,7 @@ import {OverviewSection} from '@/components/dashboard/DashboardStats';
 import { ReusableTable, Column } from '@/components/ui/reusable-table';
 import {SubscribeButton} from '@/components/subscription/SubscribeButton';
 import {ClientSortFilterBar} from '@/components/subscription/ClientSortFilterBar';
-import { SubscriptionStatus } from '@/generated/prisma';
+import { Subscription, SubscriptionStatus } from '@/generated/prisma';
 
 interface PairData {
   id: string;
@@ -42,7 +42,7 @@ interface PairData {
   riskPerformanceRatios: any;
   tradesAnalysis: any;
   createdAt: string;
-  subscriptions?: any[];
+  subscriptions?: Subscription[];
   metrics: {
     roi: number;
     riskReward: number;
@@ -80,13 +80,17 @@ export default function DashboardContent({
       header: 'Status',
       width: 'w-32',
       render: (value: any, row: PairData) => {
-        let userSubscriptionStatus = undefined;
-        if (row.subscriptions?.length && row.subscriptions[0]?.pairId) {
-          const match = row.subscriptions.find((s: any) => row.id === s.pairId);
-          if (match) {
-            userSubscriptionStatus = match.status;
-          }
-        }
+        const paymentStatus = row.subscriptions?.[0]?.status!;
+        const inviteStatus = row.subscriptions?.[0]?.inviteStatus!;
+        const expiryDate = row.subscriptions?.[0]?.expiryDate!;
+        const expiryTs = expiryDate ? (expiryDate instanceof Date ? expiryDate.getTime() : new Date(expiryDate).getTime()) : undefined;
+        let userSubscriptionStatus = 
+          paymentStatus === 'PAID' && inviteStatus === 'COMPLETED' ? SubscriptionStatus.ACTIVE
+          : paymentStatus === 'PAID' && inviteStatus === 'SENT' ? 'INVITED'
+          : inviteStatus === 'PENDING' ? SubscriptionStatus.PENDING
+          : expiryTs !== undefined && Math.floor((expiryTs - Date.now()) / (24 * 60 * 60 * 1000)) <= 3 ? SubscriptionStatus.RENEWING
+          : SubscriptionStatus.TRIAL;
+
         return (
           <div className="flex flex-col gap-1">
             <SubscribeButton

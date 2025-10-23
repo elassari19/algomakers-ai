@@ -32,6 +32,7 @@ interface SubscriptionModalProps {
   onClose: () => void;
   pair: Pair;
   currentSubscriptionPeriod?: string;
+  action?: "subscribe" | "upgrade";
 }
 
 export function SubscriptionModal({
@@ -39,6 +40,7 @@ export function SubscriptionModal({
   onClose,
   pair,
   currentSubscriptionPeriod,
+  action
 }: SubscriptionModalProps) {
   const dispatch = useDispatch<AppDispatch>();
   
@@ -125,6 +127,7 @@ export function SubscriptionModal({
         price: selectedPlan.price,
         discount: selectedPlan.discount,
       },
+      action: action ? action : "subscribe"
     }));
 
     handleClose();
