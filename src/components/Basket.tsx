@@ -66,30 +66,11 @@ export function Basket() {
     setExpandedItemId(expandedItemId === itemId ? null : itemId);
   };
 
-  const checkForUpgrades = async (items: any[]): Promise<boolean> => {
-    try {
-      for (const item of items) {
-        const response = await fetch(`/api/subscriptions/check-upgrade?pairId=${item.pair.id}`);
-        if (response.ok) {
-          const data = await response.json();
-          if (data.hasActiveSubscription) {
-            return true;
-          }
-        }
-      }
-      return false;
-    } catch (error) {
-      console.error('Error checking for upgrades:', error);
-      return false;
-    }
-  };
-
   const handleCheckout = async () => {
     if (isProcessingCheckout) return;
 
     setIsProcessingCheckout(true);
     try {
-      const isUpgrade = await checkForUpgrades(basketItems);
 
       const paymentItems = basketItems.map(item => ({
         pairId: item.pair.id,
@@ -107,6 +88,7 @@ export function Basket() {
           };
           return periodMap[item.plan.id] || 'ONE_MONTH';
         })(),
+        action: item?.action ? item.action : 'subscribe',
       }));
 
       const checkoutData = {
@@ -118,7 +100,6 @@ export function Basket() {
           pairIds: basketItems.map(item => item.pair.id),
           paymentItems: paymentItems,
           userId: 'current-user-id',
-          isUpgrade: isUpgrade,
         },
       };
 

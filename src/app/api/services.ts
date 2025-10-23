@@ -57,21 +57,23 @@ export async function getPairs(filters: GetPairsFilters = {}) {
 
     const skip = (page - 1) * limit;
 
-    // Build subscriptions include so we only include subscriptions for the resolved userId
-    const subscriptionsInclude: any = {
-      include: {
-        payment: true,
-      },
-    };
-    if (userId) {
-      subscriptionsInclude.where = { userId };
-    }
-
     // Fetch pairs with pagination
     const pairs = await prisma.pair.findMany({
       where,
       include: {
-        subscriptions: subscriptionsInclude,
+        subscriptions: {
+          where: {
+              userId, 
+              status: { in: ['PAID', 'PENDING'] },
+              inviteStatus: { not: 'CANCELLED' },
+          },
+          include: {
+            payment: true,
+          },
+          orderBy: {
+            createdAt: 'desc',
+          },
+        },
       },
       skip,
       take: limit,
@@ -82,10 +84,22 @@ export async function getPairs(filters: GetPairsFilters = {}) {
 
     // Get total count for pagination
     const total = await prisma.pair.count({ where });
+    const totalSubscriptions = await prisma.subscription.count({
+      where: { userId, status: 'PAID', inviteStatus: { in: ['SENT', 'COMPLETED'] }, },
+    });
+    const totalCancelled = await prisma.subscription.count({
+      where: { userId, OR: [ { status: { in: ['CANCELLED', 'EXPIRED', 'FAILED'] } }, { inviteStatus: { in: ['CANCELLED'] } } ] },
+    });
+    const totalPending = await prisma.subscription.count({
+      where: { userId, OR: [ { status: 'PENDING' }, { inviteStatus: { in: ['PENDING', 'SENT'] } } ] },
+    });
 
     return {
       pairs: JSON.parse(JSON.stringify(pairs)),
       total,
+      totalSubscriptions,
+      totalCancelled,
+      totalPending,
       page,
       limit,
       totalPages: Math.ceil(total / limit),

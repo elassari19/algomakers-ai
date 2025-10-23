@@ -1,5 +1,5 @@
 import { createSlice, PayloadAction } from '@reduxjs/toolkit';
-import { Pair } from '@/generated/prisma';
+import { Pair, SubscriptionStatus } from '@/generated/prisma';
 
 interface BasketItem {
   id: string;
@@ -14,6 +14,7 @@ interface BasketItem {
     price: number;
     discount?: number;
   };
+  action?: "subscribe" | "upgrade";
 }
 
 interface BasketState {

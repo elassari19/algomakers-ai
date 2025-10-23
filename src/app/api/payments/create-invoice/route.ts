@@ -6,6 +6,7 @@ import { createAuditLog, AuditAction, AuditTargetType } from '@/lib/audit';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { sendEmail } from '@/lib/email-service';
+import { revalidatePath } from 'next/cache';
 
 interface CreateInvoiceRequest {
   amount: number;
@@ -24,13 +25,13 @@ interface CreateInvoiceRequest {
     tier?: string;
     duration?: string;
     userId?: string;
-    isUpgrade?: boolean; // Flag to indicate if this is an upgrade
     paymentItems?: {
       pairId: string;
       basePrice: number;
       discountRate: number;
       finalPrice: number;
       period: string;
+      action?: 'subscribe' | 'upgrade'; // Flag to indicate if this is an upgrade
     }[];
   };
 }
@@ -64,14 +65,6 @@ function mapNetworkToEnum(network: string): PaymentNetwork {
 export async function POST(request: NextRequest) {
   const session = await getServerSession(authOptions);
   if (!session?.user?.id) {
-    await createAuditLog({
-      actorId: 'unknown',
-      actorRole: 'USER',
-      action: AuditAction.CREATE_PAYMENT,
-      targetType: AuditTargetType.PAYMENT,
-      responseStatus: 'FAILURE',
-      details: { reason: 'unauthorized' },
-    });
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
@@ -145,12 +138,11 @@ export async function POST(request: NextRequest) {
     await createAuditLog({
       actorId: userId,
       actorRole: 'USER',
-      action: body.orderData.isUpgrade ? AuditAction.UPDATE_SUBSCRIPTION : AuditAction.CREATE_PAYMENT,
+      action: AuditAction.CREATE_PAYMENT,
       targetType: AuditTargetType.PAYMENT,
       targetId: paymentRecord.id,
       responseStatus: 'SUCCESS',
       details: {
-        isUpgrade: body.orderData.isUpgrade || false,
         createdInvoice: {
           id: paymentRecord.id,
           invoiceId: invoice.id,
@@ -246,8 +238,6 @@ async function createNOWPaymentsInvoice(
     return 'subscription';
   };
 
-  const orderType = body.orderData.isUpgrade ? 'Upgrade' : 'Subscription';
-
   const getCurrencyCode = (network: string): string => {
     switch (network.toLowerCase()) {
       case 'trc20': return 'usdttrc20';
@@ -262,7 +252,7 @@ async function createNOWPaymentsInvoice(
     price_currency: 'usd',
     pay_currency: getCurrencyCode(body.network),
     order_id: orderId,
-    order_description: `AlgoMarkers.Ai ${orderType}: ${pairIds.join(', ')} - ${getPeriodDescription()}`,
+    order_description: `AlgoMarkers.Ai: ${pairIds.join(', ')} - ${getPeriodDescription()}`,
     ipn_callback_url: `${process.env.NEXTAUTH_URL}/api/payments/webhook`,
     success_url: `${process.env.NEXTAUTH_URL}/dashboard?payment=success`,
     cancel_url: `${process.env.NEXTAUTH_URL}/dashboard?payment=cancelled`,
@@ -291,6 +281,8 @@ async function createNOWPaymentsInvoice(
     return null;
   }
 
+  revalidatePath('/', 'layout')
+  revalidatePath('/dashboard', 'page');
   return await response.json();
 }
 
@@ -360,25 +352,28 @@ async function createPaymentWithSubscriptionsAndItems(
 
       let startDate: Date;
       let expiryDate: Date;
+      let inviteStatus = 'PENDING';
 
       // Handle upgrades: extend existing subscription expiry date
-      if (body.orderData.isUpgrade) {
+      if (paymentItem.action === 'upgrade') {
         // Find the existing active subscription for this user+pair
-        const existingSubscription = await prisma.subscription.findFirst({
+        const existingSubscription = await prisma.subscription.findMany({
           where: {
             userId: userId,
             pairId: paymentItem.pairId,
-            status: SubscriptionStatus.ACTIVE,
+            status: SubscriptionStatus.PAID,
+            inviteStatus: InviteStatus.COMPLETED,
           },
           orderBy: {
             expiryDate: 'desc', // Get the latest expiry date
           },
         });
 
-        if (existingSubscription) {
+        if (existingSubscription.length > 0) {
           // Start the new subscription from the end of the existing one
-          startDate = new Date(existingSubscription.expiryDate);
+          startDate = new Date(existingSubscription[0].expiryDate);
           expiryDate = calculateExpiryDate(startDate, months);
+          inviteStatus = existingSubscription[0].inviteStatus === InviteStatus.CANCELLED ? InviteStatus.PENDING : existingSubscription[0].inviteStatus;
         } else {
           // Fallback: if no existing subscription found, start from today
           startDate = new Date();
@@ -397,7 +392,7 @@ async function createPaymentWithSubscriptionsAndItems(
         startDate: startDate,
         expiryDate: expiryDate,
         status: SubscriptionStatus.PENDING,
-        inviteStatus: InviteStatus.PENDING,
+        inviteStatus: inviteStatus,
         basePrice: paymentItem.basePrice,
         discountRate: paymentItem.discountRate,
       });
@@ -416,7 +411,39 @@ async function createPaymentWithSubscriptionsAndItems(
       const pair = await prisma.pair.findFirst({ where: { symbol: pairSymbol } });
       if (!pair) continue;
 
-      const expiryDate = calculateExpiryDate(new Date(), 1);
+      const paymentItem = body.orderData.paymentItems?.find(item => item.pairId === pair.id);
+      const months = paymentItem?.period === 'ONE_MONTH' ? 1 :
+              paymentItem?.period === 'THREE_MONTHS' ? 3 :
+              paymentItem?.period === 'SIX_MONTHS' ? 6 :
+              paymentItem?.period === 'TWELVE_MONTHS' ? 12 : 1;
+
+
+      let expiryDate = new Date();
+      let startDate = new Date();
+
+      if (paymentItem?.action === 'upgrade') {
+        await prisma.subscription.findMany({
+          where: {
+            userId: userId,
+            pairId: pair.id,
+            status: SubscriptionStatus.PAID,
+            inviteStatus: InviteStatus.COMPLETED,
+          },
+          orderBy: {
+            expiryDate: 'desc',
+          },
+        }).then(existingSubscriptions => {
+          if (existingSubscriptions.length > 0) {
+            const latestSubscription = existingSubscriptions[0];
+            startDate = new Date(latestSubscription.expiryDate);
+            expiryDate = calculateExpiryDate(startDate, months);
+          } else {
+            startDate = new Date();
+            expiryDate = calculateExpiryDate(startDate, months);
+          }
+        });
+      }
+
       const basePriceNumeric = Number(pair.priceOneMonth ?? (body.amount / pairIds.length));
       const discountNumeric = Number(pair.discountOneMonth ?? 0);
 
@@ -519,23 +546,6 @@ function getCurrencyCode(network: string): string {
     case 'bep20': return 'usdtbsc';
     default: return 'usdttrc20';
   }
-}
-
-// Generate QR code URL for payment using QR Server API
-function generateQRCode(
-  amount: number,
-  address: string,
-  currency: string
-): string {
-  // Create the payment URI for crypto wallets
-  const paymentUri = `${currency.toLowerCase()}:${address}?amount=${amount}`;
-
-  // Use QR Server API to generate QR code
-  const qrApiUrl = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(
-    paymentUri
-  )}`;
-
-  return qrApiUrl;
 }
 
 function calculateExpiryDate(startDate: Date, months: number): Date {

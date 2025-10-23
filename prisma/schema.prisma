@@ -229,6 +229,7 @@ enum SubscriptionStatus {
   ACTIVE
   EXPIRED
   PENDING
+  INVITED
   CANCELLED
   RENEWING
   FAILED
