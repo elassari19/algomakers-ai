@@ -87,6 +87,9 @@ export enum AuditAction {
   SEND_EMAIL = 'SEND_EMAIL',
   EMAIL_BOUNCED = 'EMAIL_BOUNCED',
   EMAIL_COMPLAINT = 'EMAIL_COMPLAINT',
+  EMAIL_CREATED = 'EMAIL_CREATED',
+  EMAIL_UPDATED = 'EMAIL_UPDATED',
+  EMAIL_DELETED = 'EMAIL_DELETED',
   
   // System administration
   SYSTEM_BACKUP = 'SYSTEM_BACKUP',
@@ -119,6 +122,7 @@ export enum AuditTargetType {
   NOTIFICATION = 'NOTIFICATION',
   EVENT = 'EVENT',
   PAYOUT = 'PAYOUT',
+  EMAIL = 'EMAIL',
 }
 
 // Interface for audit log details

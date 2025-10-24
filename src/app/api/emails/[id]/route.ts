@@ -1,0 +1,262 @@
+import { NextRequest, NextResponse } from 'next/server';
+import { getServerSession } from 'next-auth/next';
+import { authOptions } from '@/lib/auth';
+import { prisma } from '@/lib/prisma';
+import { createAuditLog, AuditAction, AuditTargetType } from '@/lib/audit';
+import { z } from 'zod';
+
+// Validation schema for email update
+const emailUpdateSchema = z.object({
+  to: z.string().email('Invalid email address').optional(),
+  from: z.string().email('Invalid from email address').optional(),
+  subject: z.string().min(1, 'Subject is required').optional(),
+  body: z.string().min(1, 'Body is required').optional(),
+  status: z.enum(['PENDING', 'SENT', 'FAILED', 'CANCELLED']).optional(),
+  metadata: z.any().optional(),
+});
+
+// GET /api/emails/[id] - Fetch a specific email
+export async function GET(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const session = await getServerSession(authOptions);
+
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const { id } = await params;
+
+    if (!id) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: 'Email ID is required',
+        },
+        { status: 400 }
+      );
+    }
+
+    const email = await prisma.email.findUnique({
+      where: { id },
+      include: {
+        user: {
+          select: {
+            id: true,
+            email: true,
+            name: true,
+          },
+        },
+      },
+    });
+
+    if (!email) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: 'Email not found',
+        },
+        { status: 404 }
+      );
+    }
+
+    return NextResponse.json({
+      success: true,
+      email,
+      message: 'Email fetched successfully',
+    });
+  } catch (error) {
+    console.error('Error fetching email:', error);
+    return NextResponse.json(
+      {
+        success: false,
+        message: 'Failed to fetch email',
+        error: error instanceof Error ? error.message : 'Unknown error',
+      },
+      { status: 500 }
+    );
+  }
+}
+
+// PUT /api/emails/[id] - Update a specific email
+export async function PUT(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const session = await getServerSession(authOptions);
+
+  try {
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const { id } = await params;
+    const body = await request.json();
+
+    if (!id) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: 'Email ID is required',
+        },
+        { status: 400 }
+      );
+    }
+
+    // Check if email exists
+    const existingEmail = await prisma.email.findUnique({
+      where: { id },
+    });
+
+    if (!existingEmail) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: 'Email not found',
+        },
+        { status: 404 }
+      );
+    }
+
+    // Validate input data
+    const validatedData = emailUpdateSchema.parse(body);
+
+    // Update email
+    const updatedEmail = await prisma.email.update({
+      where: { id },
+      data: validatedData as any,
+      include: {
+        user: {
+          select: {
+            id: true,
+            email: true,
+            name: true,
+          },
+        },
+      },
+    });
+
+    // Create audit log
+    await createAuditLog({
+      actorId: session.user.id,
+      actorRole: session.user.role as any,
+      action: AuditAction.EMAIL_UPDATED,
+      targetId: id,
+      targetType: AuditTargetType.EMAIL,
+      details: {
+        changes: validatedData,
+      },
+    });
+
+    return NextResponse.json({
+      success: true,
+      email: updatedEmail,
+      message: 'Email updated successfully',
+    });
+  } catch (error) {
+    console.error('Error updating email:', error);
+
+    if (error instanceof z.ZodError) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: 'Validation error',
+          errors: error.issues,
+        },
+        { status: 400 }
+      );
+    }
+
+    return NextResponse.json(
+      {
+        success: false,
+        message: 'Failed to update email',
+        error: error instanceof Error ? error.message : 'Unknown error',
+      },
+      { status: 500 }
+    );
+  }
+}
+
+// DELETE /api/emails/[id] - Delete a specific email
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const session = await getServerSession(authOptions);
+
+  try {
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const { id } = await params;
+
+    if (!id) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: 'Email ID is required',
+        },
+        { status: 400 }
+      );
+    }
+
+    // Check if email exists
+    const existingEmail = await prisma.email.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        to: true,
+        subject: true,
+        userId: true,
+      },
+    });
+
+    if (!existingEmail) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: 'Email not found',
+        },
+        { status: 404 }
+      );
+    }
+
+    // Delete email
+    await prisma.email.delete({
+      where: { id },
+    });
+
+    // Create audit log
+    await createAuditLog({
+      actorId: session.user.id,
+      actorRole: session.user.role as any,
+      action: AuditAction.EMAIL_DELETED,
+      targetId: id,
+      targetType: AuditTargetType.EMAIL,
+      details: {
+        to: existingEmail.to,
+        subject: existingEmail.subject,
+        userId: existingEmail.userId,
+      },
+    });
+
+    return NextResponse.json({
+      success: true,
+      message: 'Email deleted successfully',
+    });
+  } catch (error) {
+    console.error('Error deleting email:', error);
+    return NextResponse.json(
+      {
+        success: false,
+        message: 'Failed to delete email',
+        error: error instanceof Error ? error.message : 'Unknown error',
+      },
+      { status: 500 }
+    );
+  }
+}

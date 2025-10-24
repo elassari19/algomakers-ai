@@ -411,6 +411,23 @@ export async function sendEmail(options: SendEmailOptions) {
     html: modifiedHtml,
     ...(text ? { text } : {}),
   };
+
+  // Create email record in database
+  const emailRecord = await prisma.email.create({
+    data: {
+      to: options.to,
+      from: mailOptions.from,
+      subject: options.subject!,
+      body: modifiedHtml || text || '',
+      status: 'PENDING',
+      userId: options.userId,
+      metadata: {
+        template: options.template,
+        params: options.params,
+      },
+    },
+  });
+
   const transporter = nodemailer.createTransport({
     service: 'gmail',
     auth: {
@@ -423,6 +440,16 @@ export async function sendEmail(options: SendEmailOptions) {
   });
   try {
     const info = await transporter.sendMail(mailOptions);
+    
+    // Update email record on success
+    await prisma.email.update({
+      where: { id: emailRecord.id },
+      data: {
+        status: 'SENT',
+        sentAt: new Date(),
+      },
+    });
+
     await createAuditLog({
       actorId: options.userId || 'system',
       actorRole: options?.role || 'USER',
@@ -433,11 +460,23 @@ export async function sendEmail(options: SendEmailOptions) {
         template: options.template,
         to: options.to,
         subject: options.subject,
+        emailId: emailRecord.id,
       },
     });
     return info;
   } catch (error) {
     console.error('Failed to send email:', error);
+    
+    // Update email record on failure
+    await prisma.email.update({
+      where: { id: emailRecord.id },
+      data: {
+        status: 'FAILED',
+        attempts: { increment: 1 },
+        error: error instanceof Error ? error.message : 'Unknown error',
+      },
+    });
+
     await createAuditLog({
       actorId: options.userId || 'system',
       actorRole: options?.role || 'USER',
@@ -449,6 +488,7 @@ export async function sendEmail(options: SendEmailOptions) {
         to: options.to,
         subject: options.subject,
         reason: error instanceof Error ? error.stack : undefined,
+        emailId: emailRecord.id,
       },
     });
   }

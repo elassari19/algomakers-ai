@@ -26,6 +26,7 @@ model User {
   affiliate           Affiliate?
   auditLogs           AuditLog[]     @relation("UserAuditLogs")
   notifications       Notification[]
+  emails              Email[]
   payments            Payment[]
   sessions            Session[]
   subscriptions       Subscription[]
@@ -199,6 +200,31 @@ model Notification {
   createdAt  DateTime            @default(now())
   updatedAt  DateTime            @updatedAt
   user       User?               @relation(fields: [userId], references: [id])
+}
+
+// Transactional email records
+model Email {
+  id        String      @id @default(uuid())
+  to        String
+  from      String?
+  subject   String
+  body      String
+  status    EmailStatus @default(PENDING)
+  attempts  Int         @default(0)
+  error     String?
+  metadata  Json?
+  sentAt    DateTime?
+  userId    String?
+  user      User?       @relation(fields: [userId], references: [id])
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+}
+
+enum EmailStatus {
+  PENDING
+  SENT
+  FAILED
+  CANCELLED
 }
 
 enum Role {
