@@ -572,8 +572,8 @@ export default async function SubscriptionDetailsPage({
 }
 
 // Dynamic metadata for individual subscription pages
-export async function generateMetadata({ params }: { params: { id: string } }) {
-	const { id } = params;
+export async function generateMetadata({ params }: { params: Promise<{ id: string }> }) {
+	const { id } = await params;
 	try {
 		const subscription = await getSubscriptionData(id);
 		if (!subscription) {

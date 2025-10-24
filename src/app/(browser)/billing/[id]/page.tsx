@@ -487,9 +487,13 @@ export default async function PaymentDetailsPage({
   );
 }
 
+interface IProps {
+  params: Promise<{ id: string }>;
+}
+
 // Dynamic metadata for individual payment pages
-export async function generateMetadata({ params }: { params: { id: string } }) {
-  const { id } = params;
+export async function generateMetadata({ params }: IProps) {
+  const { id } = await params;
   try {
     const paymentData = await fetchPaymentDetails(id);
     if (!paymentData) {
