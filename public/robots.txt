@@ -1,7 +1,4 @@
-import { NextResponse } from 'next/server';
-
-export async function GET() {
-  const robotsTxt = `User-agent: *
+User-agent: *
 Allow: /
 Allow: /_next/static/
 Allow: /_next/image
@@ -18,29 +15,57 @@ Disallow: /unauthorized/
 Disallow: /console/
 Disallow: /console/[id]/
 Disallow: /console/affiliate/
+Disallow: /console/affiliate/[affiliateId]/
 Disallow: /console/analytics/
 Disallow: /console/backtests/
+Disallow: /console/backtests/[backtestId]/
 Disallow: /console/billing/
+Disallow: /console/billing/[paymentId]/
 Disallow: /console/emails/
 Disallow: /console/events/
 Disallow: /console/notifications/
+Disallow: /console/notifications/[notificationId]/
 Disallow: /console/subscriptions/
+Disallow: /console/subscriptions/[subscriptionId]/
 Disallow: /console/users/
 
 # Disallow all API routes
 Disallow: /api/
 Disallow: /api/affiliates/
+Disallow: /api/affiliates/payout/
 Disallow: /api/audit-logs/
 Disallow: /api/auth/
+Disallow: /api/auth/[...nextauth]/
+Disallow: /api/auth/forgot-password/
+Disallow: /api/auth/profile/
+Disallow: /api/auth/reset-password/
+Disallow: /api/auth/session-debug/
+Disallow: /api/auth/signup/
+Disallow: /api/auth/verify-email/
 Disallow: /api/backtest/
 Disallow: /api/billing/
+Disallow: /api/billing/[paymentId]/
+Disallow: /api/billing/invoice/[paymentId]/
 Disallow: /api/notifications/
+Disallow: /api/notifications/[id]/
+Disallow: /api/notifications/read/
+Disallow: /api/notifications/bulk/
+Disallow: /api/notifications/check-updates/
+Disallow: /api/notifications/stats/
 Disallow: /api/payments/
+Disallow: /api/payments/[id]/
+Disallow: /api/payments/create-invoice/
+Disallow: /api/payments/status/[invoiceId]/
+Disallow: /api/payments/webhook/
 Disallow: /api/stats/
 Disallow: /api/subscriptions/
 Disallow: /api/tradingview/
+Disallow: /api/tradingview/verify-username/
 Disallow: /api/twelvedata/
+Disallow: /api/twelvedata/quote/
+Disallow: /api/twelvedata/symbols/
 Disallow: /api/users/
+Disallow: /api/users/[id]/
 
 # Allow search engines to index public pages
 Allow: /
@@ -54,11 +79,4 @@ Allow: /affiliate
 Crawl-delay: 1
 
 # Sitemap location
-Sitemap: ${process.env.NEXTAUTH_URL || 'https://algomakers.ai'}/sitemap.xml`;
-
-  return new NextResponse(robotsTxt, {
-    headers: {
-      'Content-Type': 'text/plain',
-    },
-  });
-}
+Sitemap: https://algomakers.ai/sitemap.xml
