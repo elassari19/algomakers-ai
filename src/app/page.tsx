@@ -44,6 +44,59 @@ import { AuthNavButtons } from '@/components/AuthNavButtons';
 import { HeroAuthButtons } from '@/components/HeroAuthButtons';
 import { CTAAuthButton } from '@/components/CTAAuthButton';
 import MainHeader from '@/components/main-header';
+import { Metadata } from 'next';
+
+export const metadata: Metadata = {
+  title: 'AlgoMakers - Advanced Algorithmic Trading Strategies',
+  description: 'Discover and subscribe to proven algorithmic trading strategies. Access backtested trading pairs with real performance metrics, risk analysis, and automated execution.',
+  keywords: ['algorithmic trading', 'trading strategies', 'backtested strategies', 'trading algorithms', 'automated trading', 'crypto trading', 'forex trading', 'trading bots', 'quantitative trading', 'AlgoMakers'],
+  authors: [{ name: 'AlgoMakers Team' }],
+  creator: 'AlgoMakers',
+  publisher: 'AlgoMakers',
+  formatDetection: {
+    email: false,
+    address: false,
+    telephone: false,
+  },
+  openGraph: {
+    title: 'AlgoMakers - Advanced Algorithmic Trading Strategies',
+    description: 'Discover and subscribe to proven algorithmic trading strategies. Access backtested trading pairs with real performance metrics, risk analysis, and automated execution.',
+    url: process.env.NEXTAUTH_URL || 'https://algomakers.ai',
+    siteName: 'AlgoMakers',
+    images: [
+      {
+        url: `${process.env.NEXTAUTH_URL || 'https://algomakers.ai'}/og-image.jpg`,
+        width: 1200,
+        height: 630,
+        alt: 'AlgoMakers - Algorithmic Trading Platform',
+      },
+    ],
+    locale: 'en_US',
+    type: 'website',
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'AlgoMakers - Advanced Algorithmic Trading Strategies',
+    description: 'Discover and subscribe to proven algorithmic trading strategies. Access backtested trading pairs with real performance metrics.',
+    images: [`${process.env.NEXTAUTH_URL || 'https://algomakers.ai'}/og-image.jpg`],
+    creator: '@algomakers',
+  },
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      'max-video-preview': -1,
+      'max-image-preview': 'large',
+      'max-snippet': -1,
+    },
+  },
+  alternates: {
+    canonical: process.env.NEXTAUTH_URL || 'https://algomakers.ai',
+  },
+  category: 'finance',
+};
 
 export default function Home() {
   return (
@@ -627,3 +680,4 @@ export default function Home() {
     </GradientBackground>
   );
 }
+

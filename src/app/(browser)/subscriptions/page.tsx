@@ -60,3 +60,19 @@ export default async function SubscriptionsPage({
     </Suspense>
   );
 }
+
+export const metadata = {
+  title: 'Subscriptions – AlgoMakers',
+  description: 'Manage your active subscriptions and subscription history on AlgoMakers.',
+  keywords: ['subscriptions', 'active subscriptions', 'subscription history', 'trading subscriptions', 'algorithm subscriptions', 'AlgoMakers'],
+  openGraph: {
+    title: 'Subscriptions – AlgoMakers',
+    description: 'Manage your active subscriptions and subscription history on AlgoMakers.',
+    url: `${process.env.NEXTAUTH_URL || ''}/subscriptions`,
+    siteName: 'AlgoMakers',
+    type: 'website',
+  },
+  // Subscriptions are user-specific — do not index
+  robots: { index: false, follow: false },
+  alternates: { canonical: `${process.env.NEXTAUTH_URL || ''}/subscriptions` },
+};

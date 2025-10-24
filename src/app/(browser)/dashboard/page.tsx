@@ -5,6 +5,26 @@ import { getPairs } from '@/app/api/services';
 
 export const dynamic = 'force-dynamic';
 
+export const metadata = {
+  title: 'Dashboard – AlgoMakers',
+  description: 'Explore trading pairs, backtests and performance metrics on AlgoMakers.',
+  keywords: ['dashboard', 'trading pairs', 'backtests', 'performance metrics', 'algorithmic trading', 'trading strategies', 'market analysis', 'AlgoMakers'],
+  openGraph: {
+    title: 'Dashboard – AlgoMakers',
+    description: 'Explore trading pairs, backtests and performance metrics on AlgoMakers.',
+    url: `${process.env.NEXTAUTH_URL || ''}/dashboard`,
+    siteName: 'AlgoMakers',
+    type: 'website',
+  },
+  robots: {
+    index: true,
+    follow: true,
+  },
+  alternates: {
+    canonical: `${process.env.NEXTAUTH_URL || ''}/dashboard`,
+  },
+};
+
 interface PairData {
   id: string;
   symbol: string;

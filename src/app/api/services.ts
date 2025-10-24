@@ -3,6 +3,11 @@
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { getServerSession } from 'next-auth';
+import { revalidatePath } from 'next/cache';
+
+export async function revalidateRoute(path: string, route: 'layout' | 'page') {
+  revalidatePath(path, route);
+}
 
 interface GetPairsFilters {
   page?: number;

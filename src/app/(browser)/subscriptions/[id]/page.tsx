@@ -570,3 +570,34 @@ export default async function SubscriptionDetailsPage({
 	</GradientBackground>
   );
 }
+
+// Dynamic metadata for individual subscription pages
+export async function generateMetadata({ params }: { params: { id: string } }) {
+	const { id } = params;
+	try {
+		const subscription = await getSubscriptionData(id);
+		if (!subscription) {
+			return { title: 'Subscription not found – AlgoMakers', description: 'Subscription not found', robots: { index: false, follow: false } };
+		}
+
+		const title = `${subscription.pair.symbol} Subscription – AlgoMakers`;
+		const description = `Subscription (${subscription.period}) for ${subscription.pair.symbol}. Status: ${subscription.status}`;
+
+		return {
+			title,
+			description,
+			keywords: ['subscription', subscription.pair.symbol, subscription.period, subscription.status.toLowerCase(), 'trading subscription', 'algorithm subscription', 'AlgoMakers'],
+			openGraph: {
+				title,
+				description,
+				url: `${process.env.NEXTAUTH_URL || ''}/subscriptions/${id}`,
+				siteName: 'AlgoMakers',
+				type: 'article',
+			},
+			robots: { index: false, follow: false },
+			alternates: { canonical: `${process.env.NEXTAUTH_URL || ''}/subscriptions/${id}` },
+		};
+	} catch (e) {
+		return { title: 'Subscription – AlgoMakers', description: 'Subscription details' };
+	}
+}

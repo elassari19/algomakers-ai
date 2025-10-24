@@ -227,6 +227,7 @@ export async function GET(
     }
     
     return NextResponse.json({
+      paymentId: dbPayment.id,
       status,
       invoiceId,
       nowPaymentsStatus: paymentStatus.payment_status,

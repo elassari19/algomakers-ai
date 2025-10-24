@@ -486,3 +486,43 @@ export default async function PaymentDetailsPage({
     </GradientBackground>
   );
 }
+
+// Dynamic metadata for individual payment pages
+export async function generateMetadata({ params }: { params: { id: string } }) {
+  const { id } = params;
+  try {
+    const paymentData = await fetchPaymentDetails(id);
+    if (!paymentData) {
+      return {
+        title: 'Payment not found – AlgoMakers',
+        description: 'Payment not found',
+        robots: { index: false, follow: false },
+      };
+    }
+
+    const invoice = paymentData.payment.invoiceId || paymentData.payment.orderId || id;
+    const title = `Payment ${invoice} – AlgoMakers`;
+    const description = `Details for payment ${invoice} (${paymentData.payment.status}).`;
+
+    return {
+      title,
+      description,
+      keywords: ['payment details', 'invoice', invoice, 'transaction', paymentData.payment.status.toLowerCase(), 'cryptocurrency payment', 'AlgoMakers'],
+      openGraph: {
+        title,
+        description,
+        url: `${process.env.NEXTAUTH_URL || ''}/billing/${id}`,
+        siteName: 'AlgoMakers',
+        type: 'article',
+      },
+      robots: { index: false, follow: false },
+      alternates: { canonical: `${process.env.NEXTAUTH_URL || ''}/billing/${id}` },
+    };
+  } catch (e) {
+    return {
+      title: 'Payment – AlgoMakers',
+      description: 'Payment details',
+      robots: { index: false, follow: false },
+    };
+  }
+}

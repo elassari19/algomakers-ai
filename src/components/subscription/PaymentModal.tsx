@@ -20,6 +20,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { useRouter } from 'next/navigation';
+import { revalidateRoute } from '@/app/api/services';
 
 interface PaymentModalProps {
   isOpen: boolean;
@@ -84,18 +85,21 @@ export function PaymentModal({
 
   // Poll payment status
   const startPaymentStatusPolling = (invoiceId: string) => {
+    let response: any;
     const pollInterval = setInterval(async () => {
       try {
-        const response = await fetch(`/api/payments/status/${invoiceId}`);
-        const { status } = await response.json();
+        response = await fetch(`/api/payments/status/${invoiceId}`);
+        const data = await response.json();
+        console.log('Payment status:', data);
 
-        setPaymentStatus(status);
+        setPaymentStatus(data.status);
 
-        if (status === 'confirmed') {
+        if (data.status === 'confirmed') {
           clearInterval(pollInterval);
           onPaymentSuccess();
           onClose();
-          router.push(`/billing/`);
+          revalidateRoute('/', 'layout');
+          revalidateRoute('/dashboard', 'page');
           clearInterval(pollInterval);
         }
       } catch (error) {
@@ -103,7 +107,6 @@ export function PaymentModal({
       }
     }, 10000); // Poll every 10 seconds
 
-    router.refresh();
     // Clean up interval on component unmount
     return () => clearInterval(pollInterval);
   };
