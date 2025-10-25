@@ -131,18 +131,18 @@ export function paymentReceiptEmail({ name, pair, period, amount, network, txHas
 
 export interface InvitePendingEmailParams {
   name: string;
-  pairSymbol: string;
+  pair: string;
   period: string;
   tradingViewUsername: string;
 }
 
-export function invitePendingEmail({ name, pairSymbol, period, tradingViewUsername}: InvitePendingEmailParams) {
+export function invitePendingEmail({ name, pair, period, tradingViewUsername}: InvitePendingEmailParams) {
   const subject = '⏳ Your TradingView invite is being processed';
   const html = `
     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto;">
       <h1 style="color: #2D3748;">We’re preparing your access</h1>
       <p>Hello ${name},</p>
-      <p>Your subscription to <strong>${pairSymbol}</strong> – <strong>${period}</strong> is confirmed.</p>
+      <p>Your subscription to <strong>${pair}</strong> – <strong>${period}</strong> is confirmed.</p>
       <p>Our admin is now processing your TradingView invite for username: <span style="color: #3182CE;">${tradingViewUsername}</span>.</p>
       <p>You’ll get another email once the invite is completed.</p>
       <div style="margin: 32px 0;">
@@ -417,7 +417,7 @@ export async function sendEmail(options: SendEmailOptions) {
     data: {
       to: options.to,
       from: mailOptions.from,
-      subject: options.subject!,
+      subject: subject || '',
       body: modifiedHtml || text || '',
       status: 'PENDING',
       userId: options.userId,

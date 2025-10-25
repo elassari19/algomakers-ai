@@ -98,8 +98,9 @@ export function PaymentModal({
           clearInterval(pollInterval);
           onPaymentSuccess();
           onClose();
-          revalidateRoute('/', 'layout');
-          revalidateRoute('/dashboard', 'page');
+          window.location.reload()
+          // revalidateRoute('/', 'layout');
+          // revalidateRoute('/dashboard', 'page');
           clearInterval(pollInterval);
         }
       } catch (error) {

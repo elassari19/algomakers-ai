@@ -94,29 +94,33 @@ export async function NotificationBell({ userId, role }: NotificationBellProps) 
               </div>
             ) : (
               notificationsResult.notifications.map((notification) => (
-                <Link
-                  href={role !== 'USER' ? `/console/2/notifications/${notification.id}` : '#'}
+                <div
                   key={notification.id}
                   className="block p-3 rounded-lg border bg-white/10 border-white/20 transition-all cursor-pointer hover:bg-white/15"
                 >
                   <div className="flex items-start space-x-3">
-                    <span className="text-lg">
-                      {getNotificationIcon(notification.type)}
-                    </span>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-white">
-                        {notification.title}
-                      </p>
-                      <p className="text-sm text-white/70 mt-1">
-                        {notification.message}
-                      </p>
-                      <p className="text-xs text-white/50 mt-2">
-                        {formatTimestamp(new Date(notification.createdAt))}
-                      </p>
-                    </div>
+                    <Link
+                      href={role !== 'USER' ? `/console/2/notifications/${notification.id}` : '#'}
+                      className="flex items-start space-x-3 flex-1 min-w-0"
+                    >
+                      <span className="text-lg">
+                        {getNotificationIcon(notification.type)}
+                      </span>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-white">
+                          {notification.title}
+                        </p>
+                        <p className="text-sm text-white/70 mt-1">
+                          {notification.message}
+                        </p>
+                        <p className="text-xs text-white/50 mt-2">
+                          {formatTimestamp(new Date(notification.createdAt))}
+                        </p>
+                      </div>
+                    </Link>
                     <NotificationDismissButton notificationId={notification.id} />
                   </div>
-                </Link>
+                </div>
               ))
             )}
           </div>
