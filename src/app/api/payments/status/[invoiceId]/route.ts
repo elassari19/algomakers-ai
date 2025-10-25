@@ -170,7 +170,7 @@ export async function GET(
                 template: 'invite_pending',
                 to: subscription.user.email || '',
                 params: {
-                  firstName: subscription.user.name?.split(' ')[0] || 'User',
+                  name: subscription.user.name || 'User',
                   pair: subscription.pair.symbol,
                   period: subscription.period.toLowerCase().replace('_', ' '),
                   tradingViewUsername: subscription.user.tradingviewUsername || '',

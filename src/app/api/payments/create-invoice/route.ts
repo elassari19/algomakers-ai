@@ -174,7 +174,7 @@ export async function POST(request: NextRequest) {
             template: 'payment_receipt',
             to: session?.user?.email || '',
             params: {
-              firstName: session?.user?.name?.split(' ')[0] || 'User',
+              name: session?.user?.name || 'User',
               pair: pair.symbol,
               period: subscription.period.toLowerCase().replace('_', ' '),
               amount: body.amount.toString(),
