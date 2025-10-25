@@ -38,16 +38,15 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog';
-import { ReusableTable, Column } from '@/components/ui/reusable-table';
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from '@/components/ui/tabs';
+import { TemplatesTab } from './TemplatesTab';
+import { EmailsTab } from './EmailsTab';
+import { CampaignsTab } from './CampaignsTab';
+import { Column } from '@/components/ui/reusable-table';
 
 interface EmailCampaign {
   id: string;
@@ -71,6 +70,26 @@ interface EmailTemplate {
   content: string;
   type: 'MARKETING' | 'TRANSACTIONAL' | 'ANNOUNCEMENT';
   createdAt: string;
+}
+
+interface EmailRecord {
+  id: string;
+  to: string;
+  from: string;
+  subject: string;
+  body: string;
+  status: 'PENDING' | 'SENT' | 'FAILED' | 'CANCELLED';
+  attempts: number;
+  error?: string;
+  sentAt?: string;
+  userId?: string;
+  user?: {
+    id: string;
+    email: string;
+    name?: string;
+  };
+  createdAt: string;
+  updatedAt: string;
 }
 
 const EmailMarketingPage = () => {
@@ -730,84 +749,48 @@ const EmailMarketingPage = () => {
             className="opacity-95"
           />
 
-          {/* Campaigns Table */}
-          <Card className="bg-white/5 backdrop-blur-md border-white/20 shadow-xl">
-            <div className="p-6">
-              <ReusableTable
-                data={filteredCampaigns}
-                columns={columns}
-                title="Email Campaigns"
-                subtitle="Manage and track your email marketing campaigns"
-                isLoading={loading}
-                itemsPerPage={10}
-              />
-            </div>
+          <Card className="bg-white/5 backdrop-blur-md border-white/20 shadow-xl p-4 pt-0">
+            {/* Email Management Tabs */}
+            <Tabs defaultValue="emails" className="w-full">
+              <TabsList className="grid w-full grid-cols-3 bg-zinc-800/50 border border-zinc-700/60">
+                <TabsTrigger value="emails" className="data-[state=active]:bg-zinc-700 data-[state=active]:text-white text-zinc-300">
+                  Emails
+                </TabsTrigger>
+                <TabsTrigger value="templates" className="data-[state=active]:bg-zinc-700 data-[state=active]:text-white text-zinc-300">
+                  Templates
+                </TabsTrigger>
+                <TabsTrigger value="campaigns" className="data-[state=active]:bg-zinc-700 data-[state=active]:text-white text-zinc-300">
+                  Campaigns
+                </TabsTrigger>
+              </TabsList>
+
+              {/* Templates Tab */}
+              <TabsContent value="templates" className="space-y-6">
+                <TemplatesTab
+                  templates={templates}
+                  setTemplates={setTemplates}
+                  createTemplateDialog={createTemplateDialog}
+                  setCreateTemplateDialog={setCreateTemplateDialog}
+                />
+              </TabsContent>
+
+            {/* Emails Tab */}
+            <TabsContent value="emails" className="space-y-6">
+              <EmailsTab />
+            </TabsContent>
+
+              {/* Campaigns Tab */}
+              <TabsContent value="campaigns" className="space-y-6">
+                <CampaignsTab
+                  campaigns={campaigns}
+                  setCampaigns={setCampaigns}
+                  loading={loading}
+                />
+              </TabsContent>
+            </Tabs>
           </Card>
         </div>
       </div>
-
-      {/* Preview Dialog */}
-      <Dialog open={previewDialog} onOpenChange={setPreviewDialog}>
-        <DialogContent className="sm:max-w-2xl bg-gradient-to-br from-zinc-900 to-zinc-800 border border-zinc-700/60 text-white">
-          <DialogHeader>
-            <DialogTitle className="text-white">Campaign Preview</DialogTitle>
-          </DialogHeader>
-          {selectedCampaign && (
-            <div className="space-y-4">
-              <div>
-                <label className="text-sm font-medium text-zinc-400">Subject:</label>
-                <p className="text-white font-medium">{selectedCampaign.subject}</p>
-              </div>
-              
-              <div>
-                <label className="text-sm font-medium text-zinc-400">Content:</label>
-                <div className="mt-2 p-4 bg-zinc-800/50 rounded-lg border border-zinc-600/30">
-                  <div className="whitespace-pre-wrap text-sm text-zinc-200">
-                    {selectedCampaign.content}
-                  </div>
-                </div>
-              </div>
-              
-              <div className="grid grid-cols-2 gap-4 pt-4 border-t border-zinc-700">
-                <div>
-                  <p className="text-sm text-zinc-400">Recipients: <span className="text-white font-medium">{selectedCampaign.recipientCount}</span></p>
-                  <p className="text-sm text-zinc-400">Status: <span className="text-white font-medium">{selectedCampaign.status}</span></p>
-                </div>
-                <div>
-                  <p className="text-sm text-zinc-400">Created: <span className="text-white font-medium">{new Date(selectedCampaign.createdAt).toLocaleDateString()}</span></p>
-                </div>
-              </div>
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
-
-      {/* Delete Dialog */}
-      <AlertDialog open={deleteDialog} onOpenChange={setDeleteDialog}>
-        <AlertDialogContent className="bg-gradient-to-br from-zinc-900 to-zinc-800 border border-zinc-700/60 text-white">
-          <AlertDialogHeader>
-            <AlertDialogTitle className="text-white flex items-center gap-2">
-              <Trash2 className="h-5 w-5 text-red-400" />
-              Delete Campaign
-            </AlertDialogTitle>
-            <AlertDialogDescription className="text-zinc-300">
-              Are you sure you want to delete the campaign "{selectedCampaign?.subject}"? This action cannot be undone.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel className="bg-zinc-700 text-white border-zinc-600 hover:bg-zinc-600">
-              Cancel
-            </AlertDialogCancel>
-            <AlertDialogAction 
-              onClick={handleDeleteCampaign}
-              className="bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white"
-            >
-              <Trash2 className="h-4 w-4 mr-2" />
-              Delete Campaign
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </GradientBackground>
   );
 };

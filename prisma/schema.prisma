@@ -32,6 +32,8 @@ model User {
   subscriptions       Subscription[]
   referrer            User?          @relation("UserReferrals", fields: [referredBy], references: [id])
   referrals           User[]         @relation("UserReferrals")
+  emailTemplates     EmailTemplate[]
+  emailCampaigns     EmailCampaign[]
 }
 
 model Account {
@@ -226,6 +228,53 @@ enum EmailStatus {
   FAILED
   CANCELLED
 }
+enum EmailTemplateType {
+MARKETING
+TRANSACTIONAL
+ANNOUNCEMENT
+}
+
+model EmailTemplate {
+  id String @id @default(cuid())
+  name String
+  subject String
+  content String // HTML content
+  type EmailTemplateType @default(MARKETING)
+  metadata Json?
+  createdBy User? @relation(fields: [createdById], references: [id])
+  createdById String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+enum EmailCampaignStatus {
+DRAFT
+SENDING
+SENT
+FAILED
+}
+
+model EmailCampaign {
+  id String @id @default(cuid())
+  subject String
+  content String // HTML content
+  recipients Json // array of recipients (emails / objects)
+  recipientCount Int @default(0)
+  sentCount Int @default(0)
+  deliveredCount Int @default(0)
+  openedCount Int @default(0)
+  clickedCount Int @default(0)
+  bouncedCount Int @default(0)
+  status EmailCampaignStatus @default(DRAFT)
+  scheduledAt DateTime?
+  sentAt DateTime?
+  metadata Json?
+  user User? @relation(fields: [userId], references: [id])
+  userId String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
 
 enum Role {
   USER

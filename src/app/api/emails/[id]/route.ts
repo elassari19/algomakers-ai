@@ -15,7 +15,26 @@ const emailUpdateSchema = z.object({
   metadata: z.any().optional(),
 });
 
-// GET /api/emails/[id] - Fetch a specific email
+// Validation schema for template update
+const templateUpdateSchema = z.object({
+  name: z.string().min(1, 'Name is required').optional(),
+  subject: z.string().min(1, 'Subject is required').optional(),
+  content: z.string().min(1, 'Content is required').optional(),
+  type: z.enum(['MARKETING', 'TRANSACTIONAL', 'ANNOUNCEMENT']).optional(),
+  metadata: z.any().optional(),
+});
+
+// Validation schema for campaign update
+const campaignUpdateSchema = z.object({
+  subject: z.string().min(1, 'Subject is required').optional(),
+  content: z.string().min(1, 'Content is required').optional(),
+  recipients: z.array(z.string().email()).optional(),
+  status: z.enum(['DRAFT', 'SENDING', 'SENT', 'FAILED']).optional(),
+  scheduledAt: z.string().optional(),
+  metadata: z.any().optional(),
+});
+
+// GET /api/emails/[id] - Fetch a specific email, template, or campaign
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -28,51 +47,114 @@ export async function GET(
     }
 
     const { id } = await params;
+    const { searchParams } = new URL(request.url);
+    const type = searchParams.get('type'); // 'emails', 'templates', 'campaigns'
 
     if (!id) {
       return NextResponse.json(
         {
           success: false,
-          message: 'Email ID is required',
+          message: 'ID is required',
         },
         { status: 400 }
       );
     }
 
-    const email = await prisma.email.findUnique({
-      where: { id },
-      include: {
-        user: {
-          select: {
-            id: true,
-            email: true,
-            name: true,
+    if (type === 'templates') {
+      const template = await prisma.emailTemplate.findUnique({
+        where: { id },
+        include: {
+          createdBy: {
+            select: {
+              id: true,
+              email: true,
+              name: true,
+            },
           },
         },
-      },
-    });
+      });
 
-    if (!email) {
-      return NextResponse.json(
-        {
-          success: false,
-          message: 'Email not found',
+      if (!template) {
+        return NextResponse.json(
+          {
+            success: false,
+            message: 'Template not found',
+          },
+          { status: 404 }
+        );
+      }
+
+      return NextResponse.json({
+        success: true,
+        template,
+        message: 'Template fetched successfully',
+      });
+    } else if (type === 'campaigns') {
+      const campaign = await prisma.emailCampaign.findUnique({
+        where: { id },
+        include: {
+          user: {
+            select: {
+              id: true,
+              email: true,
+              name: true,
+            },
+          },
         },
-        { status: 404 }
-      );
-    }
+      });
 
-    return NextResponse.json({
-      success: true,
-      email,
-      message: 'Email fetched successfully',
-    });
+      if (!campaign) {
+        return NextResponse.json(
+          {
+            success: false,
+            message: 'Campaign not found',
+          },
+          { status: 404 }
+        );
+      }
+
+      return NextResponse.json({
+        success: true,
+        campaign,
+        message: 'Campaign fetched successfully',
+      });
+    } else {
+      // Default: fetch email
+      const email = await prisma.email.findUnique({
+        where: { id },
+        include: {
+          user: {
+            select: {
+              id: true,
+              email: true,
+              name: true,
+            },
+          },
+        },
+      });
+
+      if (!email) {
+        return NextResponse.json(
+          {
+            success: false,
+            message: 'Email not found',
+          },
+          { status: 404 }
+        );
+      }
+
+      return NextResponse.json({
+        success: true,
+        email,
+        message: 'Email fetched successfully',
+      });
+    }
   } catch (error) {
-    console.error('Error fetching email:', error);
+    console.error('Error fetching item:', error);
     return NextResponse.json(
       {
         success: false,
-        message: 'Failed to fetch email',
+        message: 'Failed to fetch item',
         error: error instanceof Error ? error.message : 'Unknown error',
       },
       { status: 500 }
@@ -80,7 +162,7 @@ export async function GET(
   }
 }
 
-// PUT /api/emails/[id] - Update a specific email
+// PUT /api/emails/[id] - Update a specific email, template, or campaign
 export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -94,69 +176,171 @@ export async function PUT(
 
     const { id } = await params;
     const body = await request.json();
+    const { searchParams } = new URL(request.url);
+    const type = searchParams.get('type'); // 'emails', 'templates', 'campaigns'
 
     if (!id) {
       return NextResponse.json(
         {
           success: false,
-          message: 'Email ID is required',
+          message: 'ID is required',
         },
         { status: 400 }
       );
     }
 
-    // Check if email exists
-    const existingEmail = await prisma.email.findUnique({
-      where: { id },
-    });
+    if (type === 'templates') {
+      const existingTemplate = await prisma.emailTemplate.findUnique({
+        where: { id },
+      });
 
-    if (!existingEmail) {
-      return NextResponse.json(
-        {
-          success: false,
-          message: 'Email not found',
-        },
-        { status: 404 }
-      );
-    }
+      if (!existingTemplate) {
+        return NextResponse.json(
+          {
+            success: false,
+            message: 'Template not found',
+          },
+          { status: 404 }
+        );
+      }
 
-    // Validate input data
-    const validatedData = emailUpdateSchema.parse(body);
+      const validatedData = templateUpdateSchema.parse(body);
 
-    // Update email
-    const updatedEmail = await prisma.email.update({
-      where: { id },
-      data: validatedData as any,
-      include: {
-        user: {
-          select: {
-            id: true,
-            email: true,
-            name: true,
+      const updatedTemplate = await prisma.emailTemplate.update({
+        where: { id },
+        data: validatedData as any,
+        include: {
+          createdBy: {
+            select: {
+              id: true,
+              email: true,
+              name: true,
+            },
           },
         },
-      },
-    });
+      });
 
-    // Create audit log
-    await createAuditLog({
-      actorId: session.user.id,
-      actorRole: session.user.role as any,
-      action: AuditAction.EMAIL_UPDATED,
-      targetId: id,
-      targetType: AuditTargetType.EMAIL,
-      details: {
-        changes: validatedData,
-      },
-    });
+      await createAuditLog({
+        actorId: session.user.id,
+        actorRole: session.user.role as any,
+        action: AuditAction.EMAIL_UPDATED,
+        targetId: updatedTemplate.id,
+        targetType: AuditTargetType.EMAIL,
+        details: {
+          name: updatedTemplate.name,
+          type: updatedTemplate.type,
+        },
+      });
 
-    return NextResponse.json({
-      success: true,
-      email: updatedEmail,
-      message: 'Email updated successfully',
-    });
+      return NextResponse.json({
+        success: true,
+        template: updatedTemplate,
+        message: 'Template updated successfully',
+      });
+    } else if (type === 'campaigns') {
+      const existingCampaign = await prisma.emailCampaign.findUnique({
+        where: { id },
+      });
+
+      if (!existingCampaign) {
+        return NextResponse.json(
+          {
+            success: false,
+            message: 'Campaign not found',
+          },
+          { status: 404 }
+        );
+      }
+
+      const validatedData = campaignUpdateSchema.parse(body);
+
+      const updatedCampaign = await prisma.emailCampaign.update({
+        where: { id },
+        data: {
+          ...validatedData,
+          recipientCount: validatedData.recipients ? validatedData.recipients.length : existingCampaign.recipientCount,
+          scheduledAt: validatedData.scheduledAt ? new Date(validatedData.scheduledAt) : existingCampaign.scheduledAt,
+        } as any,
+        include: {
+          user: {
+            select: {
+              id: true,
+              email: true,
+              name: true,
+            },
+          },
+        },
+      });
+
+      await createAuditLog({
+        actorId: session.user.id,
+        actorRole: session.user.role as any,
+        action: AuditAction.EMAIL_UPDATED,
+        targetId: updatedCampaign.id,
+        targetType: AuditTargetType.EMAIL,
+        details: {
+          subject: updatedCampaign.subject,
+          status: updatedCampaign.status,
+        },
+      });
+
+      return NextResponse.json({
+        success: true,
+        campaign: updatedCampaign,
+        message: 'Campaign updated successfully',
+      });
+    } else {
+      // Default: update email
+      const existingEmail = await prisma.email.findUnique({
+        where: { id },
+      });
+
+      if (!existingEmail) {
+        return NextResponse.json(
+          {
+            success: false,
+            message: 'Email not found',
+          },
+          { status: 404 }
+        );
+      }
+
+      const validatedData = emailUpdateSchema.parse(body);
+
+      const updatedEmail = await prisma.email.update({
+        where: { id },
+        data: validatedData as any,
+        include: {
+          user: {
+            select: {
+              id: true,
+              email: true,
+              name: true,
+            },
+          },
+        },
+      });
+
+      await createAuditLog({
+        actorId: session.user.id,
+        actorRole: session.user.role as any,
+        action: AuditAction.EMAIL_UPDATED,
+        targetId: updatedEmail.id,
+        targetType: AuditTargetType.EMAIL,
+        details: {
+          to: updatedEmail.to,
+          subject: updatedEmail.subject,
+        },
+      });
+
+      return NextResponse.json({
+        success: true,
+        email: updatedEmail,
+        message: 'Email updated successfully',
+      });
+    }
   } catch (error) {
-    console.error('Error updating email:', error);
+    console.error('Error updating item:', error);
 
     if (error instanceof z.ZodError) {
       return NextResponse.json(
@@ -172,7 +356,7 @@ export async function PUT(
     return NextResponse.json(
       {
         success: false,
-        message: 'Failed to update email',
+        message: 'Failed to update item',
         error: error instanceof Error ? error.message : 'Unknown error',
       },
       { status: 500 }

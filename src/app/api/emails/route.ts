@@ -25,6 +25,43 @@ const emailUpdateSchema = z.object({
   metadata: z.any().optional(),
 });
 
+// Validation schema for template creation
+const templateCreateSchema = z.object({
+  name: z.string().min(1, 'Name is required'),
+  subject: z.string().min(1, 'Subject is required'),
+  content: z.string().min(1, 'Content is required'),
+  type: z.enum(['MARKETING', 'TRANSACTIONAL', 'ANNOUNCEMENT']).default('MARKETING'),
+  metadata: z.any().optional(),
+});
+
+// Validation schema for template update
+const templateUpdateSchema = z.object({
+  name: z.string().min(1, 'Name is required').optional(),
+  subject: z.string().min(1, 'Subject is required').optional(),
+  content: z.string().min(1, 'Content is required').optional(),
+  type: z.enum(['MARKETING', 'TRANSACTIONAL', 'ANNOUNCEMENT']).optional(),
+  metadata: z.any().optional(),
+});
+
+// Validation schema for campaign creation
+const campaignCreateSchema = z.object({
+  subject: z.string().min(1, 'Subject is required'),
+  content: z.string().min(1, 'Content is required'),
+  recipients: z.array(z.string().email()).min(1, 'At least one recipient is required'),
+  scheduledAt: z.string().optional(),
+  metadata: z.any().optional(),
+});
+
+// Validation schema for campaign update
+const campaignUpdateSchema = z.object({
+  subject: z.string().min(1, 'Subject is required').optional(),
+  content: z.string().min(1, 'Content is required').optional(),
+  recipients: z.array(z.string().email()).optional(),
+  status: z.enum(['DRAFT', 'SENDING', 'SENT', 'FAILED']).optional(),
+  scheduledAt: z.string().optional(),
+  metadata: z.any().optional(),
+});
+
 // GET /api/emails - Fetch emails with filtering and pagination
 export async function GET(request: NextRequest) {
   try {
@@ -44,8 +81,75 @@ export async function GET(request: NextRequest) {
     const sentAtPeriod = searchParams.get('sentAt'); // 'last_day', 'last_7_days', 'last_30_days', 'last_90_days'
     const sortBy = searchParams.get('sortBy') || 'createdAt';
     const sortOrder = searchParams.get('sortOrder') || 'desc';
+    const type = searchParams.get('type'); // 'emails', 'templates', 'campaigns'
 
     const skip = (page - 1) * limit;
+
+    // Handle different types
+    if (type === 'templates') {
+      // Fetch templates
+      const templates = await prisma.emailTemplate.findMany({
+        where: userId ? { createdById: userId } : {},
+        orderBy: { [sortBy]: sortOrder },
+        take: limit,
+        skip,
+        include: {
+          createdBy: {
+            select: {
+              id: true,
+              email: true,
+              name: true,
+            },
+          },
+        },
+      });
+
+      const totalCount = await prisma.emailTemplate.count({
+        where: userId ? { createdById: userId } : {},
+      });
+
+      return NextResponse.json({
+        success: true,
+        templates,
+        totalCount,
+        hasMore: skip + limit < totalCount,
+        currentPage: page,
+        totalPages: Math.ceil(totalCount / limit),
+        message: 'Templates fetched successfully',
+      });
+    } else if (type === 'campaigns') {
+      // Fetch campaigns
+      const campaigns = await prisma.emailCampaign.findMany({
+        where: userId ? { userId } : {},
+        orderBy: { [sortBy]: sortOrder },
+        take: limit,
+        skip,
+        include: {
+          user: {
+            select: {
+              id: true,
+              email: true,
+              name: true,
+            },
+          },
+        },
+      });
+
+      const totalCount = await prisma.emailCampaign.count({
+        where: userId ? { userId } : {},
+      });
+
+      return NextResponse.json({
+        success: true,
+        campaigns,
+        totalCount,
+        hasMore: skip + limit < totalCount,
+        currentPage: page,
+        totalPages: Math.ceil(totalCount / limit),
+        message: 'Campaigns fetched successfully',
+      });
+    } else {
+      // Default: fetch emails
 
     // Build where clause for filtering
     const where: any = {};
@@ -138,6 +242,7 @@ export async function GET(request: NextRequest) {
       totalPages: Math.ceil(totalCount / limit),
       message: 'Emails fetched successfully',
     });
+    }
   } catch (error) {
     console.error('Error fetching emails:', error);
     return NextResponse.json(
@@ -151,7 +256,7 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// POST /api/emails - Create a new email record
+// POST /api/emails - Create a new email record, template, or campaign
 export async function POST(request: NextRequest) {
   const session = await getServerSession(authOptions);
 
@@ -162,7 +267,94 @@ export async function POST(request: NextRequest) {
 
     const body = await request.json();
 
-    // Validate input data
+    // Check if it's a template creation
+    if (body.name && body.subject && body.content && body.type) {
+      const validatedData = templateCreateSchema.parse(body);
+
+      const template = await prisma.emailTemplate.create({
+        data: {
+          name: validatedData.name,
+          subject: validatedData.subject,
+          content: validatedData.content,
+          type: validatedData.type,
+          metadata: validatedData.metadata as any,
+          createdById: session.user.id,
+        },
+        include: {
+          createdBy: {
+            select: {
+              id: true,
+              email: true,
+              name: true,
+            },
+          },
+        },
+      });
+
+      await createAuditLog({
+        actorId: session.user.id,
+        actorRole: session.user.role as any,
+        action: AuditAction.EMAIL_CREATED,
+        targetId: template.id,
+        targetType: AuditTargetType.EMAIL,
+        details: {
+          name: template.name,
+          type: template.type,
+        },
+      });
+
+      return NextResponse.json({
+        success: true,
+        template,
+        message: 'Template created successfully',
+      }, { status: 201 });
+    }
+
+    // Check if it's a campaign creation
+    if (body.subject && body.content && body.recipients) {
+      const validatedData = campaignCreateSchema.parse(body);
+
+      const campaign = await prisma.emailCampaign.create({
+        data: {
+          subject: validatedData.subject,
+          content: validatedData.content,
+          recipients: validatedData.recipients as any,
+          recipientCount: validatedData.recipients.length,
+          metadata: validatedData.metadata as any,
+          userId: session.user.id,
+          scheduledAt: validatedData.scheduledAt ? new Date(validatedData.scheduledAt) : null,
+        },
+        include: {
+          user: {
+            select: {
+              id: true,
+              email: true,
+              name: true,
+            },
+          },
+        },
+      });
+
+      await createAuditLog({
+        actorId: session.user.id,
+        actorRole: session.user.role as any,
+        action: AuditAction.EMAIL_CREATED,
+        targetId: campaign.id,
+        targetType: AuditTargetType.EMAIL,
+        details: {
+          subject: campaign.subject,
+          recipientCount: campaign.recipientCount,
+        },
+      });
+
+      return NextResponse.json({
+        success: true,
+        campaign,
+        message: 'Campaign created successfully',
+      }, { status: 201 });
+    }
+
+    // Default: create email record
     const validatedData = emailCreateSchema.parse(body);
 
     // Create email record
