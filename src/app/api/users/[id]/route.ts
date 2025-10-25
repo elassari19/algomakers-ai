@@ -89,13 +89,13 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const session = await getServerSession(authOptions);
+  if (!session?.user?.id) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
   try {
     const { id } = await params;
     const body = await request.json();
-
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
 
     if (!id) {
       return NextResponse.json(
@@ -229,22 +229,21 @@ export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const { id } = await params;
   const session = await getServerSession(authOptions);
-  
-      if (!session?.user?.id) {
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-      }
-  
-      if (!id) {
-        return NextResponse.json(
-          {
-            success: false,
-            message: 'User ID is required',
-          },
-          { status: 400 }
-        );
-      }
+  if (!session?.user?.id) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  const { id } = await params;
+  if (!id) {
+    return NextResponse.json(
+      {
+        success: false,
+        message: 'User ID is required',
+      },
+      { status: 400 }
+    );
+  }
 
   try {  
     // Check if user exists

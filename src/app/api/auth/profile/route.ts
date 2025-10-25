@@ -58,11 +58,11 @@ const profileActionSchema = z.discriminatedUnion('action', [
 
 export async function GET(request: NextRequest) {
   const session = await getServerSession(authOptions);
-  try {
 
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+  if (!session?.user?.id) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+  try {
 
     // Get user profile data
     const user = await prisma.user.findUnique({
@@ -116,13 +116,13 @@ export async function GET(request: NextRequest) {
 
 export async function PUT(request: NextRequest) {
   const session = await getServerSession(authOptions);
-  const body = await request.json();
+  
+  if (!session?.user?.id) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
   try {
-
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
+        
+    const body = await request.json();
     const validationResult = profileActionSchema.safeParse(body);
 
     if (!validationResult.success) {

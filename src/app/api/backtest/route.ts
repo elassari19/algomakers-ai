@@ -167,14 +167,6 @@ export async function POST(request: NextRequest) {
   const session = await getServerSession(authOptions);
 
   if (session?.user?.id && session?.user?.role === 'USER') {
-    await createAuditLog({
-      actorId: session.user.id,
-      actorRole: session.user.role || 'USER',
-      action: AuditAction.CREATE_BACKTEST,
-      targetType: AuditTargetType.BACKTEST,
-      responseStatus: 'FAILURE',
-      details: { reason: 'unauthorized_role' },
-    });
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
@@ -316,14 +308,6 @@ export async function PATCH(request: NextRequest) {
   const session = await getServerSession(authOptions);
 
   if (session?.user?.role === 'USER') {
-    await createAuditLog({
-      actorId: session.user.id,
-      actorRole: session.user.role || 'USER',
-      action: AuditAction.UPDATE_BACKTEST,
-      targetType: AuditTargetType.BACKTEST,
-      responseStatus: 'FAILURE',
-      details: { reason: 'unauthorized_role' },
-    });
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
   try {
@@ -452,14 +436,6 @@ export async function DELETE(request: NextRequest) {
   const session = await getServerSession(authOptions);
 
   if (session?.user?.role === 'USER') {
-    await createAuditLog({
-      actorId: session.user.id,
-      actorRole: session.user.role || 'USER',
-      action: AuditAction.DELETE_BACKTEST,
-      targetType: AuditTargetType.BACKTEST,
-      responseStatus: 'FAILURE',
-      details: { reason: 'unauthorized_role' },
-    });
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 

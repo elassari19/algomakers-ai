@@ -7,22 +7,11 @@ import { Role } from '@/generated/prisma';
 
 export async function POST(request: NextRequest) {
   const session = await getServerSession(authOptions);
-  try {
+  if (!session?.user?.email) {
+    return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
+  }
 
-    if (!session?.user?.email) {
-      await createAuditLog({
-        actorId: 'unknown',
-        actorRole: Role.USER,
-        action: AuditAction.INITIATE_PAYOUT,
-        targetType: AuditTargetType.PAYOUT,
-        responseStatus: 'FAILURE',
-        details: {
-          email: session?.user.email || 'unknown',
-          reason: 'user_not_found',
-        },
-      });
-      return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
-    }
+  try {
 
     // Check if user is admin
     const user = await prisma.user.findUnique({

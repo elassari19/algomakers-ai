@@ -63,18 +63,6 @@ export async function PATCH(
 ) {
   const session = await getServerSession(authOptions);
   if (session?.user?.role === Role.USER) {
-    await createAuditLog({
-      actorId: session.user.id,
-      actorRole: session.user.role as Role || 'USER',
-      action: AuditAction.UPDATE_NOTIFICATION,
-      targetType: AuditTargetType.NOTIFICATION,
-      responseStatus: 'FAILURE',
-      details: {
-        reason: 'Regular users cannot update notifications except marking as read',
-        action: 'updateAttempt',
-        timestamp: new Date().toISOString(),
-      }
-    });
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -172,18 +160,6 @@ export async function DELETE(
 ) {
   const session = await getServerSession(authOptions);
   if (session?.user?.role === Role.USER) {
-    await createAuditLog({
-      actorId: session.user.id,
-      actorRole: session.user.role as Role || 'USER',
-      action: AuditAction.DELETE_NOTIFICATION,
-      targetType: AuditTargetType.NOTIFICATION,
-      responseStatus: 'FAILURE',
-      details: {
-        reason: 'Regular users cannot delete notifications',
-        action: 'deleteAttempt',
-        timestamp: new Date().toISOString(),
-      }
-    });
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 

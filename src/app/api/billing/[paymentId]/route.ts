@@ -9,12 +9,12 @@ export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ paymentId: string }> }
 ) {
-  try {
-    const session = await getServerSession(authOptions);
+  const session = await getServerSession(authOptions);
 
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+  if (!session?.user?.id) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+  try {
 
     const { paymentId } = await params;
 

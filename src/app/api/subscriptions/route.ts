@@ -532,19 +532,11 @@ export async function POST(request: NextRequest) {
 
 export async function PATCH(request: NextRequest) {
   const session = await getServerSession(authOptions);
-  try {
 
-    if (!session?.user?.id) {
-      await createAuditLog({
-        actorId: 'unknown',
-        actorRole: 'USER',
-        action: AuditAction.UPDATE_SUBSCRIPTION,
-        targetType: AuditTargetType.SUBSCRIPTION,
-        responseStatus: 'FAILURE',
-        details: { reason: 'unauthorized' },
-      });
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+  if (!session?.user?.id) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+  try {
 
     const body = await request.json();
     const { id, ...updateData } = body;

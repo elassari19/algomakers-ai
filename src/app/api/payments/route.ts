@@ -23,15 +23,15 @@ const paymentSchema = z.object({
 
 // GET /api/payments - Fetch all payments with optional filtering and search
 export async function GET(request: NextRequest) {
-  try {
-    const session = await getServerSession(authOptions);
+  const session = await getServerSession(authOptions);
 
-    if (!session?.user?.id) {
-      return NextResponse.json({ 
-        success: false,
-        error: 'Unauthorized - Please log in to access this resource' 
-      }, { status: 401 });
-    }
+  if (!session?.user?.id) {
+    return NextResponse.json({ 
+      success: false,
+      error: 'Unauthorized - Please log in to access this resource' 
+    }, { status: 401 });
+  }
+  try {
 
     if (session.user.role === 'USER') {
       return NextResponse.json({
@@ -181,18 +181,10 @@ export async function GET(request: NextRequest) {
 // POST /api/payments - Create a new payment
 export async function POST(request: NextRequest) {
   const session = await getServerSession(authOptions);
-  
-      if (!session?.user?.id) {
-        await createAuditLog({
-          actorId: 'unknown',
-          actorRole: 'USER',
-          action: AuditAction.CREATE_PAYMENT,
-          targetType: AuditTargetType.PAYMENT,
-          responseStatus: 'FAILURE',
-          details: { reason: 'unauthorized' },
-        });
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-      }
+
+  if (!session?.user?.id) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
 
   try {  
 
@@ -320,18 +312,9 @@ export async function POST(request: NextRequest) {
 // PUT /api/payments - Update an existing payment
 export async function PUT(request: NextRequest) {
   const session = await getServerSession(authOptions);
-  
-      if (!session?.user?.id) {
-        await createAuditLog({
-          actorId: 'unknown',
-          actorRole: 'USER',
-          action: AuditAction.CREATE_PAYMENT,
-          targetType: AuditTargetType.PAYMENT,
-          responseStatus: 'FAILURE',
-          details: { reason: 'unauthorized' },
-        });
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-      }
+  if (!session?.user?.id) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
   try {
 
     // Only allow admin roles to update payments

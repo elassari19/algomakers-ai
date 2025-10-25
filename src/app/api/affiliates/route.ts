@@ -78,11 +78,11 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   const session = await getServerSession(authOptions);
-  try {
+  if (!session?.user?.email) {
+    return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
+  }
 
-    if (!session?.user?.email) {
-      return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
-    }
+  try {
 
     // Check if user is admin
     const user = await prisma.user.findUnique({
@@ -214,11 +214,10 @@ export async function POST(request: NextRequest) {
 
 export async function PATCH(request: NextRequest) {
   const session = await getServerSession(authOptions);
+  if (!session?.user?.email) {
+    return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
+  }
   try {
-
-    if (!session?.user?.email) {
-      return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
-    }
 
     // Check if user is admin
     const user = await prisma.user.findUnique({
@@ -349,22 +348,10 @@ export async function PATCH(request: NextRequest) {
 
 export async function DELETE(request: NextRequest) {
   const session = await getServerSession(authOptions);
+  if (!session?.user?.email) {
+    return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
+  }
   try {
-
-    if (!session?.user?.email) {
-      await createAuditLog({
-        actorId: session?.user?.id || 'unknown',
-        actorRole: (session?.user?.role as Role) || Role.USER,
-        action: AuditAction.DELETE_AFFILIATE,
-        targetType: AuditTargetType.AFFILIATE,
-        responseStatus: 'FAILURE',
-        details: {
-          email: session?.user?.email,
-          reason: 'unauthorized',
-        },
-      });
-      return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
-    }
 
     // Check if user is admin
     const user = await prisma.user.findUnique({

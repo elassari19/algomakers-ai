@@ -16,6 +16,9 @@ const verifySchema = z.object({
 
 export async function POST(request: NextRequest) {
   const session = await getServerSession(authOptions);
+  if(!session?.user) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
   try {
     const body = await request.json();
     const { email } = verifySchema.parse(body);

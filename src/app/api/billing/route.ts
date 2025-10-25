@@ -147,18 +147,6 @@ export async function POST(request: NextRequest) {
   const session = await getServerSession(authOptions);
 
   if (!session?.user?.id) {
-    await createAuditLog({
-      actorId: session?.user.id!,
-      actorRole: session?.user.role as Role || 'USER',
-      action: AuditAction.GET_PAYMENT,
-      targetType: AuditTargetType.PAYMENT,
-      responseStatus: 'FAILURE',
-      details: {
-        userEmail: session?.user.email,
-        user: session?.user.name,
-        timestamp: new Date().toISOString(),
-      },
-    });
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
   try {
@@ -218,18 +206,6 @@ export async function PATCH(request: NextRequest) {
   const session = await getServerSession(authOptions);
 
   if (!session?.user?.id) {
-    await createAuditLog({
-      actorId: session?.user.id!,
-      actorRole: session?.user.role as Role || 'USER',
-      action: AuditAction.GET_PAYMENT,
-      targetType: AuditTargetType.PAYMENT,
-      responseStatus: 'FAILURE',
-      details: {
-        userEmail: session?.user.email,
-        user: session?.user.name,
-        timestamp: new Date().toISOString(),
-      },
-    });
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 

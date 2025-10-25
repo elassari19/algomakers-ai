@@ -101,11 +101,10 @@ export async function GET(request: NextRequest) {
 // POST /api/users - Create a new user
 export async function POST(request: NextRequest) {
   const session = await getServerSession(authOptions);
+  if (!session?.user?.id) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
   try {
-
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
 
     const body = await request.json();
     
@@ -232,11 +231,10 @@ export async function POST(request: NextRequest) {
 // PUT /api/users - Update an existing user
 export async function PUT(request: NextRequest) {
   const session = await getServerSession(authOptions);
-  try {
-
     if (!session?.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
+  try {
 
     const body = await request.json();
     const { id, ...rawUpdateData } = body;
@@ -382,11 +380,10 @@ export async function PUT(request: NextRequest) {
 // DELETE /api/users - Delete a user
 export async function DELETE(request: NextRequest) {
   const session = await getServerSession(authOptions);
+  if (!session?.user?.id) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
   try {
-
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
 
     const { searchParams } = new URL(request.url);
     const id = searchParams.get('id');

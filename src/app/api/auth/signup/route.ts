@@ -24,7 +24,7 @@ export async function POST(request: NextRequest) {
   const { name, email, password, tradingViewUsername } =
     signupSchema.parse(body);
 
-    try {
+  try {
     // Check if user already exists
     const existingUser = await prisma.user.findUnique({
       where: { email },

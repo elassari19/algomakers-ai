@@ -8,11 +8,11 @@ import { createAuditLog, AuditAction, AuditTargetType } from "@/lib/audit";
 
 // GET /api/notifications - Fetch notifications for user or admin
 export async function GET(request: NextRequest) {
+  const session = await getServerSession(authOptions);
+  if (!session?.user?.id) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
 
     const { searchParams } = new URL(request.url);
     const page = parseInt(searchParams.get("page") || "1");
@@ -98,11 +98,11 @@ export async function GET(request: NextRequest) {
 
 // POST /api/notifications - Create a new notification
 export async function POST(request: NextRequest) {
+  const session = await getServerSession(authOptions);
+  if (!session?.user?.id) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
 
     const user = session.user;
 
@@ -194,17 +194,6 @@ export async function POST(request: NextRequest) {
 export async function PATCH(request: NextRequest) {
   const session = await getServerSession(authOptions);
   if (!session?.user?.role || (session.user.role !== Role.ADMIN && session.user.role !== Role.MANAGER)) {
-    await createAuditLog({
-      actorId: session?.user.id || 'unknown',
-      actorRole: session?.user.role as Role || 'USER',
-      action: AuditAction.UPDATE_NOTIFICATION,
-      targetType: AuditTargetType.NOTIFICATION,
-      responseStatus: 'FAILURE',
-      details: {
-        reason: 'unauthorized_access_attempt',
-        timestamp: new Date().toISOString(),
-      },
-    });
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
   try {
