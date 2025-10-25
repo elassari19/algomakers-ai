@@ -1,8 +1,9 @@
 'use client';
 
-import { useState, useMemo, Suspense } from 'react';
+import { useState, useMemo, Suspense, lazy } from 'react';
 import Link from 'next/link';
 import Head from 'next/head';
+import dynamic from 'next/dynamic';
 import {
   TrendingUp,
   BarChart3,
@@ -27,10 +28,29 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { GradientBackground } from '@/components/ui/gradient-background';
-import {OverviewSection} from '@/components/dashboard/DashboardStats';
-import { ReusableTable, Column } from '@/components/ui/reusable-table';
-import {SubscribeButton} from '@/components/subscription/SubscribeButton';
-import {ClientSortFilterBar} from '@/components/subscription/ClientSortFilterBar';
+
+// Dynamically import heavy components
+const OverviewSection = dynamic(() => import('@/components/dashboard/DashboardStats').then(mod => ({ default: mod.OverviewSection })), {
+  loading: () => <div className="animate-pulse h-32 bg-slate-800 rounded-lg"></div>
+});
+
+const ReusableTable = dynamic(() => import('@/components/ui/reusable-table').then(mod => ({ default: mod.ReusableTable })), {
+  loading: () => <div className="animate-pulse h-96 bg-slate-800 rounded-lg"></div>
+});
+
+const SubscribeButton = dynamic(() => import('@/components/subscription/SubscribeButton').then(mod => ({ default: mod.SubscribeButton })), {
+  loading: () => <div className="animate-pulse h-10 bg-slate-700 rounded"></div>
+});
+
+const ClientSortFilterBar = dynamic(() => import('@/components/subscription/ClientSortFilterBar').then(mod => ({ default: mod.ClientSortFilterBar })), {
+  loading: () => <div className="animate-pulse h-12 bg-slate-800 rounded-lg"></div>
+});
+
+import type { Column } from '@/components/ui/reusable-table';
+
+// Lazy load heavy content components
+const AccordionContent = lazy(() => import('./AccordionContent'));
+const RowDetailContent = lazy(() => import('./RowDetailContent'));
 import { Subscription, SubscriptionStatus } from '@/generated/prisma';
 
 interface PairData {
@@ -407,9 +427,9 @@ export default function DashboardContent({
                     totalResults={totalFilteredPairs}
                     className="w-[200%] md:w-full flex-row!"
                   />
-                  <ReusableTable<PairData>
+                  <ReusableTable
                     data={pairs}
-                    columns={columns}
+                    columns={columns as Column<any>[]}
                     title="Trading Pairs"
                     icon={TrendingUp}
                     isLoading={loading}
@@ -418,7 +438,7 @@ export default function DashboardContent({
                     emptyStateTitle="No trading pairs found"
                     emptyStateDescription="We couldn't find any trading pairs matching your criteria"
                     enableRowDetails={true}
-                    rowDetailTitle={(pair) => `${pair.symbol} - ${pair.name}`}
+                    rowDetailTitle={(pair: any) => `${pair.symbol} - ${pair.name}`}
                     excludeFromDetails={['id']}
                     enableColumnSelector={true}
                     defaultVisibleColumns={[
@@ -436,265 +456,14 @@ export default function DashboardContent({
                     enableAccordion={true}
                     // accordionTitle={(pair) => `Subscriptions for ${pair.symbol}`}
                     accordionContent={(pair) => (
-                      <div className="space-y-0">
-                        {pair.subscriptions && pair.subscriptions.length > 0 ? (
-                          <div className="space-y-2 divide-white/10">
-                            {pair.subscriptions.map((subscription, index) => (
-                              <div
-                                key={subscription.id || index}
-                                className="bg-black/50 rounded-xl grid gap-2 pl-4 items-center justify-between py-4 px-2"
-                              >
-                                <div className="flex items-center gap-4">
-                                  <div className="text-white font-medium min-w-[120px]">
-                                    <span className="text-white/70">Subscription ID:</span>
-                                    <Link href={`/subscriptions/${subscription.id}`} className='cursor-pointer hover:text-green-300'>
-                                      {subscription.id} <Link2 className="inline-block h-4 w-4 ml-1 text-slate-400" />
-                                    </Link>
-                                  </div>
-                                  |
-                                  <div className="flex items-center gap-2">
-                                    <span className="text-white/70">Payment ID:</span>
-                                    <Link href={`/payments/${subscription.paymentId}`} className='cursor-pointer hover:text-green-300'>
-                                        {subscription.paymentId || 'N/A'} <Link2 className="inline-block h-4 w-4 ml-1 text-slate-400" />
-                                    </Link>
-                                  </div>
-                                  <Badge
-                                    className={`${
-                                      subscription.status === 'PAID'
-                                        ? 'bg-green-500/20 text-green-400'
-                                        : subscription.status === 'PENDING'
-                                        ? 'bg-yellow-500/20 text-yellow-400'
-                                        : subscription.status === 'EXPIRED'
-                                        ? 'bg-red-500/20 text-red-400'
-                                        : subscription.status === 'CANCELLED'
-                                        ? 'bg-gray-500/20 text-gray-400'
-                                        : subscription.status === 'RENEWING'
-                                        ? 'bg-blue-500/20 text-blue-400'
-                                        : 'bg-red-500/20 text-red-400'
-                                    }`}
-                                  >
-                                    {subscription.status}
-                                  </Badge>
-                                </div>
-                                <div className="grid grid-cols-9 [&>div]:col-span-1 items-center gap-4 text-sm pl-2">
-                                  <div className="grid items-center gap-1">
-                                    <span className="text-white/70">Created At:</span>
-                                    <span className="text-white">
-                                      {new Date(subscription.createdAt).toLocaleDateString()}
-                                    </span>
-                                  </div>
-                                  <div className="grid items-center gap-1">
-                                    <span className="text-white/70">Updated At:</span>
-                                    <span className="text-white">
-                                      {new Date(subscription.updatedAt).toLocaleDateString()}
-                                    </span>
-                                  </div>
-                                  <div className="grid items-center gap-1">
-                                    <span className="text-white/70">Period:</span>
-                                    <span className="text-white">
-                                      {subscription.period.replace('_', ' ')}
-                                    </span>
-                                  </div>
-                                  <div className="grid items-center gap-1">
-                                    <span className="text-white/70">Start:</span>
-                                    <span className="text-white">
-                                      {new Date(subscription.startDate).toLocaleDateString()}
-                                    </span>
-                                  </div>
-                                  <div className="grid items-center gap-1">
-                                    <span className="text-white/70">Expiry:</span>
-                                    <span className="text-white">
-                                      {new Date(subscription.expiryDate).toLocaleDateString()}
-                                    </span>
-                                  </div>
-                                  <div className="grid items-center gap-1">
-                                    <span className="text-white/70">Invite:</span>
-                                    <span className="text-white">
-                                      {subscription.inviteStatus}
-                                    </span>
-                                  </div>
-                                  <div className="grid items-center gap-1">
-                                    <span className="text-white/70">Base Price:</span>
-                                    <span className="text-green-400 font-medium">
-                                      ${subscription.basePrice ? Number(subscription.basePrice).toFixed(2) : 'N/A'}
-                                    </span>
-                                  </div>
-                                  <div className="grid items-center gap-1">
-                                    <span className="text-white/70">Discount:</span>
-                                    <span className="text-blue-400">
-                                      {subscription.discountRate ? `${(Number(subscription.discountRate)).toFixed(1)}%` : '0%'}
-                                    </span>
-                                  </div>
-                                  <div className="grid items-center gap-1">
-                                    <span className="text-white/70">Final Price:</span>
-                                    <span className="text-green-400 font-medium">
-                                      ${subscription.basePrice && subscription.discountRate
-                                        ? (Number(subscription.basePrice) - (Number(subscription.basePrice) * (Number(subscription.discountRate) / 100))).toFixed(2)
-                                        : subscription.basePrice ? Number(subscription.basePrice).toFixed(2) : 'N/A'}
-                                    </span>
-                                  </div>
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        ) : (
-                          <div className="text-center py-8">
-                            <p className="text-white/70">No subscriptions found for this pair.</p>
-                          </div>
-                        )}
-                      </div>
+                      <Suspense fallback={<div className="animate-pulse h-32 bg-slate-800 rounded-lg"></div>}>
+                        <AccordionContent pair={pair} />
+                      </Suspense>
                     )}
                     rowDetailContent={(pair) => (
-                      <div className="space-y-6">
-                        {/* Trading Performance */}
-                        <div className="bg-white/10 p-4 rounded-lg border border-white/20">
-                          <h3 className="text-white font-semibold mb-3 flex items-center gap-2">
-                            <BarChart3 className="h-5 w-5" />
-                            Trading Performance
-                            {pair.isPopular && (
-                              <Star className="h-4 w-4 text-yellow-400 fill-current" />
-                            )}
-                          </h3>
-                          <div className="grid grid-cols-2 gap-4 text-sm">
-                            <div>
-                              <p className="text-white/70">ROI</p>
-                              <p
-                                className={`font-semibold text-lg ${
-                                  pair.metrics.roi > 0
-                                    ? 'text-green-400'
-                                    : 'text-red-400'
-                                }`}
-                              >
-                                {pair.metrics.roi > 0 ? '+' : ''}
-                                {pair.metrics.roi.toFixed(1)}%
-                              </p>
-                            </div>
-                            <div>
-                              <p className="text-white/70">Win Rate</p>
-                              <p className="text-blue-400 font-semibold text-lg">
-                                {pair.metrics.winRate.toFixed(1)}%
-                              </p>
-                            </div>
-                            <div>
-                              <p className="text-white/70">Risk/Reward</p>
-                              <p className="text-white font-semibold">
-                                {pair.metrics.riskReward.toFixed(1)}
-                              </p>
-                            </div>
-                            <div>
-                              <p className="text-white/70">Max Drawdown</p>
-                              <p className="text-red-400 font-semibold">
-                                {pair.metrics.maxDrawdown.toFixed(1)}%
-                              </p>
-                            </div>
-                          </div>
-                        </div>
-
-                        {/* Trading Stats */}
-                        <div className="bg-white/10 p-4 rounded-lg border border-white/20">
-                          <h3 className="text-white font-semibold mb-3 flex items-center gap-2">
-                            <Activity className="h-5 w-5" />
-                            Trading Statistics
-                          </h3>
-                          <div className="space-y-3">
-                            <div className="flex justify-between items-center">
-                              <span className="text-white/70">
-                                Total Trades:
-                              </span>
-                              <span className="text-white font-semibold">
-                                {pair.metrics.totalTrades}
-                              </span>
-                            </div>
-                            <div className="flex justify-between items-center">
-                              <span className="text-white/70">
-                                Total Profit:
-                              </span>
-                              <span
-                                className={`font-semibold text-lg ${
-                                  pair.metrics.profit > 0
-                                    ? 'text-green-400'
-                                    : 'text-red-400'
-                                }`}
-                              >
-                                ${pair.metrics.profit.toLocaleString()}
-                              </span>
-                            </div>
-                            <div className="flex justify-between items-center">
-                              <span className="text-white/70">Timeframe:</span>
-                              <Badge className="bg-blue-500/20 text-blue-400">
-                                {pair.timeframe}
-                              </Badge>
-                            </div>
-                          </div>
-                        </div>
-
-                        {/* Subscription Details */}
-                        {pair.subscriptions?.some(s => s.status === 'ACTIVE') ? (() => {
-                          const activeSubscription = pair.subscriptions?.find(s => s.status === 'ACTIVE');
-                          return (
-                            <div className="bg-white/10 p-4 rounded-lg border border-white/20">
-                              <h3 className="text-white font-semibold mb-3 flex items-center gap-2">
-                                <Calendar className="h-5 w-5" />
-                                Subscription Details
-                              </h3>
-                              <div className="space-y-2 text-sm">
-                                <div className="flex justify-between">
-                                  <span className="text-white/70">Status:</span>
-                                  <Badge className="bg-green-500/20 text-green-400">
-                                    {activeSubscription?.status.toUpperCase()}
-                                  </Badge>
-                                </div>
-                                <div className="flex justify-between">
-                                  <span className="text-white/70">Expires:</span>
-                                  <span className="text-white">
-                                    {activeSubscription?.expiryDate
-                                      ? new Date(activeSubscription.expiryDate).toLocaleDateString()
-                                      : 'N/A'}
-                                  </span>
-                                </div>
-                              </div>
-                            </div>
-                          );
-                        })() : (
-                          <div className="bg-white/10 p-4 rounded-lg border border-white/20">
-                            <h3 className="text-white font-semibold mb-3 flex items-center gap-2">
-                              <DollarSign className="h-5 w-5" />
-                              Subscription Available
-                            </h3>
-                            <p className="text-white/70 text-sm mb-3">
-                              Subscribe to get access to trading signals for{' '}
-                              {pair.symbol}
-                            </p>
-                          </div>
-                        )}
-
-                        {/* Actions */}
-                        <div className="flex gap-3 pt-4">
-                          {pair.subscriptions?.some(s => s.status === 'ACTIVE') ? (() => {
-                            const activeSubscription = pair.subscriptions?.find(s => s.status === 'ACTIVE');
-                            return (
-                              <>
-                                <Button className="flex-1 bg-gradient-to-r from-purple-500 to-pink-600 text-white">
-                                  <Target className="h-4 w-4 mr-2" />
-                                  View Signals
-                                </Button>
-                                {activeSubscription && new Date(activeSubscription.expiryDate) < new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) && (
-                                  <Button className="flex-1 bg-gradient-to-r from-green-500 to-blue-600 text-white">
-                                    <Clock className="h-4 w-4 mr-2" />
-                                    Renew
-                                  </Button>
-                                )}
-                              </>
-                            );
-                          })() : (
-                            <SubscribeButton
-                              isUserLoggedIn={true}
-                              pair={pair as any}
-                              className="flex-1"
-                            />
-                          )}
-                        </div>
-                      </div>
+                      <Suspense fallback={<div className="animate-pulse h-64 bg-slate-800 rounded-lg"></div>}>
+                        <RowDetailContent pair={pair} />
+                      </Suspense>
                     )}
                     className="w-[200%] md:w-full"
                   />

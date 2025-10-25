@@ -41,7 +41,6 @@ import {
   DropdownMenuLabel,
 } from '@/components/ui/dropdown-menu';
 import { Checkbox } from '@/components/ui/checkbox';
-import * as XLSX from 'xlsx';
 import { useSession } from 'next-auth/react';
 
 export interface Column<T = any> {
@@ -173,8 +172,11 @@ export function ReusableTable<T = any>({
   };
 
   // Export table data to Excel
-  const exportToExcel = () => {
+  const exportToExcel = async () => {
     try {
+      // Dynamically import XLSX only when needed
+      const XLSX = (await import('xlsx')).default;
+
       // Prepare data for export - only include visible columns
       const exportData = data.map((row) => {
         const exportRow: any = {};
