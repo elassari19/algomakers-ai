@@ -42,6 +42,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Checkbox } from '@/components/ui/checkbox';
 import { useSession } from 'next-auth/react';
+import { toast } from 'sonner';
 
 export interface Column<T = any> {
   key: string;
@@ -174,32 +175,83 @@ export function ReusableTable<T = any>({
   // Export table data to Excel
   const exportToExcel = async () => {
     try {
+
+      // Check if there's data to export
+      if (!data || data.length === 0) {
+        toast.warning('No data available to export.');
+        return;
+      }
+
+      // Check if there are visible columns
+      if (!displayColumns || displayColumns.length === 0) {
+        toast.warning('No columns available to export.');
+        return;
+      }
+
       // Dynamically import XLSX only when needed
-      const XLSX = (await import('xlsx')).default;
+      let XLSX: any;
+      try {
+        XLSX = await import('xlsx');
+      } catch (importError) {
+        toast.error('Export library not available. Please refresh the page and try again.');
+        return;
+      }
 
       // Prepare data for export - only include visible columns
-      const exportData = data.map((row) => {
+      const exportData = data.map((row, rowIndex) => {
         const exportRow: any = {};
         displayColumns.forEach((column) => {
-          const value = column.accessor
-            ? column.accessor(row)
-            : getNestedValue(row, column.key);
+          try {
+            const value = column.accessor
+              ? column.accessor(row)
+              : getNestedValue(row, column.key);
 
-          // Format the value for Excel
-          if (value instanceof Date) {
-            exportRow[column.header] = value.toLocaleDateString();
-          } else if (typeof value === 'object' && value !== null) {
-            exportRow[column.header] = JSON.stringify(value);
-          } else {
-            exportRow[column.header] = String(value || '');
+            // Format the value for Excel
+            if (value instanceof Date) {
+              exportRow[column.header] = value.toLocaleDateString();
+            } else if (typeof value === 'object' && value !== null) {
+              exportRow[column.header] = JSON.stringify(value);
+            } else {
+              exportRow[column.header] = String(value || '');
+            }
+          } catch (columnError) {
+            console.warn(`Error processing column ${column.key} for row ${rowIndex}:`, columnError);
+            exportRow[column.header] = 'Error';
           }
         });
         return exportRow;
       });
 
-      // Create workbook and worksheet
-      const wb = XLSX.utils.book_new();
-      const ws = XLSX.utils.json_to_sheet(exportData);
+      let wb, ws;
+      try {
+        // Verify XLSX library is properly loaded
+        if (!XLSX || typeof XLSX !== 'object') {
+          throw new Error('XLSX library not properly loaded');
+        }
+
+        if (!XLSX.utils) {
+          throw new Error('XLSX.utils not available');
+        }
+
+        wb = XLSX.utils.book_new();
+        ws = XLSX.utils.json_to_sheet(exportData);
+      } catch (xlsxError) {
+        console.error('Error creating XLSX workbook/worksheet:', xlsxError);
+        if (xlsxError instanceof Error) {
+          if (xlsxError.message.includes('json_to_sheet')) {
+            toast.error('Unable to convert data to Excel format. The data may contain unsupported types.');
+          } else if (xlsxError.message.includes('book_new')) {
+            toast.error('Unable to create Excel workbook. Please try again.');
+          } else if (xlsxError.message.includes('not properly loaded') || xlsxError.message.includes('not available')) {
+            toast.error('Export library not available. Please refresh the page and try again.');
+          } else {
+            toast.error('Error creating Excel file structure. Please try again.');
+          }
+        } else {
+          toast.error('Unexpected error during Excel file creation.');
+        }
+        return;
+      }
 
       // Auto-size columns
       const colWidths = displayColumns.map((col) => ({
@@ -215,10 +267,56 @@ export function ReusableTable<T = any>({
       const filename = `${title || 'table-data'}_${timestamp}.xlsx`;
 
       // Save file
-      XLSX.writeFile(wb, filename);
+      try {
+        XLSX.writeFile(wb, filename);
+        toast.success(`Successfully exported ${exportData.length} rows to Excel file.`);
+      } catch (saveError) {
+        console.error('Error saving Excel file:', saveError);
+        if (saveError instanceof Error) {
+          if (saveError.message.includes('permission') || saveError.message.includes('denied')) {
+            toast.error('Unable to save file. Please check your browser download permissions.');
+          } else if (saveError.message.includes('storage') || saveError.message.includes('quota')) {
+            toast.error('Unable to save file. Your browser storage may be full.');
+          } else {
+            toast.error('Unable to save Excel file. Please try again.');
+          }
+        } else {
+          toast.error('Unexpected error while saving the file.');
+        }
+      }
+
     } catch (error) {
       console.error('Error exporting to Excel:', error);
-      alert('Failed to export data. Please try again.');
+
+      // Provide more specific error messages based on error type
+      let errorMessage = 'Failed to export data. Please try again.';
+
+      if (error instanceof Error) {
+        const errorMsg = error.message.toLowerCase();
+
+        // Check for specific error patterns
+        if (errorMsg.includes('writefile') || errorMsg.includes('download') || errorMsg.includes('permission')) {
+          errorMessage = 'Unable to save file. Please check your browser permissions and try again.';
+        } else if (errorMsg.includes('book_new') || errorMsg.includes('workbook')) {
+          errorMessage = 'Unable to create Excel file. Please try again.';
+        } else if (errorMsg.includes('json_to_sheet') || errorMsg.includes('sheet')) {
+          errorMessage = 'Unable to process data for Excel. Please check your data and try again.';
+        } else if (errorMsg.includes('cors') || errorMsg.includes('network')) {
+          errorMessage = 'Network error occurred. Please check your connection and try again.';
+        } else if (errorMsg.includes('import') || errorMsg.includes('module')) {
+          errorMessage = 'Export library not available. Please refresh the page and try again.';
+        } else {
+          // Log the actual error for debugging
+          console.error('Unhandled export error:', error);
+          errorMessage = 'An unexpected error occurred during export. Please try again.';
+        }
+      } else {
+        // Non-Error object thrown
+        console.error('Non-standard error thrown:', error);
+        errorMessage = 'An unexpected error occurred during export. Please try again.';
+      }
+
+      toast.error(errorMessage);
     }
   };
 
