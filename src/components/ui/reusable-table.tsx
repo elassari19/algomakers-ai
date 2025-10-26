@@ -57,7 +57,7 @@ export interface Column<T = any> {
 export interface ReusableTableProps<T = any> {
   data: T[];
   columns: Column<T>[];
-  title?: string;
+  title?: React.ReactNode;
   subtitle?: string;
   icon?: React.ComponentType<{ className?: string }>;
   isLoading?: boolean;

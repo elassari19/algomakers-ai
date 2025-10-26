@@ -46,6 +46,7 @@ import {
 import { TemplatesTab } from './TemplatesTab';
 import { EmailsTab } from './EmailsTab';
 import { CampaignsTab } from './CampaignsTab';
+import { FetchInput } from '@/components/ui/fetch-input';
 import { Column } from '@/components/ui/reusable-table';
 
 interface EmailCampaign {
@@ -108,7 +109,6 @@ const EmailMarketingPage = () => {
   const [createTemplateDialog, setCreateTemplateDialog] = useState(false);
   const [previewDialog, setPreviewDialog] = useState(false);
   const [deleteDialog, setDeleteDialog] = useState(false);
-  const [importDialog, setImportDialog] = useState(false);
   
   // Form states
   const [campaignForm, setCampaignForm] = useState({
@@ -126,7 +126,6 @@ const EmailMarketingPage = () => {
   });
 
   const [selectedCampaign, setSelectedCampaign] = useState<EmailCampaign | null>(null);
-  const [recipientList, setRecipientList] = useState<string>('');
 
   // Generate dummy data
   const generateDummyData = () => {
@@ -226,41 +225,45 @@ const EmailMarketingPage = () => {
   }, []);
 
   // Handle create campaign
+
   const handleCreateCampaign = async () => {
     try {
-      if (!campaignForm.subject || !campaignForm.content || !campaignForm.recipients) {
-        toast.error('Please fill in all required fields');
+      console.log('campaign', campaignForm.subject, campaignForm.content, campaignForm.recipients)
+      if (!campaignForm.subject || !campaignForm.content || campaignForm.recipients.length === 0) {
+        toast.error('Please fill in all required fields and select recipients');
         return;
       }
 
-      const recipients = campaignForm.recipients.split('\n').filter(email => email.trim());
-      
-      // Simulate API call
-      const newCampaign: EmailCampaign = {
-        id: `camp-${Date.now()}`,
-        subject: campaignForm.subject,
-        content: campaignForm.content,
-        recipientCount: recipients.length,
-        sentCount: recipients.length,
-        deliveredCount: Math.floor(recipients.length * 0.96),
-        openedCount: Math.floor(recipients.length * 0.65),
-        clickedCount: Math.floor(recipients.length * 0.18),
-        bouncedCount: Math.floor(recipients.length * 0.04),
-        status: 'SENT',
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      };
+      const recipients = campaignForm.recipients.split('\n').map(email => email.trim()).filter(email => email);
 
-      setCampaigns(prev => [newCampaign, ...prev]);
-      setCreateCampaignDialog(false);
-      setCampaignForm({
-        subject: '',
-        content: '',
-        recipients: '',
-        templateId: '',
+      const response = await fetch('/api/emails', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          subject: campaignForm.subject,
+          content: campaignForm.content,
+          recipients,
+          templateId: campaignForm.templateId || undefined,
+        }),
       });
-      
-      toast.success(`Email campaign sent to ${recipients.length} recipients`);
+
+      const data = await response.json();
+
+      if (data.success) {
+        setCampaigns(prev => [data.campaign, ...prev]);
+        setCreateCampaignDialog(false);
+        setCampaignForm({
+          subject: '',
+          content: '',
+          recipients: '',
+          templateId: '',
+        });
+        toast.success(`Email campaign sent to ${recipients.length} recipients`);
+      } else {
+        toast.error(data.message || 'Failed to create campaign');
+      }
     } catch (error) {
       console.error('Error creating campaign:', error);
       toast.error('Failed to create campaign');
@@ -313,22 +316,6 @@ const EmailMarketingPage = () => {
       console.error('Error deleting campaign:', error);
       toast.error('Failed to delete campaign');
     }
-  };
-
-  // Handle import recipients
-  const handleImportRecipients = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      const content = e.target?.result as string;
-      const emails = content.split('\n').map(line => line.trim()).filter(line => line);
-      setRecipientList(emails.join('\n'));
-      setCampaignForm(prev => ({ ...prev, recipients: emails.join('\n') }));
-      toast.success(`Imported ${emails.length} email addresses`);
-    };
-    reader.readAsText(file);
   };
 
   // Filter campaigns
@@ -597,30 +584,23 @@ const EmailMarketingPage = () => {
                   <div className="space-y-4 max-h-96 overflow-y-auto">
                     <div className="space-y-2">
                       <label className="text-sm font-medium text-white">Template (Optional)</label>
-                      <Select value={campaignForm.templateId} onValueChange={(value) => {
-                        setCampaignForm({ ...campaignForm, templateId: value });
-                        if (value) {
-                          const template = templates.find(t => t.id === value);
-                          if (template) {
-                            setCampaignForm(prev => ({
-                              ...prev,
-                              subject: template.subject,
-                              content: template.content,
-                            }));
-                          }
-                        }
-                      }}>
-                        <SelectTrigger className="bg-zinc-800 border-zinc-600 text-white">
-                          <SelectValue placeholder="Choose template" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {templates.map(template => (
-                            <SelectItem key={template.id} value={template.id}>
-                              {template.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                      <FetchInput
+                        model="emailTemplate"
+                        target="name,subject"
+                        placeholder="Search templates..."
+                        onSelect={(template) => {
+                          const t = (Array.isArray(template) ? (template as any[])[0] : template) as EmailTemplate;
+                          if (!t) return;
+                          setCampaignForm({
+                            ...campaignForm,
+                            templateId: t.id,
+                            subject: t.subject,
+                            content: t.content,
+                          });
+                        }}
+                        getLabel={(template) => ((template as EmailTemplate).name)}
+                        className="w-full"
+                      />
                     </div>
                     
                     <div className="space-y-2">
@@ -645,38 +625,19 @@ const EmailMarketingPage = () => {
                     </div>
                     
                     <div className="space-y-2">
-                      <div className="flex items-center justify-between">
-                        <label className="text-sm font-medium text-white">Recipients</label>
-                        <div className="flex gap-2">
-                          <input
-                            type="file"
-                            accept=".txt,.csv"
-                            onChange={handleImportRecipients}
-                            className="hidden"
-                            id="import-emails"
-                          />
-                          <label htmlFor="import-emails">
-                            <Button
-                              type="button"
-                              variant="outline"
-                              size="sm"
-                              className="border-zinc-600 text-zinc-300 hover:bg-zinc-700"
-                              asChild
-                            >
-                              <span>
-                                <Upload className="h-4 w-4 mr-1" />
-                                Import
-                              </span>
-                            </Button>
-                          </label>
-                        </div>
-                      </div>
-                      <Textarea
-                        value={campaignForm.recipients}
-                        onChange={(e) => setCampaignForm({ ...campaignForm, recipients: e.target.value })}
-                        className="bg-zinc-800 border-zinc-600 text-white"
-                        rows={4}
-                        placeholder="Enter email addresses (one per line)&#10;example1@email.com&#10;example2@email.com"
+                      <label className="text-sm font-medium text-white">Recipients</label>
+                      <FetchInput
+                        model="user"
+                        target="name,email,tradingviewUsername"
+                        placeholder="Search users..."
+                        multiple
+                        includeSelectAll
+                        onSelect={(selectedUsers) => {
+                          const emails = (selectedUsers as any[]).map(u => u.email).join('\n');
+                          setCampaignForm({ ...campaignForm, recipients: emails });
+                        }}
+                        getLabel={(user) => user.name || user.email}
+                        className="w-full"
                       />
                       <p className="text-xs text-zinc-400">
                         {campaignForm.recipients.split('\n').filter(email => email.trim()).length} recipients

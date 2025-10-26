@@ -1,15 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
-import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from '@/components/ui/dialog';
 import {
   AlertDialog,
@@ -22,8 +18,24 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { ReusableTable, Column } from '@/components/ui/reusable-table';
-import { Send, Eye, Edit, Trash2, Upload } from 'lucide-react';
+import { Eye, Edit, Trash2, SendIcon } from 'lucide-react';
 import { toast } from 'sonner';
+
+interface EmailTemplate {
+  id: string;
+  name: string;
+  subject: string;
+  content: string;
+  type: 'MARKETING' | 'TRANSACTIONAL' | 'ANNOUNCEMENT';
+  createdAt: string;
+}
+
+interface User {
+  id: string;
+  name: string;
+  email: string;
+  inviteStatus: 'PENDING' | 'ACCEPTED' | 'REJECTED';
+}
 
 interface EmailCampaign {
   id: string;
@@ -54,9 +66,14 @@ export const CampaignsTab: React.FC<CampaignsTabProps> = ({
   const [createCampaignDialog, setCreateCampaignDialog] = useState(false);
   const [previewDialog, setPreviewDialog] = useState(false);
   const [deleteDialog, setDeleteDialog] = useState(false);
-  const [importDialog, setImportDialog] = useState(false);
   const [selectedCampaign, setSelectedCampaign] = useState<EmailCampaign | null>(null);
-  const [recipientList, setRecipientList] = useState<string>('');
+
+  // Template and user states
+  const [templates, setTemplates] = useState<EmailTemplate[]>([]);
+  const [users, setUsers] = useState<User[]>([]);
+  const [selectedUsers, setSelectedUsers] = useState<User[]>([]);
+  const [userSearch, setUserSearch] = useState('');
+  const [selectAllUsers, setSelectAllUsers] = useState(false);
 
   const [campaignForm, setCampaignForm] = useState({
     subject: '',
@@ -69,6 +86,14 @@ export const CampaignsTab: React.FC<CampaignsTabProps> = ({
   useEffect(() => {
     fetchCampaigns();
   }, []);
+
+  // Fetch templates and users when create dialog opens
+  useEffect(() => {
+    if (createCampaignDialog) {
+      fetchTemplates();
+      fetchUsers();
+    }
+  }, [createCampaignDialog]);
 
   const fetchCampaigns = async () => {
     try {
@@ -87,48 +112,38 @@ export const CampaignsTab: React.FC<CampaignsTabProps> = ({
     }
   };
 
-  const handleCreateCampaign = async () => {
+  const fetchTemplates = async () => {
     try {
-      if (!campaignForm.subject || !campaignForm.content || !campaignForm.recipients) {
-        toast.error('Please fill in all required fields');
-        return;
-      }
-
-      const recipients = campaignForm.recipients.split('\n').filter(email => email.trim());
-
-      const response = await fetch('/api/emails', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          subject: campaignForm.subject,
-          content: campaignForm.content,
-          recipients,
-        }),
-      });
-
+      const response = await fetch('/api/emails?type=templates');
       const data = await response.json();
 
       if (data.success) {
-        setCampaigns(prev => [data.campaign, ...prev]);
-        setCreateCampaignDialog(false);
-        setCampaignForm({
-          subject: '',
-          content: '',
-          recipients: '',
-          templateId: '',
-        });
-        toast.success(`Email campaign sent to ${recipients.length} recipients`);
+        setTemplates(data.templates);
       } else {
-        toast.error(data.message || 'Failed to create campaign');
+        toast.error('Failed to fetch templates');
       }
     } catch (error) {
-      console.error('Error creating campaign:', error);
-      toast.error('Failed to create campaign');
+      console.error('Error fetching templates:', error);
+      toast.error('Failed to fetch templates');
     }
   };
 
+  const fetchUsers = async (search = '') => {
+    try {
+      const response = await fetch(`/api/users?search=${encodeURIComponent(search)}`);
+      const data = await response.json();
+
+      if (data.success) {
+        setUsers(data.users);
+      } else {
+        toast.error('Failed to fetch users');
+      }
+    } catch (error) {
+      console.error('Error fetching users:', error);
+      toast.error('Failed to fetch users');
+    }
+  };
+  
   const handleDeleteCampaign = async () => {
     try {
       if (!selectedCampaign) return;
@@ -151,21 +166,6 @@ export const CampaignsTab: React.FC<CampaignsTabProps> = ({
       console.error('Error deleting campaign:', error);
       toast.error('Failed to delete campaign');
     }
-  };
-
-  const handleImportRecipients = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      const content = e.target?.result as string;
-      const emails = content.split('\n').map(line => line.trim()).filter(line => line);
-      setRecipientList(emails.join('\n'));
-      setCampaignForm(prev => ({ ...prev, recipients: emails.join('\n') }));
-      toast.success(`Imported ${emails.length} email addresses`);
-    };
-    reader.readAsText(file);
   };
 
   // Filter campaigns
@@ -317,120 +317,18 @@ export const CampaignsTab: React.FC<CampaignsTabProps> = ({
         <ReusableTable
           data={filteredCampaigns}
           columns={columns}
-          title="Email Campaigns"
+          title={
+            <div className='w-full flex justify-between items-center'>
+              <h2 className="flex items-center gap-2 text-2xl font-semibold text-white">
+                <SendIcon className="h-5 w-5"/> Email Campaigns
+              </h2>
+            </div>
+            }
           subtitle="Manage and track your email marketing campaigns"
           isLoading={loading}
           itemsPerPage={10}
         />
       </div>
-
-      {/* Create Campaign Dialog */}
-      <Dialog open={createCampaignDialog} onOpenChange={setCreateCampaignDialog}>
-        <DialogTrigger asChild>
-          <Button className="bg-gradient-to-r from-blue-500 to-purple-500 hover:from-blue-600 hover:to-purple-600 text-white">
-            <Send className="h-4 w-4 mr-2" />
-            New Campaign
-          </Button>
-        </DialogTrigger>
-        <DialogContent className="sm:max-w-2xl bg-gradient-to-br from-zinc-900 to-zinc-800 border border-zinc-700/60 text-white">
-          <DialogHeader>
-            <DialogTitle className="text-white flex items-center gap-2">
-              <Send className="h-5 w-5" />
-              Create Email Campaign
-            </DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4 max-h-96 overflow-y-auto">
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-zinc-300">Campaign Subject</label>
-              <Input
-                value={campaignForm.subject}
-                onChange={(e) => setCampaignForm({ ...campaignForm, subject: e.target.value })}
-                className="bg-zinc-800 border-zinc-600 text-white"
-                placeholder="Enter email subject..."
-              />
-            </div>
-
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-zinc-300">Email Content</label>
-              <Textarea
-                value={campaignForm.content}
-                onChange={(e) => setCampaignForm({ ...campaignForm, content: e.target.value })}
-                className="bg-zinc-800 border-zinc-600 text-white"
-                rows={6}
-                placeholder="Write your email content here..."
-              />
-            </div>
-
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-zinc-300">Recipients</label>
-              <Textarea
-                value={campaignForm.recipients}
-                onChange={(e) => setCampaignForm({ ...campaignForm, recipients: e.target.value })}
-                className="bg-zinc-800 border-zinc-600 text-white"
-                rows={4}
-                placeholder="Enter email addresses (one per line)&#10;example1@email.com&#10;example2@email.com"
-              />
-              <div className="flex items-center gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setImportDialog(true)}
-                  className="border-zinc-600 text-zinc-300 hover:bg-zinc-800"
-                >
-                  <Upload className="h-4 w-4 mr-2" />
-                  Import CSV
-                </Button>
-                <span className="text-xs text-zinc-400">
-                  {campaignForm.recipients.split('\n').filter(email => email.trim()).length} recipients
-                </span>
-              </div>
-            </div>
-
-            <div className="flex gap-3 pt-4">
-              <Button
-                onClick={handleCreateCampaign}
-                className="bg-gradient-to-r from-blue-500 to-purple-500 hover:from-blue-600 hover:to-purple-600 text-white"
-              >
-                <Send className="h-4 w-4 mr-2" />
-                Send Campaign
-              </Button>
-              <Button
-                variant="outline"
-                onClick={() => setCreateCampaignDialog(false)}
-                className="border-zinc-600 text-zinc-300 hover:bg-zinc-800"
-              >
-                Cancel
-              </Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      {/* Import Recipients Dialog */}
-      <Dialog open={importDialog} onOpenChange={setImportDialog}>
-        <DialogContent className="sm:max-w-md bg-gradient-to-br from-zinc-900 to-zinc-800 border border-zinc-700/60 text-white">
-          <DialogHeader>
-            <DialogTitle className="text-white flex items-center gap-2">
-              <Upload className="h-5 w-5" />
-              Import Recipients
-            </DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-zinc-300">CSV File</label>
-              <Input
-                type="file"
-                accept=".csv,.txt"
-                onChange={handleImportRecipients}
-                className="bg-zinc-800 border-zinc-600 text-white"
-              />
-              <p className="text-xs text-zinc-400">
-                Upload a CSV or TXT file with one email address per line
-              </p>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
 
       {/* Preview Dialog */}
       <Dialog open={previewDialog} onOpenChange={setPreviewDialog}>

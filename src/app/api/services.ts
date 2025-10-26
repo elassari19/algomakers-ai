@@ -310,3 +310,49 @@ export async function getUserBillingData() {
     throw new Error('Failed to fetch user billing data');
   }
 }
+
+export async function searchModel(model: string, target: string, q: string, page: number = 1, limit: number = 20) {
+  try {
+    const prismaModel = (prisma as any)[model];
+    if (!prismaModel) {
+      throw new Error(`Model ${model} not found in Prisma`);
+    }
+
+    const where: any = {};
+    if (target && q) {
+      const targets = target.split(',').map(t => t.trim());
+      if (targets.length === 1) {
+        where[targets[0]] = {
+          contains: q,
+          mode: 'insensitive',
+        };
+      } else {
+        where.OR = targets.map(t => ({
+          [t]: {
+            contains: q,
+            mode: 'insensitive',
+          },
+        }));
+      }
+    }
+
+    const results = await prismaModel.findMany({
+      where,
+      skip: (page - 1) * limit,
+      take: limit,
+    });
+
+    const total = await prismaModel.count({ where });
+
+    return {
+      results: JSON.parse(JSON.stringify(results)),
+      total,
+      page,
+      limit,
+      totalPages: Math.ceil(total / limit),
+    };
+  } catch (error) {
+    console.error('Error searching model:', error);
+    throw new Error('Failed to search model');
+  }
+}
