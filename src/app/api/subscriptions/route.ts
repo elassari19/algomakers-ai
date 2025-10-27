@@ -710,7 +710,7 @@ export async function PATCH(request: NextRequest) {
         case 'PENDING':
           template = 'invite_pending';
           break;
-        case 'CANCELED':
+        case 'CANCELLED':
           template = 'invite_canceled';
           break;
         default:
@@ -729,7 +729,7 @@ export async function PATCH(request: NextRequest) {
         email: subscription.user.email,
         name: subscription.user.name,
         tradingViewUsername: subscription.user.tradingviewUsername,
-        pairSymbol: subscription.pair.symbol,
+        pair: subscription.pair.symbol,
         pairTimeframe: subscription.pair.timeframe,
         newStatus: subscription.status,
         newInviteStatus: subscription.inviteStatus,

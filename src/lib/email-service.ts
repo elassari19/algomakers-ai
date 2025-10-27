@@ -58,9 +58,10 @@ export function verifyEmail({ name }: VerifyEmailParams) {
 
 export interface WelcomeEmailParams {
   tradingViewUsername: string;
+  url: string;
 }
 
-export function welcomeEmail({ tradingViewUsername}: WelcomeEmailParams) {
+export function welcomeEmail({ tradingViewUsername, url }: WelcomeEmailParams) {
   const subject = '🎉 Welcome to AlgoMakers.Ai – Let’s get started';
   const html = `
     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto;">
@@ -78,7 +79,7 @@ export function welcomeEmail({ tradingViewUsername}: WelcomeEmailParams) {
       </ol>
       <p>Thank you for signing up! Please verify your email address to activate your account.</p>
       <div style="margin: 32px 0; text-align: center;">
-        <a href="${process.env.NEXTAUTH_URL}/dashboard" style="background: #3182CE; color: #fff; padding: 12px 24px; border-radius: 6px; text-decoration: none; font-weight: bold; display: inline-block;">Verify Email</a>
+        <a href="${url}" style="background: #3182CE; color: #fff; padding: 12px 24px; border-radius: 6px; text-decoration: none; font-weight: bold; display: inline-block;">Verify Email</a>
       </div>
       <p>If you have any questions, just reply to this email. Happy trading!</p>
       <hr style="margin: 32px 0; border: none; border-top: 1px solid #E2E8F0;">

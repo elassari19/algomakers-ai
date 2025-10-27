@@ -72,9 +72,10 @@ function PaymentStatusBadge({ status }: { status: string }) {
   const getStatusConfig = (status: string) => {
     switch (status.toUpperCase()) {
       case 'ACTIVE':
-        return { color: 'bg-green-500/30 text-green-400 border-green-500/50' };
+      case 'COMPLETED':
       case 'PAID':
-        return { color: 'bg-amber-500/20 text-amber-400 border-amber-500/30' };
+        return { color: 'bg-green-500/30 text-green-400 border-green-500/50' };
+        // return { color: 'bg-amber-500/20 text-amber-400 border-amber-500/30' };
       case 'PENDING':
         return { color: 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30' };
       case 'FAILED':
@@ -134,16 +135,16 @@ function ActionButtons({
           </SheetHeader>
           <Content row={row} />
           <div className="flex gap-2 mt-4 px-6 pb-6">
-            <Button
+            {/* <Button
               className="bg-amber-600 text-white font-semibold flex-1"
               disabled={row.inviteStatus === 'SENT' || row.inviteStatus === 'COMPLETED' || loading}
               onClick={() => handleStatusChange(row.id, 'SENT')}
             >
               SENT
-            </Button>
+            </Button> */}
             <Button
               className="bg-green-600 text-white font-semibold flex-1"
-              disabled={row.inviteStatus === 'COMPLETED' || row.inviteStatus === 'PENDING' || loading}
+              disabled={row.inviteStatus === 'COMPLETED' || loading}
               onClick={() => handleStatusChange(row.id, 'COMPLETED')}
             >
               COMPLETED
@@ -757,7 +758,7 @@ const SubscriptionsPage = () => {
                         )}
 
                         {/* Payment Items */}
-                        {selectedSubscription.payment?.paymentItems?.length > 0 && (
+                        {/* {selectedSubscription.payment?.paymentItems?.length > 0 && (
                           <div>
                             <h4 className="font-semibold text-white mb-2">Payment Items</h4>
                             <div className="space-y-2">
@@ -773,7 +774,7 @@ const SubscriptionsPage = () => {
                               ))}
                             </div>
                           </div>
-                        )}
+                        )} */}
                       </div>
                     )}
                   </DialogContent>
@@ -798,12 +799,18 @@ const Content = ({ row }: { row: any }) => {
           <div className='text-nowrap overflow-auto'>{row.user?.id}</div>
           <div className="">{row.user?.email}</div>
           <div className="">{row.user?.name}</div>
+          <div className="">TradingView: </div>
+          <div className="font-semibold text-green-500">{row.user?.tradingviewUsername}</div>
         </div>
       </Card>
       <h4 className="font-semibold text-white mb-2">Trading Pair</h4>
       <Card className="flex bg-inherent backdrop-blur-md border-white/10 shadow-xl mt-0 p-4 space-y-0">
         <div className="grid grid-cols-2 justify-between items-center text-sm">
-          <div className="">{row.pair?.symbol} <br /> <span className="text-xs text-gray-400">{row.pair?.timeframe}</span></div>
+          <div>Pair:</div>
+          <div className="">{row.pair?.symbol}</div>
+          <div className="">Timeframe:</div>
+          <div className="">{row.pair?.timeframe}</div>
+          <div className="">Version:</div>
           <div className="">{row.pair?.version}</div>
         </div>
       </Card>
