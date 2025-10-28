@@ -101,7 +101,7 @@ export async function GET(request: Request) {
     try {
       const pair = await prisma.pair.findUnique({ 
         where: { id },
-        include: { subscriptions: true }
+        // include: { subscriptions: true }
       });
       if (!pair) {
         return NextResponse.json({ found: false });

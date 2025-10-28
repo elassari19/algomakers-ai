@@ -18,6 +18,7 @@ model User {
   image               String?
   emailVerified       DateTime?
   createdAt           DateTime       @default(now())
+  updatedAt           DateTime?       @updatedAt
   resetToken          String?
   resetTokenExpiry    DateTime?
   referredBy          String?        // ID of the user who referred this user

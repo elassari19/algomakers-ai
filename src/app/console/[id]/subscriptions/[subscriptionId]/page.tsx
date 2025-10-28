@@ -403,13 +403,13 @@ const SubscriptionDetailsPage = () => {
                   <div>
                     <label className="text-sm text-gray-400">Total Amount</label>
                     <div className="text-white font-medium text-lg">
-                      ${subscription.payment.totalAmount}
+                      ${subscription.basePrice}
                     </div>
                   </div>
                   <div>
                     <label className="text-sm text-gray-400">Actually Paid</label>
                     <div className="text-white font-medium text-lg">
-                      ${subscription.payment.actuallyPaid || '0.00'}
+                      ${finalPrice || '0.00'}
                     </div>
                   </div>
                   <div>
@@ -441,7 +441,7 @@ const SubscriptionDetailsPage = () => {
                 </div>
 
                 {/* Payment Items */}
-                {subscription.payment.paymentItems?.length > 0 && (
+                {/* {subscription.payment.paymentItems?.length > 0 && (
                   <div className="mt-6">
                     <h3 className="text-lg font-semibold text-white mb-3">Payment Items</h3>
                     <div className="space-y-3">
@@ -471,7 +471,7 @@ const SubscriptionDetailsPage = () => {
                       ))}
                     </div>
                   </div>
-                )}
+                )} */}
               </Card>
             )}
           </div>
@@ -514,24 +514,24 @@ const SubscriptionDetailsPage = () => {
               <div className="space-y-3">
                 {/* Invite Status Actions */}
                 <div className="flex flex-wrap gap-2">
-                    <Button
-                      onClick={() => handleInviteStatusUpdate('SENT')}
-                      disabled={subscription.inviteStatus === 'SENT' || subscription.inviteStatus === 'COMPLETED' || updating}
-                      size="sm"
-                      variant="outline"
-                      className="border-blue-500 text-blue-400 hover:bg-blue-500/10"
-                    >
-                      Send Invite
-                    </Button>
-                    <Button
-                      onClick={() => handleInviteStatusUpdate('COMPLETED')}
-                      disabled={subscription.inviteStatus !== 'SENT' || subscription.inviteStatus === 'COMPLETED' || updating}
-                      size="sm"
-                      variant="outline"
-                      className="border-green-500 text-green-400 hover:bg-green-500/10"
-                    >
-                      Mark Complete
-                    </Button>
+                  {/* <Button
+                    onClick={() => handleInviteStatusUpdate('SENT')}
+                    disabled={subscription.inviteStatus === 'SENT' || subscription.inviteStatus === 'COMPLETED' || updating}
+                    size="sm"
+                    variant="outline"
+                    className="border-blue-500 text-blue-400 hover:bg-blue-500/10"
+                  >
+                    Send Invite
+                  </Button> */}
+                  <Button
+                    onClick={() => handleInviteStatusUpdate('COMPLETED')}
+                    disabled={subscription.inviteStatus === 'COMPLETED' || updating}
+                    size="lg"
+                    variant="outline"
+                    className="w-full border-green-500 text-green-400 hover:bg-green-500/10"
+                  >
+                    <CheckCircle className='size-5' /> Mark Complete
+                  </Button>
                 </div>
 
                 <Separator className="bg-white/20" />
@@ -544,7 +544,7 @@ const SubscriptionDetailsPage = () => {
                         variant="outline"
                         size="sm"
                         className="w-full border-red-500 text-red-400 hover:bg-red-500/10"
-                        disabled={subscription.inviteStatus === 'SENT' || subscription.inviteStatus !== 'COMPLETED' || updating}
+                        disabled={subscription.inviteStatus !== 'COMPLETED' || updating}
                       >
                         <Trash2 size={16} className="mr-2" />
                         Desactive Subscription

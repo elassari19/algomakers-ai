@@ -21,7 +21,15 @@ interface PaymentData {
   createdAt: string;
   actuallyPaid: any; // Decimal
   expiresAt: string | null;
-  orderData: any;
+  orderData: {
+    paymentItems: Array<{
+      basePrice: number,
+      discountRate: number,
+      finalPrice: number,
+      pairId: string,
+      period: string,
+    }>;
+  };
   orderId: string | null;
   totalAmount: any; // Decimal
   updatedAt: string;
@@ -51,7 +59,12 @@ interface PaymentData {
   subscription: Array<{
     id: string;
     userId: string;
-    pairId: string;
+    pair: {
+      id: string;
+      symbol: string;
+      version: string | null;
+      timeframe: string;
+    };
     period: string;
     startDate: string;
     expiryDate: string;
@@ -183,7 +196,7 @@ export default async function PaymentDetailsPage({
 
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
         {/* Payment Overview */}
-        <Card className="md:col-span-2 bg-black/30 backdrop-blur-xl">
+        <Card className="md:col-span-2 bg-white/10 backdrop-blur-xl">
           <CardHeader>
             <CardTitle>Payment Overview</CardTitle>
             <CardDescription>
@@ -210,7 +223,7 @@ export default async function PaymentDetailsPage({
                 <label className="text-sm font-medium text-muted-foreground">Total Amount</label>
                 <div className="mt-1 text-lg font-semibold">
                   {payment.paymentItems && payment.paymentItems.length > 0
-                    ? formatCurrency(payment.paymentItems.reduce((sum, item) => sum + Number(item.basePrice), 0))
+                    ? formatCurrency(payment.orderData.paymentItems.reduce((sum, item) => sum + Number(item.basePrice), 0))
                     : 'N/A'}
                 </div>
               </div>
@@ -218,7 +231,7 @@ export default async function PaymentDetailsPage({
                 <label className="text-sm font-medium text-muted-foreground">Actually Paid</label>
                 <div className="mt-1 text-lg text-green-400">
                   {payment.paymentItems && payment.paymentItems.length > 0
-                    ? formatCurrency(payment.paymentItems.reduce((sum, item) => sum + Number(item.finalPrice), 0))
+                    ? formatCurrency(payment.orderData.paymentItems.reduce((sum, item) => sum + Number(item.finalPrice), 0))
                     : 'N/A'}
                 </div>
               </div>
@@ -243,7 +256,7 @@ export default async function PaymentDetailsPage({
 
               {payment.createdAt && (
                 <div>
-                  <label className="text-sm font-medium text-muted-foreground">Expires At</label>
+                  <label className="text-sm font-medium text-muted-foreground">Created At</label>
                   <div className="mt-1">
                     {format(new Date(payment.createdAt), 'PPP p')}
                   </div>
@@ -264,7 +277,7 @@ export default async function PaymentDetailsPage({
         </Card>
 
         {/* Customer Information */}
-        <Card className="bg-black/30 backdrop-blur-xl">
+        <Card className="bg-white/10 backdrop-blur-xl">
           <CardHeader>
             <CardTitle>Customer</CardTitle>
           </CardHeader>
@@ -300,7 +313,7 @@ export default async function PaymentDetailsPage({
       </div>
 
       {/* Payment Items */}
-      <Card className="mt-6 bg-black/30 backdrop-blur-xl">
+      {/* <Card className="mt-6 bg-white/10 backdrop-blur-xl">
         <CardHeader>
           <CardTitle>Payment Items ({metrics.itemsCount})</CardTitle>
           <CardDescription>
@@ -339,7 +352,7 @@ export default async function PaymentDetailsPage({
                     {Number(item.discountRate) > 0 ? (
                       <span className="text-green-600">
                         -{formatCurrency(Number(item.basePrice) - Number(item.finalPrice))}
-                        ({(Number(item.discountRate) * 100).toFixed(0)}%)
+                        ({(Number(item.discountRate))}%)
                       </span>
                     ) : (
                       'None'
@@ -379,11 +392,11 @@ export default async function PaymentDetailsPage({
             </div>
           </div>
         </CardContent>
-      </Card>
+      </Card> */}
 
       {/* Subscriptions */}
       {payment.subscription && payment.subscription.length > 0 && (
-        <Card className="mt-6 bg-black/30 backdrop-blur-xl">
+        <Card className="mt-6 bg-white/10 backdrop-blur-xl">
           <CardHeader>
             <CardTitle>Subscriptions ({payment.subscription.length})</CardTitle>
             <CardDescription>
@@ -391,78 +404,78 @@ export default async function PaymentDetailsPage({
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="space-y-4">
-              {payment.subscription.map((subscription) => (
-                <div key={subscription.id} className="border rounded-lg p-4">
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                    <div>
-                      <label className="text-sm font-medium text-muted-foreground">Status</label>
-                      <div className="mt-1">
-                        <Badge variant={getSubscriptionStatusBadgeVariant(subscription.status)}>
-                          {subscription.status}
-                        </Badge>
-                      </div>
-                    </div>
-                    <div>
-                      <label className="text-sm font-medium text-muted-foreground">Period</label>
-                      <div className="mt-1">
-                        <Badge variant="outline">
-                          {subscription.period.replace('_', ' ')}
-                        </Badge>
-                      </div>
-                    </div>
-                    <div>
-                      <label className="text-sm font-medium text-muted-foreground">Start Date</label>
-                      <div className="mt-1 text-sm">
-                        {format(new Date(subscription.startDate), 'PP')}
-                      </div>
-                    </div>
-                    <div>
-                      <label className="text-sm font-medium text-muted-foreground">Expiry Date</label>
-                      <div className="mt-1 text-sm">
-                        {format(new Date(subscription.expiryDate), 'PP')}
-                      </div>
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-3">
-                    <div>
-                      <label className="text-sm font-medium text-muted-foreground">Invite Status</label>
-                      <div className="mt-1">
-                        <Badge variant="outline">{subscription.inviteStatus}</Badge>
-                      </div>
-                    </div>
-                    {subscription.basePrice && (
-                      <div>
-                        <label className="text-sm font-medium text-muted-foreground">Base Price</label>
-                        <div className="mt-1 font-medium">
-                          {formatCurrency(Number(subscription.basePrice))}
-                        </div>
-                      </div>
-                    )}
-                    {subscription.discountRate && Number(subscription.discountRate) > 0 && (
-                      <div>
-                        <label className="text-sm font-medium text-muted-foreground">Discount Rate</label>
-                        <div className="mt-1 text-green-600">
-                          {(Number(subscription.discountRate)).toFixed(0)}%
-                        </div>
-                      </div>
-                    )}
-                    <div>
-                      <label className="text-sm font-medium text-muted-foreground">Final Price</label>
-                      <div className="mt-1 text-green-400">
-                        {formatCurrency(Number(subscription.basePrice) - (Number(subscription.basePrice) * (Number(subscription.discountRate) / 100)))}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Pair</TableHead>
+                  <TableHead>Timeframe</TableHead>
+                  <TableHead>Version</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Period</TableHead>
+                  <TableHead>Start Date</TableHead>
+                  <TableHead>Expiry Date</TableHead>
+                  <TableHead>Invite Status</TableHead>
+                  <TableHead>Base Price</TableHead>
+                  <TableHead>Discount Rate</TableHead>
+                  <TableHead>Final Price</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {payment.subscription.map((subscription) => (
+                  <TableRow key={subscription.id}>
+                    <TableCell className="font-mono text-sm">
+                      {subscription.pair.symbol}
+                    </TableCell>
+                    <TableCell className="font-mono text-sm">
+                      {subscription.pair.timeframe}
+                    </TableCell>
+                    <TableCell className="font-mono text-sm">
+                      {subscription.pair.version || 'N/A'}
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant={getSubscriptionStatusBadgeVariant(subscription.status)}>
+                        {subscription.status}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant="outline">
+                        {subscription.period.replace('_', ' ')}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-sm">
+                      {format(new Date(subscription.startDate), 'PP')}
+                    </TableCell>
+                    <TableCell className="text-sm">
+                      {format(new Date(subscription.expiryDate), 'PP')}
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant="outline">{subscription.inviteStatus}</Badge>
+                    </TableCell>
+                    <TableCell className="font-medium">
+                      {subscription.basePrice ? formatCurrency(Number(subscription.basePrice)) : '-'}
+                    </TableCell>
+                    <TableCell className="text-green-600">
+                      {subscription.discountRate && Number(subscription.discountRate) > 0
+                        ? `${(Number(subscription.discountRate)).toFixed(0)}%`
+                        : '-'
+                      }
+                    </TableCell>
+                    <TableCell className="text-green-400 font-medium">
+                      {subscription.basePrice
+                        ? formatCurrency(Number(subscription.basePrice) - (Number(subscription.basePrice) * (Number(subscription.discountRate) / 100)))
+                        : '-'
+                      }
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
           </CardContent>
         </Card>
       )}
 
       {/* Timestamps */}
-      <Card className="mt-6 bg-black/30 backdrop-blur-xl">
+      <Card className="mt-6 bg-white/10 backdrop-blur-xl">
         <CardHeader>
           <CardTitle>Timestamps</CardTitle>
         </CardHeader>

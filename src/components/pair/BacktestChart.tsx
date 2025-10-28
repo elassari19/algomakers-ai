@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Switch } from '@/components/ui/switch';
 import dynamic from 'next/dynamic';
-import { formatCurrency } from '@/lib/utils';
+import { formatCurrency, formatCompactNumber } from '@/lib/utils';
 
 // Dynamically import ApexCharts to avoid SSR issues
 const ReactApexChart = dynamic(() => import('react-apexcharts'), { 
@@ -73,7 +73,7 @@ export function BacktestChart({ data, symbol, metrics }: BacktestChartProps) {
       
       // For Cumulative P&L %, always calculate properly based on initial balance (like old code)
       const cumPL_PCT = data.initialBalance !== 0
-        ? (cumPL_USDT / Math.abs(data.initialBalance)) * 100
+        ? (cumPL_USDT / Math.abs(data.initialBalance))
         : 0;
       
       // Update running peak for drawdown calculation
@@ -107,24 +107,6 @@ export function BacktestChart({ data, symbol, metrics }: BacktestChartProps) {
     const date = new Date(dateStr);
     return date.toLocaleDateString('en-US', {
       month: 'short',
-      year: 'numeric',
-    });
-  };
-
-  const formatTooltipValue = (value: number, name: string) => {
-    if (displayMode === 'usdt') {
-      return [
-        `${value.toLocaleString(undefined, { maximumFractionDigits: 2 })} USDT`,
-        name,
-      ];
-    }
-    return [`${value.toFixed(2)}%`, name];
-  };
-
-  const formatTooltipLabel = (label: string) => {
-    return new Date(label).toLocaleDateString('en-US', {
-      month: 'long',
-      day: 'numeric',
       year: 'numeric',
     });
   };
@@ -184,7 +166,7 @@ export function BacktestChart({ data, symbol, metrics }: BacktestChartProps) {
         // Remove chart margins to eliminate side padding
         margin: {
           top: 0,
-          right: 0,
+          right: -20,
           bottom: 0,
           left: 0,
         },
@@ -292,9 +274,9 @@ export function BacktestChart({ data, symbol, metrics }: BacktestChartProps) {
             },
             formatter: (value: number) => {
               if (displayMode === 'usdt') {
-                return value.toLocaleString(undefined, { maximumFractionDigits: 2 });
+                return formatCompactNumber(value);
               }
-              return `${value.toFixed(2)}%`;
+              return `${value.toFixed(0)}%`;
             },
           },
           axisBorder: {
@@ -319,9 +301,9 @@ export function BacktestChart({ data, symbol, metrics }: BacktestChartProps) {
             },
             formatter: (value: number) => {
               if (displayMode === 'usdt') {
-                return value.toLocaleString(undefined, { maximumFractionDigits: 2 });
+                return formatCompactNumber(value);
               }
-              return `${value.toFixed(2)}%`;
+              return `${value.toFixed(0)}%`;
             },
           },
           axisBorder: {
@@ -382,7 +364,7 @@ export function BacktestChart({ data, symbol, metrics }: BacktestChartProps) {
             const color = index === 0 ? '#a855f7' : '#10b981';
             
             if (displayMode === 'usdt') {
-              content += `<div style="color: ${color};">${seriesName}: ${value.toLocaleString(undefined, { maximumFractionDigits: 2 })} USDT</div>`;
+              content += `<div style="color: ${color};">${seriesName}: ${formatCompactNumber(value)} USDT</div>`;
             } else {
               content += `<div style="color: ${color};">${seriesName}: ${value.toFixed(2)}%</div>`;
             }
@@ -524,7 +506,7 @@ export function BacktestChart({ data, symbol, metrics }: BacktestChartProps) {
         {/* Chart */}
         <div 
           ref={chartContainerRef}
-          className="h-80 sm:h-[28rem] w-full bg-transparent rounded-lg shadow-lg p-0"
+          className="h-80 sm:h-[28rem] w-[150%] sm:w-full bg-transparent rounded-lg shadow-lg p-0"
           onMouseEnter={() => setIsHoveringChart(true)}
           onMouseLeave={() => setIsHoveringChart(false)}
         >

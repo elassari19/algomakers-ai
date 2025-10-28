@@ -20,8 +20,6 @@ async function getBacktest(id: string) {
       headers: {
         Cookie: cookieStore.toString(),
       },
-      cache: 'no-store',
-      next: { revalidate: 0 },
     }
   );
   if (!res.ok) return null;
@@ -241,7 +239,7 @@ export default async function BacktestDetailPage({
                   {
                     title: 'Risk performance ratios',
                     metrics: pair.riskPerformanceRatios,
-                    values: [1, 4], // Row indices for $ symbol in "Value" column
+                    values: [], // Row indices for $ symbol in "Value" column
                     v_symbol: '$',
                     all: [0, 2, 3], // Row indices for % symbol in "All %" column
                     all_symbol: '%',
@@ -306,7 +304,7 @@ export default async function BacktestDetailPage({
                                   </td>
                                   <td className="px-2 py-1 text-right">
                                     {row['All %'] !== '' && row['All %'] !== undefined
-                                      ? Number(row['All %']*100).toLocaleString(
+                                      ? Number(row['All %']).toLocaleString(
                                           undefined,
                                           { maximumFractionDigits: 4 }
                                         ) + (all.includes(idx) ? ' ' + all_symbol : '')

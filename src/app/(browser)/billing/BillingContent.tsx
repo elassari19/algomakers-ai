@@ -21,6 +21,7 @@ import {
 import { OverviewSection } from '@/components/dashboard/DashboardStats';
 import { formatCurrency } from '@/lib/utils';
 import Link from 'next/link';
+import { Subscription } from '@/generated/prisma/client';
 
 // Payment interface
 interface Payment {
@@ -183,10 +184,10 @@ export default function BillingContent({ initialPayments, initialStats }: Billin
       render: (status: Payment['status']) => getStatusBadge(status),
     },
     {
-      key: 'paymentItems',
+      key: 'subscriptions',
       header: 'Pair',
       align: 'center',
-      render: (items: PaymentItem[]) => (
+      render: (items: Subscription[]) => (
         <div className="text-center">
           <div className="text-white/80 text-sm">
             {items.length} pair{items.length !== 1 ? 's' : ''}

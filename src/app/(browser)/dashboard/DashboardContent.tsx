@@ -10,23 +10,10 @@ import {
   Target,
   DollarSign,
   Award,
-  MoreVertical,
   Eye,
-  Activity,
-  Calendar,
-  Clock,
-  Star,
-  Link2,
 } from 'lucide-react';
 
 import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
 import { GradientBackground } from '@/components/ui/gradient-background';
 
 // Dynamically import heavy components
@@ -52,12 +39,14 @@ import type { Column } from '@/components/ui/reusable-table';
 const AccordionContent = lazy(() => import('./AccordionContent'));
 const RowDetailContent = lazy(() => import('./RowDetailContent'));
 import { Subscription, SubscriptionStatus } from '@/generated/prisma';
+import { ProcessedPairData } from '@/lib/utils';
 
 interface PairData {
   id: string;
   symbol: string;
   name: string;
   timeframe: string;
+  version: string;
   performance: any;
   properties: any;
   riskPerformanceRatios: any;
@@ -76,7 +65,7 @@ interface PairData {
 }
 
 interface DashboardContentProps {
-  initialData: PairData[];
+  initialData: ProcessedPairData[];
   initialStats: {
     total: number;
   };
@@ -88,7 +77,7 @@ export default function DashboardContent({
   initialStats,
   searchParams,
 }: DashboardContentProps) {
-  const [pairs, setPairs] = useState<PairData[]>(initialData);
+  const [pairs, setPairs] = useState<ProcessedPairData[]>(initialData);
   const [stats] = useState(initialStats);
   const [loading] = useState(false);
   const [filterBy, setFilterBy] = useState<string>('');
@@ -164,6 +153,23 @@ export default function DashboardContent({
           </span>
           <span className="text-xs text-slate-400">
             period
+          </span>
+        </div>
+      ),
+    },
+    {
+      key: 'version',
+      header: 'Version',
+      sortable: true,
+      align: 'center',
+      accessor: (row: PairData) => row.version,
+      render: (value: string) => (
+        <div className="flex flex-col items-center">
+          <span className="font-medium text-white">
+            {value || 'N/A'}
+          </span>
+          <span className="text-xs text-slate-400">
+            version
           </span>
         </div>
       ),
@@ -260,11 +266,11 @@ export default function DashboardContent({
               value < 10 ? 'text-green-400' : 'text-red-400'
             }`}
           >
-            {value.toFixed(1)}%
+            ${value.toFixed(1)}
           </span>
-          <span className="text-xs text-slate-400">
-            drawdown
-          </span>
+          {/* <span className="text-xs text-slate-400">
+            {(value / 100).toFixed(2)}%
+          </span> */}
         </div>
       ),
     },
@@ -296,40 +302,9 @@ export default function DashboardContent({
       width: 'w-20',
       render: (_, row: PairData) => (
         <div className="flex items-center justify-center">
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button
-                size="sm"
-                variant="ghost"
-                className="p-2 h-8 w-8 rounded-lg bg-slate-700 hover:bg-slate-600 transition-colors"
-              >
-                <MoreVertical className="h-4 w-4 text-slate-300" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent
-              align="end"
-              className="bg-slate-800 border-slate-700"
-            >
-              <DropdownMenuItem asChild>
-                <Link
-                  href={`/dashboard/${row.id}`}
-                  className="flex items-center cursor-pointer"
-                >
-                  <Eye className="h-4 w-4 mr-2" />
-                  View Details
-                </Link>
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                onClick={() =>
-                  navigator.clipboard.writeText(row.symbol)
-                }
-                className="cursor-pointer"
-              >
-                <TrendingUp className="h-4 w-4 mr-2" />
-                Copy Symbol
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+          <Link href={`/dashboard/${row.id}`} title='View Details'>
+            <Eye className="h-4 w-4 mr-2" />
+          </Link>
         </div>
       ),
     },

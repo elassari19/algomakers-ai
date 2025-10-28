@@ -53,6 +53,7 @@ interface PaymentDetails {
     email: string;
     name?: string;
     image?: string;
+    tradingviewUsername?: string;
   };
   paymentItems: PaymentItem[];
   subscription?: {
@@ -163,25 +164,6 @@ const BillingDetailsPage = () => {
     }
   }, [paymentId]);
 
-  const handleDownloadInvoice = () => {
-    // Implement invoice download functionality
-    toast.info('Invoice download feature coming soon');
-  };
-
-  const handleRefreshPayment = () => {
-    fetchPaymentDetails();
-    toast.success('Payment details refreshed');
-  };
-
-  const handleViewTransaction = () => {
-    if (payment?.txHash) {
-      const url = payment.network === 'USDT_ERC20' 
-        ? `https://etherscan.io/tx/${payment.txHash}`
-        : `https://bscscan.com/tx/${payment.txHash}`;
-      window.open(url, '_blank');
-    }
-  };
-
   if (loading) {
     return (
       <GradientBackground>
@@ -215,7 +197,7 @@ const BillingDetailsPage = () => {
   }
 
   const totalDiscount = payment.paymentItems.reduce((sum, item) => 
-    sum + (item.basePrice * item.discountRate), 0
+    sum + (item.basePrice * item.discountRate / 100), 0
   );
 
   return (
@@ -258,12 +240,12 @@ const BillingDetailsPage = () => {
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                   <div>
                     <p className="text-white/60 text-sm">Total Amount</p>
-                    <p className="text-white font-semibold text-lg">{formatCurrency(payment.totalAmount)}</p>
+                    <p className="text-white font-semibold text-lg">{formatCurrency(payment.paymentItems.reduce((sum, item) => sum + Number(item.basePrice), 0))}</p>
                   </div>
                   <div>
                     <p className="text-white/60 text-sm">Amount Paid</p>
                     <p className="text-white font-semibold text-lg">
-                      {payment.actuallyPaid ? formatCurrency(payment.actuallyPaid) : 'N/A'}
+                      {formatCurrency(payment.totalAmount)}
                     </p>
                   </div>
                   <div>
@@ -313,7 +295,7 @@ const BillingDetailsPage = () => {
                                 {formatCurrency(item.basePrice)}
                               </div>
                               <div className="text-green-400 text-sm">
-                                -{(item.discountRate * 100).toFixed(0)}% off
+                                -{item.discountRate}% off
                               </div>
                             </>
                           )}
@@ -329,7 +311,7 @@ const BillingDetailsPage = () => {
                 <div className="space-y-2">
                   <div className="flex justify-between text-white/70">
                     <span>Subtotal</span>
-                    <span>{formatCurrency(payment.paymentItems.reduce((sum, item) => sum + item.basePrice, 0))}</span>
+                    <span>{formatCurrency(payment.paymentItems.reduce((sum, item) => sum + Number(item.basePrice), 0))}</span>
                   </div>
                   {totalDiscount > 0 && (
                     <div className="flex justify-between text-green-400">
@@ -413,6 +395,10 @@ const BillingDetailsPage = () => {
                 <div className="pt-2">
                   <p className="text-white/60 text-sm">User ID</p>
                   <p className="text-white font-mono text-sm">{payment.user.id}</p>
+                </div>
+                <div className="pt-2">
+                  <p className="text-white/60 text-sm">TradingView</p>
+                  <p className="text-white font-mono text-sm">{payment.user.tradingviewUsername}</p>
                 </div>
               </CardContent>
             </Card>

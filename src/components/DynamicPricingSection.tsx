@@ -1,8 +1,7 @@
 'use client';
 
-import { useState } from 'react';
-import { Check, X, TrendingUp, TrendingDown } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import { useEffect, useState } from 'react';
+import { TrendingUp, TrendingDown } from 'lucide-react';
 import {
   Card,
   CardContent,
@@ -11,32 +10,26 @@ import {
   CardDescription,
 } from '@/components/ui/card';
 import { TradingPairSelector } from './TradingPairSelector';
-import { useTwelveDataQuote } from '@/hooks/useTwelveData';
+import { SubscribeButton } from './subscription/SubscribeButton';
+import { SubscriptionStatus } from '@/generated/prisma';
+import { useSession } from 'next-auth/react';
+import { ProcessedPairData, processPairsData } from '@/lib/utils';
 
-export function DynamicPricingSection() {
-  const [selectedPair, setSelectedPair] = useState('EUR/USD');
+export function DynamicPricingSection({ pairs }: { pairs: any[] }) {
+  const [selectedPair, setSelectedPair] = useState<string>('');
 
-  // Fetch real-time data for the selected pair
-  const {
-    data: quoteData,
-    loading: quoteLoading,
-    error: quoteError,
-  } = useTwelveDataQuote(selectedPair);
+  useEffect(() => {
+    setSelectedPair(pairs[0]?.id);
+  }, [pairs]);
 
-  const pricingData = {
-    'EUR/USD': { base: 49, multiplier: 1.0 },
-    'GBP/USD': { base: 59, multiplier: 1.2 },
-    'USD/JPY': { base: 54, multiplier: 1.1 },
-    'BTC/USD': { base: 89, multiplier: 1.8 },
-    'ETH/USD': { base: 79, multiplier: 1.6 },
-    'XAU/USD': { base: 69, multiplier: 1.4 },
-  };
+  // Find the selected pair data from API
+  const selectedPairData = pairs.find(pair => pair.id === selectedPair);
 
-  const currentPricing =
-    pricingData[selectedPair as keyof typeof pricingData] ||
-    pricingData['EUR/USD'];
+  // Use metrics from ProcessedPairData
+  const pairMetrics: ProcessedPairData | undefined = processPairsData(selectedPairData ? [selectedPairData] : []).find(p => p.id === selectedPair);
 
-  const plans = [
+  // Create pricing plans based on real data
+  const plans = selectedPairData ? [
     {
       id: '1month',
       name: '1 Month',
@@ -44,7 +37,9 @@ export function DynamicPricingSection() {
       months: 1,
       popular: false,
       limitations: ['Limited historical data', 'Basic analytics only'],
-      price: Math.round(currentPricing.base * currentPricing.multiplier),
+      basePrice: Number(selectedPairData.priceOneMonth),
+      discount: Number(selectedPairData.discountOneMonth),
+      finalPrice: Number(selectedPairData.priceOneMonth) * (1 - Number(selectedPairData.discountOneMonth) / 100),
     },
     {
       id: '3months',
@@ -53,7 +48,9 @@ export function DynamicPricingSection() {
       months: 3,
       popular: true,
       limitations: [],
-      price: Math.round(currentPricing.base * currentPricing.multiplier * 2.7), // 10% discount
+      basePrice: Number(selectedPairData.priceThreeMonths),
+      discount: Number(selectedPairData.discountThreeMonths),
+      finalPrice: Number(selectedPairData.priceThreeMonths) * (1 - Number(selectedPairData.discountThreeMonths) / 100),
     },
     {
       id: '6months',
@@ -62,7 +59,9 @@ export function DynamicPricingSection() {
       months: 6,
       popular: false,
       limitations: [],
-      price: Math.round(currentPricing.base * currentPricing.multiplier * 5.1), // 15% discount
+      basePrice: Number(selectedPairData.priceSixMonths),
+      discount: Number(selectedPairData.discountSixMonths),
+      finalPrice: Number(selectedPairData.priceSixMonths) * (1 - Number(selectedPairData.discountSixMonths) / 100),
     },
     {
       id: '12months',
@@ -71,9 +70,24 @@ export function DynamicPricingSection() {
       months: 12,
       popular: false,
       limitations: [],
-      price: Math.round(currentPricing.base * currentPricing.multiplier * 9.6), // 20% discount
+      basePrice: Number(selectedPairData.priceTwelveMonths),
+      discount: Number(selectedPairData.discountTwelveMonths),
+      finalPrice: Number(selectedPairData.priceTwelveMonths) * (1 - Number(selectedPairData.discountTwelveMonths) / 100),
     },
-  ];
+  ] : [];
+
+  const paymentStatus = selectedPairData?.subscriptions?.[0].status;
+  const inviteStatus = selectedPairData?.subscriptions?.[0]?.inviteStatus;
+  const expiryDate = selectedPairData?.subscriptions?.[0]?.expiryDate;
+  const expiryTs = expiryDate ? (expiryDate instanceof Date ? expiryDate.getTime() : new Date(expiryDate).getTime()) : undefined;
+  let userSubscriptionStatus = 
+    paymentStatus === 'PAID' && inviteStatus === 'COMPLETED' ? SubscriptionStatus.ACTIVE
+    : paymentStatus === 'PAID' && inviteStatus === 'SENT' ? 'INVITED'
+    : inviteStatus === 'PENDING' ? SubscriptionStatus.PENDING
+    : expiryTs !== undefined && Math.floor((expiryTs - Date.now()) / (24 * 60 * 60 * 1000)) <= 3 ? SubscriptionStatus.RENEWING
+    : SubscriptionStatus.TRIAL;
+
+  const session = useSession();
 
   return (
     <section
@@ -98,149 +112,199 @@ export function DynamicPricingSection() {
         {/* Trading Pair Selector */}
         <div className="flex justify-center my-0">
           <TradingPairSelector
+            paris={pairs}
             selectedPair={selectedPair}
             onPairSelect={setSelectedPair}
           />
-        </div>
+        </div>        {/* Loading/Error States for Pairs Data */}
 
-        {/* Real-time Price Display */}
-
-        {quoteLoading ? (
-          <div className="flex justify-center mb-4 sm:mb-8">
-            <div className="bg-gradient-to-r from-zinc-900/80 to-zinc-800/80 backdrop-blur-sm border border-zinc-700 rounded-xl sm:rounded-2xl p-4 sm:p-6 w-full max-w-sm sm:min-w-[300px]">
-              <div className="animate-pulse">
-                <div className="h-4 bg-zinc-700 rounded mb-4"></div>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-4">
-                  <div className="h-8 sm:h-12 bg-zinc-700 rounded"></div>
-                  <div className="h-8 sm:h-12 bg-zinc-700 rounded"></div>
-                  <div className="h-8 sm:h-10 bg-zinc-700 rounded"></div>
-                  <div className="h-8 sm:h-10 bg-zinc-700 rounded"></div>
-                </div>
-              </div>
-            </div>
-          </div>
-        ) : (
-          quoteData && (
+        {/* Pair Metrics Display */}
+        {selectedPairData && pairMetrics && pairMetrics.metrics.totalTrades > 0 ? (
             <div className="flex justify-center mb-4">
-              <div className="bg-gradient-to-r from-zinc-900/80 to-zinc-800/80 backdrop-blur-sm border border-zinc-700 rounded-xl sm:rounded-2xl p-4 sm:p-6 w-full max-w-sm sm:min-w-[300px]">
+              <div className="bg-gradient-to-r from-zinc-900/80 to-zinc-800/80 backdrop-blur-sm border border-zinc-700 rounded-xl sm:rounded-2xl p-4 sm:p-6 w-full max-w-2xl">
                 <div className="flex items-center justify-between mb-4">
-                  <h4 className="text-base sm:text-lg font-semibold text-white">
-                    {selectedPair}
+                  <h4 className="text-base sm:text-sm font-semibold text-white">
+                    {selectedPairData.symbol} | {selectedPairData.timeframe} | {selectedPairData.version}
                   </h4>
                   <div
                     className={`flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${
-                      parseFloat(quoteData.percent_change) >= 0
+                      pairMetrics.metrics.roi >= 0
                         ? 'bg-green-500/20 text-green-400'
                         : 'bg-red-500/20 text-red-400'
                     }`}
                   >
-                    {parseFloat(quoteData.percent_change) >= 0 ? (
+                    {pairMetrics.metrics.roi >= 0 ? (
                       <TrendingUp className="w-3 h-3" />
                     ) : (
                       <TrendingDown className="w-3 h-3" />
                     )}
-                    {quoteData.percent_change}%
+                    {pairMetrics.metrics.roi.toFixed(2)}%
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-4 text-xs sm:text-sm">
+                <div className="grid grid-cols-3 sm:grid-cols-5 gap-2 sm:gap-4 text-xs sm:text-sm">
                   <div>
-                    <span className="text-zinc-400">Current Price</span>
-                    <div className="text-lg sm:text-xl font-bold text-white">
-                      {quoteData.close}
+                    <span className="text-zinc-400">Net Profit</span>
+                    <div className={`text-lg sm:text-xl font-bold ${pairMetrics.metrics.profit >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                      ${pairMetrics.metrics.profit.toLocaleString()}
                     </div>
                   </div>
                   <div>
-                    <span className="text-zinc-400">Change</span>
-                    <div
-                      className={`text-base sm:text-lg font-semibold ${
-                        parseFloat(quoteData.change) >= 0
-                          ? 'text-green-400'
-                          : 'text-red-400'
-                      }`}
-                    >
-                      {quoteData.change}
+                    <span className="text-zinc-400">ROI</span>
+                    <div className={`text-base sm:text-lg font-semibold ${pairMetrics.metrics.roi >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                      {pairMetrics.metrics.roi.toFixed(2)}%
                     </div>
                   </div>
                   <div>
-                    <span className="text-zinc-400">High</span>
+                    <span className="text-zinc-400">Win Rate</span>
                     <div className="text-sm sm:text-base text-white font-medium">
-                      {quoteData.high}
+                      {pairMetrics.metrics.winRate.toFixed(1)}%
                     </div>
                   </div>
                   <div>
-                    <span className="text-zinc-400">Low</span>
+                    <span className="text-zinc-400">Total Trades</span>
                     <div className="text-sm sm:text-base text-white font-medium">
-                      {quoteData.low}
+                      {pairMetrics.metrics.totalTrades}
+                    </div>
+                  </div>
+                  <div>
+                    <span className="text-zinc-400">Max Drawdown</span>
+                    <div className="text-sm sm:text-base text-white font-medium">
+                      ${pairMetrics.metrics.maxDrawdown.toFixed(1)}
                     </div>
                   </div>
                 </div>
               </div>
             </div>
-          )
-        )}
-
-        {quoteError && (
+          ): (
           <div className="flex justify-center mb-8">
-            <div className="bg-red-500/10 border border-red-500/20 rounded-2xl p-4 text-red-400 text-sm">
-              Failed to load {selectedPair} data: {quoteError}
+            <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-xl p-4 text-yellow-400 text-sm">
+              No performance metrics available for {selectedPair}.
             </div>
           </div>
         )}
 
         {/* Dynamic Pricing Cards */}
-        <div className="mx-auto grid gap-4 sm:gap-6 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
-          {plans.map((plan) => (
-            <Card
-              key={plan.id}
-              className={`relative flex flex-col pt-0 transition-all duration-1000 ease-out hover:opacity-80 md:hover:-translate-y-3 min-w-[250px] ${
-                plan.popular &&
-                'border-pink-600/60 bg-gradient-to-r from-pink-600/10 to-purple-400/10'
-              }`}
-            >
-              <CardHeader className="overflow-hidden p-4 sm:p-6 px-4 sm:px-8 rounded-t-lg bg-gradient-to-r from-pink-600/10 to-purple-400/10">
-                {plan.popular && (
-                  <div className="absolute -top-2 left-1/2 transform -translate-x-1/2">
-                    <span className="bg-gradient-to-r from-pink-600 to-purple-400 text-white px-3 py-1 rounded-full text-xs font-bold">
-                      POPULAR
-                    </span>
-                  </div>
-                )}
-                <CardTitle className="font-urbanist text-xl sm:text-2xl tracking-wide text-white">
-                  {plan.name}
-                </CardTitle>
+        {selectedPairData && plans.length > 0 && (
+          <div className="mx-auto w-full">
+            {/* Mobile: Horizontal scroll */}
+            <div className="max-w-xs mx-auto flex gap-4 overflow-x-auto pb-4 sm:hidden scrollbar-hide scroll-smooth">
+              {plans.map((plan) => (
+                <div key={plan.id} className="flex-shrink-0 w-64 min-w-[262px]">
+                  <Card
+                    className={`relative flex flex-col pt-0 transition-all duration-1000 ease-out hover:opacity-80 md:hover:-translate-y-3 w-full ${
+                      plan.popular &&
+                      'border-pink-600/60 bg-gradient-to-r from-pink-600/10 to-purple-400/10'
+                    }`}
+                  >
+                    <CardHeader className="overflow-hidden p-4 sm:p-6 px-4 sm:px-8 rounded-t-lg bg-gradient-to-r from-pink-600/10 to-purple-400/10">
+                      {plan.popular && (
+                        <div className="absolute -top-2 left-1/2 transform -translate-x-1/2">
+                          <span className="bg-gradient-to-r from-pink-600 to-purple-400 text-white px-3 py-1 rounded-full text-xs font-bold">
+                            POPULAR
+                          </span>
+                        </div>
+                      )}
+                      <CardTitle className="font-urbanist text-xl sm:text-2xl tracking-wide text-white">
+                        {plan.name}
+                      </CardTitle>
 
-                <CardDescription className="text-xs sm:text-sm text-zinc-400">
-                  {plan.description}
-                </CardDescription>
+                      <CardDescription className="text-xs sm:text-sm text-zinc-400">
+                        {plan.description}
+                      </CardDescription>
 
-                <div className="flex flex-col gap-3 sm:gap-4 py-2">
-                  <div className="flex gap-1 sm:gap-2 text-2xl sm:text-3xl lg:text-4xl font-semibold">
-                    <span className="flex items-center justify-center text-xl sm:text-2xl lg:text-3xl font-normal text-white">
-                      $
-                    </span>
-                    <span className="text-white">{plan.price}</span>
-                    <span className="flex items-end text-sm sm:text-base lg:text-lg font-semibold text-white">
-                      / {plan.months === 1 ? 'month' : `${plan.months} months`}
-                    </span>
-                  </div>
-                  <div className="text-xs sm:text-sm text-zinc-400">
-                    For {selectedPair} signals
-                  </div>
+                      <div className="flex flex-col gap-3 sm:gap-4 py-2">
+                        <div className="flex gap-1 sm:gap-2 text-2xl sm:text-3xl lg:text-4xl font-semibold">
+                          <span className="flex items-center justify-center text-xl sm:text-2xl lg:text-3xl font-normal text-white">
+                            $
+                          </span>
+                          <span className="text-white">{Math.round(plan.finalPrice)}</span>
+                          <span className="flex items-end text-sm sm:text-base lg:text-lg font-semibold text-white">
+                            / {plan.months === 1 ? 'month' : `${plan.months} months`}
+                          </span>
+                        </div>
+                        {plan.discount > 0 && (
+                          <div className="text-xs sm:text-sm text-green-400">
+                            Save {plan.discount}% (${Math.round(plan.basePrice - plan.finalPrice)} off)
+                          </div>
+                        )}
+                        <div className="text-xs sm:text-sm text-zinc-400">
+                          For {selectedPairData.symbol} signals
+                        </div>
+                      </div>
+                    </CardHeader>
+
+                    <CardContent className="flex flex-1 flex-col justify-between text-sm lg:text-base">
+                      <SubscribeButton
+                        userSubscriptionStatus={userSubscriptionStatus as SubscriptionStatus}
+                        isUserLoggedIn={session?.data?.user ? true : false}
+                        pair={selectedPairData as any}
+                      />
+                    </CardContent>
+                  </Card>
                 </div>
-              </CardHeader>
+              ))}
+            </div>
 
-              <CardContent className="flex flex-1 flex-col justify-between text-sm lg:text-base">
-                <Button
-                  variant="outline"
-                  className="h-10 sm:h-12 w-full border bg-gradient-to-br from-pink-600/20 to-purple-400/20 font-bold tracking-wide text-white hover:bg-gradient-to-br hover:from-pink-600/30 hover:to-purple-400/30 text-sm sm:text-base"
+            {/* Desktop: Grid layout */}
+            <div className="hidden sm:grid sm:gap-6 sm:grid-cols-2 lg:grid-cols-4">
+              {plans.map((plan) => (
+                <Card
+                  key={plan.id}
+                  className={`relative flex flex-col pt-0 transition-all duration-1000 ease-out hover:opacity-80 md:hover:-translate-y-3 min-w-[250px] ${
+                    plan.popular &&
+                    'border-pink-600/60 bg-gradient-to-r from-pink-600/10 to-purple-400/10'
+                  }`}
                 >
-                  Purchase
-                </Button>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
+                  <CardHeader className="overflow-hidden p-4 sm:p-6 px-4 sm:px-8 rounded-t-lg bg-gradient-to-r from-pink-600/10 to-purple-400/10">
+                    {plan.popular && (
+                      <div className="absolute -top-2 left-1/2 transform -translate-x-1/2">
+                        <span className="bg-gradient-to-r from-pink-600 to-purple-400 text-white px-3 py-1 rounded-full text-xs font-bold">
+                          POPULAR
+                        </span>
+                      </div>
+                    )}
+                    <CardTitle className="font-urbanist text-xl sm:text-2xl tracking-wide text-white">
+                      {plan.name}
+                    </CardTitle>
+
+                    <CardDescription className="text-xs sm:text-sm text-zinc-400">
+                      {plan.description}
+                    </CardDescription>
+
+                    <div className="flex flex-col gap-3 sm:gap-4 py-2">
+                      <div className="flex gap-1 sm:gap-2 text-2xl sm:text-3xl lg:text-4xl font-semibold">
+                        <span className="flex items-center justify-center text-xl sm:text-2xl lg:text-3xl font-normal text-white">
+                          $
+                        </span>
+                        <span className="text-white">{Math.round(plan.finalPrice)}</span>
+                        <span className="flex items-end text-sm sm:text-base lg:text-lg font-semibold text-white">
+                          / {plan.months === 1 ? 'month' : `${plan.months} months`}
+                        </span>
+                      </div>
+                      {plan.discount > 0 && (
+                        <div className="text-xs sm:text-sm text-green-400">
+                          Save {plan.discount}% (${Math.round(plan.basePrice - plan.finalPrice)} off)
+                        </div>
+                      )}
+                      <div className="text-xs sm:text-sm text-zinc-400">
+                        For {selectedPairData.symbol} signals
+                      </div>
+                    </div>
+                  </CardHeader>
+
+                  <CardContent className="flex flex-1 flex-col justify-between text-sm lg:text-base">
+                    <SubscribeButton
+                      userSubscriptionStatus={userSubscriptionStatus as SubscriptionStatus}
+                      isUserLoggedIn={session?.data?.user ? true : false}
+                      pair={selectedPairData as any}
+                    />
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
     </section>
   );

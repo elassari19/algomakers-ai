@@ -2,6 +2,7 @@ import { Suspense } from 'react';
 import { GradientBackground } from '@/components/ui/gradient-background';
 import DashboardContent from './DashboardContent';
 import { getPairs } from '@/app/api/services';
+import { processPairsData, type ProcessedPairData } from '@/lib/utils';
 
 export const dynamic = 'force-dynamic';
 
@@ -25,27 +26,7 @@ export const metadata = {
   },
 };
 
-interface PairData {
-  id: string;
-  symbol: string;
-  name: string;
-  timeframe: string;
-  performance: any;
-  properties: any;
-  riskPerformanceRatios: any;
-  tradesAnalysis: any;
-  createdAt: string;
-  subscriptions?: any[];
-  metrics: {
-    roi: number;
-    riskReward: number;
-    totalTrades: number;
-    winRate: number;
-    maxDrawdown: number;
-    profit: number;
-  };
-  isPopular: boolean;
-}
+interface PairData extends ProcessedPairData {}
 
 async function getDashboardData(searchParams: { [key: string]: string | string[] | undefined }) {
   try {
@@ -63,34 +44,8 @@ async function getDashboardData(searchParams: { [key: string]: string | string[]
       page
     });
 
-    // Map pairs data with metrics calculation
-    const mappedPairs: PairData[] = result.pairs.map((pair: any) => {
-      const performance = JSON.parse(pair.performance || '[]');
-      const properties = JSON.parse(pair.properties || '[]');
-      const riskPerfRatios = JSON.parse(pair.riskPerformanceRatios || '[]');
-      const tradesAnalysis = JSON.parse(pair.tradesAnalysis || '[]');
-
-      return {
-        ...pair,
-        performance: [],
-        properties: [],
-        riskPerformanceRatios: [],
-        tradesAnalysis: [],
-        listOfTrades: [],
-        name: pair.symbol.split('/')[0] || pair.symbol, // Simple name extraction
-        metrics: {
-          roi: performance[1]?.['All USDT'] ? (10000 / performance[1]['All USDT']) * 100 : 0,
-          riskReward: tradesAnalysis[9]?.['All USDT'] || 0,
-          totalTrades: tradesAnalysis[0]?.['All USDT'] || 0,
-          winRate: tradesAnalysis[0]?.['All USDT'] && tradesAnalysis[2]?.['All USDT']
-            ? (tradesAnalysis[2]['All USDT'] / tradesAnalysis[0]['All USDT'] * 100)
-            : 0,
-          maxDrawdown: performance[7]?.['All USDT'] || 0,
-          profit: performance[1]?.['All USDT'] || 0,
-        },
-        isPopular: false,
-      };
-    });
+    // Map pairs data with metrics calculation using reusable utility
+    const mappedPairs: PairData[] = processPairsData(result.pairs);
 
     return {
       pairs: mappedPairs,

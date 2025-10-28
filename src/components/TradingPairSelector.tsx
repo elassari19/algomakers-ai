@@ -1,26 +1,20 @@
 'use client';
 
 import { Marquee } from '@/components/ui/marquee';
-import { twelveDataService } from '@/lib/twelvedata';
-import Image from 'next/image';
+import { Pair } from '@/generated/prisma';
 
 interface TradingPairSelectorProps {
+  paris: Pair[];
   onPairSelect: (pair: string) => void;
   selectedPair: string;
 }
 
 export function TradingPairSelector({
+  paris,
   onPairSelect,
   selectedPair,
 }: TradingPairSelectorProps) {
-  const tradingPairs = [
-    'EUR/USD',
-    'GBP/USD',
-    'USD/JPY',
-    'BTC/USD',
-    'ETH/USD',
-    'XAU/USD',
-  ];
+  const tradingPairs = paris;
 
   return (
     <div className="relative flex h-[160px] sm:h-[200px] w-full flex-col items-center justify-center overflow-hidden">
@@ -33,7 +27,7 @@ export function TradingPairSelector({
         >
           {tradingPairs.map((pair) => (
             <TradingPairIcon
-              key={pair}
+              key={pair.id}
               pair={pair}
               selectedPair={selectedPair}
               onSelect={onPairSelect}
@@ -52,7 +46,7 @@ export function TradingPairSelector({
         >
           {tradingPairs.reverse().map((pair) => (
             <TradingPairIcon
-              key={`reverse-${pair}`}
+              key={`reverse-${pair.id}`}
               pair={pair}
               selectedPair={selectedPair}
               onSelect={onPairSelect}
@@ -65,7 +59,7 @@ export function TradingPairSelector({
 }
 
 interface TradingPairIconProps {
-  pair: string;
+  pair: Pair;
   selectedPair: string;
   onSelect: (pair: string) => void;
 }
@@ -75,18 +69,13 @@ function TradingPairIcon({
   selectedPair,
   onSelect,
 }: TradingPairIconProps) {
-  const isSelected = selectedPair === pair;
-  const { base, quote, baseIcon, quoteIcon } =
-    twelveDataService.getPairIcons(pair);
-
-  const isCrypto = (symbol: string) =>
-    ['BTC', 'ETH', 'XAU', 'XAG'].includes(symbol.toUpperCase());
+  const isSelected = selectedPair === pair.id;
 
   return (
     <button
-      onClick={() => onSelect(pair)}
+      onClick={() => onSelect(pair.id)}
       className={`
-        group relative flex h-16 w-28 sm:h-20 sm:w-36 mx-2 sm:mx-4 items-center justify-center rounded-lg sm:rounded-xl border 
+        group relative flex h-16 w-32 sm:h-20 sm:w-36 mx-2 sm:mx-4 items-center justify-center rounded-lg sm:rounded-xl border 
         bg-gradient-to-r from-zinc-900 to-zinc-800 p-2 sm:p-4 
         transition-all duration-300 hover:scale-105 hover:shadow-lg
         ${
@@ -100,59 +89,20 @@ function TradingPairIcon({
         {/* Currency icons row */}
         <div className="flex items-center gap-1 sm:gap-2">
           {/* Base currency icon */}
-          <div className="flex items-center">
-            {isCrypto(base) ? (
-              <span className="text-lg sm:text-xl">{baseIcon}</span>
-            ) : (
-              <Image
-                src={baseIcon}
-                alt={base}
-                width={20}
-                height={15}
-                className="sm:w-7 sm:h-[21px] rounded-sm"
-                onError={(e) => {
-                  // Fallback to text if image fails to load
-                  const target = e.target as HTMLImageElement;
-                  target.style.display = 'none';
-                  const parent = target.parentElement;
-                  if (parent) {
-                    parent.innerHTML = `<span class="text-sm font-bold text-zinc-300">${base}</span>`;
-                  }
-                }}
-              />
-            )}
-          </div>
+          {/* <div className="flex items-center">
+            <span className="text-lg sm:text-xl">{pair.symbol}</span>
+          </div> */}
 
           <span
             className={`text-xs sm:text-sm font-bold ${
               isSelected ? 'text-pink-400' : 'text-zinc-400'
             }`}
           >
-            /
           </span>
 
           {/* Quote currency icon */}
           <div className="flex items-center">
-            {isCrypto(quote) ? (
-              <span className="text-lg sm:text-xl">{quoteIcon}</span>
-            ) : (
-              <Image
-                src={quoteIcon}
-                alt={quote}
-                width={20}
-                height={15}
-                className="sm:w-7 sm:h-[21px] rounded-sm"
-                onError={(e) => {
-                  // Fallback to text if image fails to load
-                  const target = e.target as HTMLImageElement;
-                  target.style.display = 'none';
-                  const parent = target.parentElement;
-                  if (parent) {
-                    parent.innerHTML = `<span class="text-sm font-bold text-zinc-300">${quote}</span>`;
-                  }
-                }}
-              />
-            )}
+            <span className="text-xs sm:text-sm">{pair.symbol}</span>
           </div>
         </div>
 
@@ -162,7 +112,7 @@ function TradingPairIcon({
             isSelected ? 'text-pink-400' : 'text-zinc-300'
           }`}
         >
-          {pair}
+          {pair.timeframe} {pair.version}
         </div>
       </div>
 

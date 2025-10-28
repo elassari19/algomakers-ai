@@ -2,46 +2,57 @@ import { notFound } from 'next/navigation';
 import { GradientBackground } from '@/components/ui/gradient-background';
 import { Badge } from '@/components/ui/badge';
 import { Card } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
 import { BarChart3, Activity, TrendingUp, Clock } from 'lucide-react';
-import Link from 'next/link';
-import { cookies } from 'next/headers';
 import { BacktestChart } from '@/components/pair/BacktestChart';
+import { SubscribeButton } from '@/components/subscription/SubscribeButton';
+import { SubscriptionStatus } from '@/generated/prisma';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/lib/auth';
+import { prisma } from '@/lib/prisma';
+
+// Helper function to serialize Prisma Decimal objects to numbers
+function serializePairData(pair: any) {
+  return {
+    ...pair,
+    priceOneMonth: Number(pair.priceOneMonth),
+    priceThreeMonths: Number(pair.priceThreeMonths),
+    priceSixMonths: Number(pair.priceSixMonths),
+    priceTwelveMonths: Number(pair.priceTwelveMonths),
+    discountOneMonth: Number(pair.discountOneMonth),
+    discountThreeMonths: Number(pair.discountThreeMonths),
+    discountSixMonths: Number(pair.discountSixMonths),
+    discountTwelveMonths: Number(pair.discountTwelveMonths),
+  };
+}
 
 interface BacktestDetailPageProps {
   params: Promise<{ id: string }>;
-}
-
-async function getBacktest(id: string) {
-  const cookieStore = cookies();
-  const res = await fetch(
-    `${process.env.NEXTAUTH_URL}/api/backtest?id=${encodeURIComponent(id)}`,
-    {
-      headers: {
-        Cookie: cookieStore.toString(),
-      },
-      cache: 'no-store',
-      next: { revalidate: 0 },
-    }
-  );
-  if (!res.ok) return null;
-  const data = await res.json();
-  if (!data.found) return null;
-  return data.pair;
 }
 
 export default async function BacktestDetailPage({
   params,
 }: BacktestDetailPageProps) {
   const { id } = await params;
+  const session = await getServerSession(authOptions);
 
-  let pair = await getBacktest(id);
+  const pair = await prisma.pair.findUnique({
+    where: { id },
+    include: {
+      subscriptions: session?.user ? {
+        where: { userId: session.user.id },
+      } : false,
+    },
+  });
+
   if (!pair) {
     notFound();
   }
 
+  // Serialize the pair data to convert Decimal objects to numbers
+  const serializedPair = serializePairData(pair);
+
   return (
-    <GradientBackground>
+    <GradientBackground className='relative'>
       <div className="bg-white/10 backdrop-blur-md border-b border-white/20">
         <div className="container mx-auto p-2 md:px-6 md:py-3">
           <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
@@ -52,35 +63,35 @@ export default async function BacktestDetailPage({
               <div>
                 <div className="flex items-center gap-2">
                   <h1 className="text-2xl font-bold text-white">
-                    {pair.symbol}
+                    {serializedPair.symbol}
                   </h1>
                 </div>
-                <p className="text-white/70 text-sm">{pair.timeframe}</p>
+                <p className="text-white/70 text-sm">{serializedPair.timeframe}</p>
               </div>
             </div>
             <div className="flex items-center gap-4 text-sm">
               <div className="text-center">
                 <div className="text-white/60 text-xs">Price (1M)</div>
                 <div className="font-bold text-green-400">
-                  ${pair.priceOneMonth}
+                  {'$' + String(serializedPair.priceOneMonth)}
                 </div>
               </div>
               <div className="text-center">
                 <div className="text-white/60 text-xs">Price (3M)</div>
                 <div className="font-bold text-blue-400">
-                  ${pair.priceThreeMonths}
+                  {'$' + String(serializedPair.priceThreeMonths)}
                 </div>
               </div>
               <div className="text-center">
                 <div className="text-white/60 text-xs">Price (6M)</div>
                 <div className="font-bold text-amber-400">
-                  ${pair.priceSixMonths}
+                  {'$' + String(serializedPair.priceSixMonths)}
                 </div>
               </div>
               <div className="text-center">
                 <div className="text-white/60 text-xs">Price (12M)</div>
                 <div className="font-bold text-purple-400">
-                  ${pair.priceTwelveMonths}
+                  {'$' + String(serializedPair.priceTwelveMonths)}
                 </div>
               </div>
             </div>
@@ -103,7 +114,7 @@ export default async function BacktestDetailPage({
                   <span className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-gradient-to-r from-blue-700/80 to-purple-700/80 text-xs font-semibold text-white shadow-lg border border-white/20">
                     <Clock className="w-4 h-4 text-white/70" />
                     Updated:{' '}
-                    {new Date(pair.updatedAt).toLocaleString(undefined, {
+                    {new Date(serializedPair.updatedAt).toLocaleString(undefined, {
                       dateStyle: 'medium',
                       timeStyle: 'short',
                     })}
@@ -138,7 +149,7 @@ export default async function BacktestDetailPage({
               </div>
             </Card>
             {/* Backtest Metrics Card */}
-            <Card className="bg-white/10 backdrop-blur-md rounded-xl border border-white/20 p-3 md:p-6">
+            <Card className="bg-white/10 backdrop-blur-md rounded-xl border border-white/20 p-3">
               <h2 className="text-xl font-bold text-white mb-4">
                 Backtest Metrics
               </h2>
@@ -195,10 +206,10 @@ export default async function BacktestDetailPage({
                 const finalCumPL_PCT = trades[trades.length - 1]['Cumulative P&L %'] || 0;
                 
                 return (
-                  <div className="mb-6">
+                  <div className="mb-6 w-full overflow-x-auto">
                     <BacktestChart
                       data={chartData}
-                      symbol={pair.symbol}
+                      symbol={serializedPair.symbol}
                       metrics={{ 
                         drawdownUSDT, 
                         drawdownPCT, 
@@ -229,12 +240,12 @@ export default async function BacktestDetailPage({
                   v_symbol: '$',
                   all: [0, 1, 2, 3, 4, 5, 6, 7], // Row indices for % symbol in "All %" column
                   all_symbol: '%',
-                  ignore: []
+                  ignore: [8]
                 },
                 {
                   title: 'Risk performance ratios',
                   metrics: pair.riskPerformanceRatios,
-                  values: [1, 4], // Row indices for $ symbol in "Value" column
+                  values: [], // Row indices for $ symbol in "Value" column
                   v_symbol: '$',
                   all: [0, 2, 3], // Row indices for % symbol in "All %" column
                   all_symbol: '%',
@@ -299,7 +310,7 @@ export default async function BacktestDetailPage({
                                 </td>
                                 <td className="px-2 py-1 text-right">
                                   {row['All %'] !== '' && row['All %'] !== undefined
-                                    ? Number(row['All %']*100).toLocaleString(
+                                    ? Number(row['All %']).toLocaleString(
                                         undefined,
                                         { maximumFractionDigits: 4 }
                                       ) + (all.includes(idx) ? ' ' + all_symbol : '')
@@ -358,10 +369,11 @@ export default async function BacktestDetailPage({
                         <tbody>
                           {properties.map(
                             (row: any, idx: number) => {
-                              // Skip rendering if row index is in ignore array
-                              if ([0, 2, 4, 7, 8].includes(idx)) {
+                              // Only render selected indices: 1-8 and 135-137, 144-147
+                              const allowedIndices = [1, 2, 3, 4, 5, 6, 7, 133, 134, 135, 140, 141, 142, 143];
+                              if (!allowedIndices.includes(idx)) {
                                 return null;
-                              } else {
+                              }
                               return (
                               <tr
                                 key={'properties'+idx}
@@ -374,7 +386,7 @@ export default async function BacktestDetailPage({
                                   {row.value}
                                 </td>
                               </tr>
-                            )}}
+                            )}
                           )}
                         </tbody>
                       </table>
@@ -410,6 +422,12 @@ export default async function BacktestDetailPage({
           }
         }
       }) }} />
+      <SubscribeButton
+        pair={serializedPair}
+        userSubscriptionStatus={serializedPair.subscriptions?.[0]?.status as SubscriptionStatus | undefined}
+        isUserLoggedIn={!!session?.user}
+        className='sticky bottom-4 right-0 bg-gradient-to-r from-purple-500 to-pink-500 w-fit rounded-md px-4 ml-auto'
+      />
     </GradientBackground>
   );
 }
@@ -418,7 +436,10 @@ export default async function BacktestDetailPage({
 export async function generateMetadata({ params }: BacktestDetailPageProps) {
   const { id } = await params;
   try {
-    const pair = await getBacktest(id);
+    const pair = await prisma.pair.findUnique({
+      where: { id },
+    });
+
     if (!pair) {
       return {
         title: 'Backtest not found – AlgoMakers',

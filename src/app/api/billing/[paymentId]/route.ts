@@ -37,6 +37,7 @@ export async function GET(
             email: true,
             image: true,
             role: true,
+            tradingviewUsername: true,
           },
         },
         paymentItems: {

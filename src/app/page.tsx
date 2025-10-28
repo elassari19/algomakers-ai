@@ -1,24 +1,15 @@
-import Image from 'next/image';
 import Link from 'next/link';
 import {
-  ArrowRight,
   TrendingUp,
   Shield,
   Zap,
   Target,
   BarChart3,
   Users,
-  Star,
-  Check,
-  ChevronDown,
-  Menu,
-  Github,
-  Twitter,
   Mail,
   Phone,
   Building2,
   Clock,
-  X,
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -31,7 +22,6 @@ import {
   CardTitle,
 } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
-import { Switch } from '@/components/ui/switch';
 import {
   Accordion,
   AccordionContent,
@@ -40,11 +30,13 @@ import {
 } from '@/components/ui/accordion';
 import { GradientBackground } from '../components/ui/gradient-background';
 import { DynamicPricingSection } from '@/components/DynamicPricingSection';
-import { AuthNavButtons } from '@/components/AuthNavButtons';
 import { HeroAuthButtons } from '@/components/HeroAuthButtons';
 import { CTAAuthButton } from '@/components/CTAAuthButton';
 import MainHeader from '@/components/main-header';
 import { Metadata } from 'next';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/lib/auth';
+import { prisma } from '@/lib/prisma';
 
 export const metadata: Metadata = {
   title: 'AlgoMakers - Advanced Algorithmic Trading Strategies',
@@ -98,7 +90,35 @@ export const metadata: Metadata = {
   category: 'finance',
 };
 
-export default function Home() {
+export default async function Home() {
+  const session = await getServerSession(authOptions);
+
+  const pairs = await prisma.pair.findMany({
+    where: {
+      // Filter pairs based on user session or other criteria
+    },
+    include: {
+      subscriptions: session?.user?.id ? {
+        where: {
+          userId: session.user.id,
+        },
+      } : false,
+    },
+  });
+
+  // Helper function to serialize Prisma Decimal objects to numbers
+  const serializePair = pairs.map(pair => ({
+      ...pair,
+      priceOneMonth: Number(pair.priceOneMonth),
+      priceThreeMonths: Number(pair.priceThreeMonths),
+      priceSixMonths: Number(pair.priceSixMonths),
+      priceTwelveMonths: Number(pair.priceTwelveMonths),
+      discountOneMonth: Number(pair.discountOneMonth),
+      discountThreeMonths: Number(pair.discountThreeMonths),
+      discountSixMonths: Number(pair.discountSixMonths),
+      discountTwelveMonths: Number(pair.discountTwelveMonths),
+    }));
+
   return (
     <GradientBackground>
       {/* Navbar */}
@@ -209,7 +229,7 @@ export default function Home() {
       </section>
 
       {/* Dynamic Pricing Section */}
-      <DynamicPricingSection />
+      <DynamicPricingSection pairs={serializePair} />
 
       {/* Testimonials Section */}
       <section

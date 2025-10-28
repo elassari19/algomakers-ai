@@ -26,7 +26,6 @@ import {
   Eye,
   Mail,
   MailOpen,
-  Plus,
   Trash2,
   Users,
   AlertCircle,
@@ -464,7 +463,7 @@ function NotificationForm({
           disabled={isLoading}
           className="flex-1 bg-gradient-to-r from-purple-600 to-pink-500 text-white"
         >
-          {isLoading ? 'Saving...' : notification ? 'Update Notification' : 'Create Notification'}
+          {isLoading ? 'Saving...' : 'Update Notification'}
         </Button>
       </div>
     </form>
@@ -489,7 +488,6 @@ const NotificationsPage = () => {
   // Role checks
   const isAdmin = session?.user?.role === Role.ADMIN || session?.user?.role === Role.MANAGER;
   const isSupport = session?.user?.role === Role.SUPPORT;
-  const canCreate = isAdmin;
   const canEdit = isAdmin;
   const canDelete = isAdmin;
   const canViewAll = isAdmin || isSupport;
@@ -608,11 +606,6 @@ const NotificationsPage = () => {
   const filteredNotifications = getFilteredNotifications();
 
   // CRUD Operations
-  const handleCreateNotification = () => {
-    setEditingNotification(null);
-    setIsSheetOpen(true);
-  };
-
   const handleUpdateNotification = (notification: Notification) => {
     setEditingNotification(notification);
     setIsSheetOpen(true);
@@ -653,12 +646,13 @@ const NotificationsPage = () => {
   };
 
   const handleFormSubmit = async (formData: NotificationFormData) => {
+    if (!editingNotification) return; // Only allow editing
+
     setIsFormLoading(true);
 
     try {
-      const isUpdate = !!editingNotification;
-      const url = isUpdate ? `/api/notifications/${editingNotification.id}` : '/api/notifications';
-      const method = isUpdate ? 'PATCH' : 'POST';
+      const url = `/api/notifications/${editingNotification.id}`;
+      const method = 'PATCH';
 
       // Process form data for API
       const processedData = {
@@ -681,19 +675,19 @@ const NotificationsPage = () => {
       const result = await response.json();
 
       if (response.ok) {
-        toast.success(`Notification ${isUpdate ? 'updated' : 'created'} successfully!`, {
+        toast.success('Notification updated successfully!', {
           style: { background: '#22c55e', color: 'white' },
         });
         setIsSheetOpen(false);
         setEditingNotification(null);
         fetchNotifications();
       } else {
-        toast.error(result.error || result.message || `Failed to ${isUpdate ? 'update' : 'create'} notification`, {
+        toast.error(result.error || result.message || 'Failed to update notification', {
           style: { background: '#ef4444', color: 'white' },
         });
       }
     } catch (error) {
-      toast.error(`Error ${editingNotification ? 'updating' : 'creating'} notification`, {
+      toast.error('Error updating notification', {
         style: { background: '#ef4444', color: 'white' },
       });
     } finally {
@@ -941,15 +935,7 @@ const NotificationsPage = () => {
                 </Select>
               </div>
 
-              {canCreate && (
-                <Button
-                  onClick={handleCreateNotification}
-                  className="bg-gradient-to-r from-purple-600 to-pink-500 text-white font-semibold px-6 py-2 rounded-xl shadow-lg"
-                >
-                  <Plus className="h-4 w-4 mr-2" />
-                  Add New Notification
-                </Button>
-              )}
+
             </div>
 
             <ReusableTable
@@ -971,17 +957,14 @@ const NotificationsPage = () => {
       </div>
 
       {/* Notification Form Sheet */}
-      <Sheet open={isSheetOpen} onOpenChange={setIsSheetOpen}>
+      <Sheet open={isSheetOpen && !!editingNotification} onOpenChange={setIsSheetOpen}>
         <SheetContent className="w-full md:w-[32rem] max-w-none bg-gradient-to-b from-white/20 to-white/5 backdrop-blur-2xl p-6">
           <SheetHeader className="px-2 mb-6">
             <SheetTitle className="text-2xl font-bold text-white">
-              {editingNotification ? 'Edit Notification' : 'Create New Notification'}
+              Edit Notification
             </SheetTitle>
             <SheetDescription className="text-white/70">
-              {editingNotification 
-                ? 'Update the notification details below.' 
-                : 'Fill in the details to create a new notification.'
-              }
+              Update the notification details below.
             </SheetDescription>
           </SheetHeader>
           <div className="px-2">

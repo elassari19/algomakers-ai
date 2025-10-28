@@ -373,7 +373,7 @@ async function createPaymentWithSubscriptionsAndItems(
           // Start the new subscription from the end of the existing one
           startDate = new Date(existingSubscription[0].expiryDate);
           expiryDate = calculateExpiryDate(startDate, months);
-          inviteStatus = existingSubscription[0].inviteStatus === InviteStatus.CANCELLED ? InviteStatus.PENDING : existingSubscription[0].inviteStatus;
+          inviteStatus = InviteStatus.PENDING;
         } else {
           // Fallback: if no existing subscription found, start from today
           startDate = new Date();

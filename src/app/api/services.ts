@@ -17,6 +17,22 @@ interface GetPairsFilters {
   userId?: string; // Add userId to filter subscriptions by user
 }
 
+export async function getHomePagePairs() {
+  try {
+    const pairs = await prisma.pair.findMany({
+      take: 10,
+      orderBy: {
+        createdAt: 'desc',
+      }
+    });;
+
+    return JSON.parse(JSON.stringify(pairs));
+  } catch (error) {
+    console.error('Error fetching home page pairs:', error);
+    throw new Error('Failed to fetch home page pairs');
+  }
+}
+
 export async function getPairs(filters: GetPairsFilters = {}) {
   const session = await getServerSession(authOptions);
   const userIdFromSession = session?.user?.id;
@@ -242,7 +258,18 @@ export async function getPaymentDetails(paymentId: string) {
         id: paymentId,
       },
       include: {
-        subscription: true,
+        subscription: {
+          include: {
+            pair: {
+              select: {
+                id: true,
+                symbol: true,
+                version: true,
+                timeframe: true,
+              },
+            },
+          },
+        },
         paymentItems: {
           include: {
             pair: {
