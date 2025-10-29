@@ -40,6 +40,7 @@ const AccordionContent = lazy(() => import('./AccordionContent'));
 const RowDetailContent = lazy(() => import('./RowDetailContent'));
 import { Subscription, SubscriptionStatus } from '@/generated/prisma';
 import { ProcessedPairData } from '@/lib/utils';
+import { SearchInput } from '@/components/SearchInput';
 
 interface PairData {
   id: string;
@@ -397,11 +398,20 @@ export default function DashboardContent({
                   }
                 >
                   {/* Search and Filter Bar */}
-                  <ClientSortFilterBar
+                  <div className="flex items-center gap-4">
+                    <p className='text-sm text-gray-200'>{`${pairs.length} pairs`}</p>
+                    <div className='w-full sm:w-xs'>
+                      <SearchInput
+                        placeholder="Search trading pairs..."
+                        className="mb-4 w-full sm:max-w-96"
+                      />
+                    </div>
+                  </div>
+                  {/* <ClientSortFilterBar
                     filterBy={filterBy}
                     totalResults={totalFilteredPairs}
                     className="w-[200%] md:w-full flex-row!"
-                  />
+                  /> */}
                   <ReusableTable
                     data={pairs}
                     columns={columns as Column<any>[]}

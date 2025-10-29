@@ -85,6 +85,10 @@ export default function BillingContent({ initialPayments, initialStats }: Billin
   const [payments] = useState<Payment[]>(initialPayments);
   const [stats] = useState<BillingStats>(initialStats);
 
+  if (payments.length === 0) {
+    return null;
+  }
+
   // Get status badge styling
   const getStatusBadge = (status: Payment['status']) => {
     const statusConfig = {
@@ -184,13 +188,13 @@ export default function BillingContent({ initialPayments, initialStats }: Billin
       render: (status: Payment['status']) => getStatusBadge(status),
     },
     {
-      key: 'subscriptions',
+      key: 'subscription',
       header: 'Pair',
       align: 'center',
       render: (items: Subscription[]) => (
         <div className="text-center">
           <div className="text-white/80 text-sm">
-            {items.length} pair{items.length !== 1 ? 's' : ''}
+            {items?.length} pair{items?.length !== 1 ? 's' : ''}
           </div>
         </div>
       ),

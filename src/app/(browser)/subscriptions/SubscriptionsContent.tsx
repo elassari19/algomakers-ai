@@ -25,6 +25,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip';
+import { SearchInput } from '@/components/SearchInput';
 
 interface SubscriptionData extends Subscription {
   pair: {
@@ -201,10 +202,18 @@ export default function SubscriptionsContent({
               }
             >
               {/* Search and Filter Bar */}
-              <ClientSortFilterBar
+              <div className='flex items-center gap-4'>
+                <p className='text-sm text-gray-200'>{`${totalFilteredPairs} pairs found`}</p>
+                <div className='w-full sm:w-xs'>
+                  <SearchInput
+                    placeholder="Search trading pairs..."
+                  />
+                </div>
+              </div>
+              {/* <ClientSortFilterBar
                 filterBy={filterBy}
                 totalResults={totalFilteredPairs}
-              />
+              /> */}
               <ReusableTable<SubscriptionData>
                 data={paginatedPairs}
                 columns={[

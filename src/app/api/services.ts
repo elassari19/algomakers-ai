@@ -313,22 +313,9 @@ export async function getUserBillingData() {
       where: {
         userId: session?.user?.id,
       },
-      // include: {
-      //   subscription: {
-      //     select: {
-      //       id: true,
-      //       status: true,
-      //       pair: {
-      //         select: {
-      //           id: true,
-      //           symbol: true,
-      //           version: true,
-      //           timeframe: true,
-      //         },
-      //       },
-      //     },
-      //   },
-      // },
+      include: {
+        subscription: true,
+      },
     });
 
     return JSON.stringify(payments);
