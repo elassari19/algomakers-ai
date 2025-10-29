@@ -423,9 +423,11 @@ export function ProfileForm({
                     <FormControl>
                       <div className="flex gap-2">
                         <div className="flex-1">
-                          <TradingViewUsernameField
+                          <Input
+                            placeholder="Enter your TradingView username"
+                            className="pl-2"
+                            type="text"
                             {...field}
-                            value={field.value || ''} // Fixed: use field.value instead of defaultValue
                             disabled={loadingStates.tradingView}
                           />
                         </div>

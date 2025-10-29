@@ -267,7 +267,7 @@ export default function ProfilePage() {
         </div>
       </header>
 
-      <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12">
+      <div className="container mx-auto px-2 md:px-4 sm:px-6 lg:px-8 py-8 sm:py-12">
         <div className="max-w-4xl mx-auto">
           {/* Error Alert */}
           {error && (
@@ -329,7 +329,7 @@ export default function ProfilePage() {
 
           {/* Tabs */}
           <Tabs defaultValue="profile" className="space-y-8">
-            <TabsList className="grid w-full grid-cols-4 bg-gradient-to-r from-zinc-900 to-zinc-800 border border-zinc-700/60 rounded-2xl p-1">
+            <TabsList className="grid w-full grid-cols-2 md:grid-cols-4 bg-gradient-to-r from-zinc-900 to-zinc-800 border border-zinc-700/60 rounded-2xl p-1">
               <TabsTrigger
                 value="profile"
                 className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-pink-600 data-[state=active]:to-purple-400 data-[state=active]:text-white text-zinc-300 rounded-xl transition-all duration-300"
@@ -344,20 +344,6 @@ export default function ProfilePage() {
                 <Users className="h-4 w-4 mr-2" />
                 Affiliate
               </TabsTrigger>
-              <TabsTrigger
-                value="account"
-                className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-pink-600 data-[state=active]:to-purple-400 data-[state=active]:text-white text-zinc-300 rounded-xl transition-all duration-300"
-              >
-                <Settings className="h-4 w-4 mr-2" />
-                Account
-              </TabsTrigger>
-              <TabsTrigger
-                value="notifications"
-                className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-pink-600 data-[state=active]:to-purple-400 data-[state=active]:text-white text-zinc-300 rounded-xl transition-all duration-300"
-              >
-                <Bell className="h-4 w-4 mr-2" />
-                Notifications
-              </TabsTrigger>
             </TabsList>
 
             <TabsContent value="profile">
@@ -370,7 +356,7 @@ export default function ProfilePage() {
                     Update your personal information and TradingView settings
                   </CardDescription>
                 </CardHeader>
-                <CardContent className="p-6">
+                <CardContent className="p-2 md:p-6">
                   <ProfileForm
                     user={{
                       id: displayUserData.id,
@@ -646,162 +632,6 @@ export default function ProfilePage() {
                   </Card>
                 </div>
               </div>
-            </TabsContent>
-
-            <TabsContent value="account">
-              <Card className="bg-gradient-to-br from-zinc-900 to-zinc-800 border border-zinc-700/60 shadow-lg shadow-black/20">
-                <CardHeader className="border-b border-zinc-700/60 bg-gradient-to-r from-pink-600/10 to-purple-400/10">
-                  <CardTitle className="text-white text-xl font-bold">
-                    Account Settings
-                  </CardTitle>
-                  <CardDescription className="text-zinc-400">
-                    Manage your account security and preferences
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="p-6 space-y-6">
-                  <div className="grid gap-6">
-                    <div className="flex items-center justify-between p-6 bg-gradient-to-r from-zinc-800/50 to-zinc-700/50 rounded-xl border border-zinc-600/30">
-                      <div>
-                        <h3 className="font-semibold text-white text-lg">
-                          Account Status
-                        </h3>
-                        <p className="text-zinc-400">
-                          Your account is active and{' '}
-                          {userData?.emailVerified
-                            ? 'verified'
-                            : 'pending verification'}
-                        </p>
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        <div
-                          className={`h-3 w-3 rounded-full animate-pulse ${
-                            userData?.emailVerified
-                              ? 'bg-green-500'
-                              : 'bg-yellow-500'
-                          }`}
-                        ></div>
-                        <span
-                          className={`font-medium ${
-                            userData?.emailVerified
-                              ? 'text-green-400'
-                              : 'text-yellow-400'
-                          }`}
-                        >
-                          {userData?.emailVerified ? 'Verified' : 'Pending'}
-                        </span>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center justify-between p-6 bg-gradient-to-r from-zinc-800/50 to-zinc-700/50 rounded-xl border border-zinc-600/30">
-                      <div>
-                        <h3 className="font-semibold text-white text-lg">
-                          Two-Factor Authentication
-                        </h3>
-                        <p className="text-zinc-400">
-                          Add an extra layer of security to your account
-                        </p>
-                      </div>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="border-zinc-600 text-zinc-300 hover:bg-gradient-to-r hover:from-pink-600/20 hover:to-purple-400/20 hover:border-pink-500"
-                      >
-                        Enable
-                      </Button>
-                    </div>
-
-                    <div className="flex items-center justify-between p-6 bg-gradient-to-r from-zinc-800/50 to-zinc-700/50 rounded-xl border border-zinc-600/30">
-                      <div>
-                        <h3 className="font-semibold text-white text-lg">
-                          Login Sessions
-                        </h3>
-                        <p className="text-zinc-400">
-                          Manage your active login sessions
-                        </p>
-                      </div>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="border-zinc-600 text-zinc-300 hover:bg-gradient-to-r hover:from-pink-600/20 hover:to-purple-400/20 hover:border-pink-500"
-                      >
-                        View
-                      </Button>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            </TabsContent>
-
-            <TabsContent value="notifications">
-              <Card className="bg-gradient-to-br from-zinc-900 to-zinc-800 border border-zinc-700/60 shadow-lg shadow-black/20">
-                <CardHeader className="border-b border-zinc-700/60 bg-gradient-to-r from-pink-600/10 to-purple-400/10">
-                  <CardTitle className="text-white text-xl font-bold">
-                    Notification Preferences
-                  </CardTitle>
-                  <CardDescription className="text-zinc-400">
-                    Choose what notifications you want to receive
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="p-6">
-                  <div className="space-y-6">
-                    <div className="flex items-center justify-between p-6 bg-gradient-to-r from-zinc-800/50 to-zinc-700/50 rounded-xl border border-zinc-600/30">
-                      <div>
-                        <h3 className="font-semibold text-white text-lg">
-                          Email Notifications
-                        </h3>
-                        <p className="text-zinc-400">
-                          Receive trading updates and account notifications via
-                          email
-                        </p>
-                      </div>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="border-zinc-600 text-zinc-300 hover:bg-gradient-to-r hover:from-pink-600/20 hover:to-purple-400/20 hover:border-pink-500"
-                      >
-                        Configure
-                      </Button>
-                    </div>
-
-                    <div className="flex items-center justify-between p-6 bg-gradient-to-r from-zinc-800/50 to-zinc-700/50 rounded-xl border border-zinc-600/30">
-                      <div>
-                        <h3 className="font-semibold text-white text-lg">
-                          Trading Alerts
-                        </h3>
-                        <p className="text-zinc-400">
-                          Get instant notifications about trading signals and
-                          market opportunities
-                        </p>
-                      </div>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="border-zinc-600 text-zinc-300 hover:bg-gradient-to-r hover:from-pink-600/20 hover:to-purple-400/20 hover:border-pink-500"
-                      >
-                        Configure
-                      </Button>
-                    </div>
-
-                    <div className="flex items-center justify-between p-6 bg-gradient-to-r from-zinc-800/50 to-zinc-700/50 rounded-xl border border-zinc-600/30">
-                      <div>
-                        <h3 className="font-semibold text-white text-lg">
-                          Subscription Updates
-                        </h3>
-                        <p className="text-zinc-400">
-                          Important updates about your subscription and billing
-                        </p>
-                      </div>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="border-zinc-600 text-zinc-300 hover:bg-gradient-to-r hover:from-pink-600/20 hover:to-purple-400/20 hover:border-pink-500"
-                      >
-                        Configure
-                      </Button>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
             </TabsContent>
           </Tabs>
         </div>
