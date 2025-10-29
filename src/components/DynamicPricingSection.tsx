@@ -76,9 +76,9 @@ export function DynamicPricingSection({ pairs }: { pairs: any[] }) {
     },
   ] : [];
 
-  const paymentStatus = selectedPairData?.subscriptions?.[0].status;
-  const inviteStatus = selectedPairData?.subscriptions?.[0]?.inviteStatus;
-  const expiryDate = selectedPairData?.subscriptions?.[0]?.expiryDate;
+  const paymentStatus = selectedPairData?.subscriptions?.[0]?.status || undefined;
+  const inviteStatus = selectedPairData?.subscriptions?.[0]?.inviteStatus || undefined;
+  const expiryDate = selectedPairData?.subscriptions?.[0]?.expiryDate || undefined;
   const expiryTs = expiryDate ? (expiryDate instanceof Date ? expiryDate.getTime() : new Date(expiryDate).getTime()) : undefined;
   let userSubscriptionStatus = 
     paymentStatus === 'PAID' && inviteStatus === 'COMPLETED' ? SubscriptionStatus.ACTIVE
