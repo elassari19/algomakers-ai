@@ -586,7 +586,7 @@ export function ReusableTable<T = any>({
           <div className="flex items-center gap-2">
             {Icon && <Icon className="h-5 w-5" />}
             {title}
-            <span className="text-sm text-white/70 font-normal">
+            <span className="text-sm text-white/70 font-normal text-nowrap">
               ({data.length} {data.length === 1 ? 'item' : 'items'} available)
             </span>
           </div>

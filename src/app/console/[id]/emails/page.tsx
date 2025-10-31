@@ -48,21 +48,7 @@ import { EmailsTab } from './EmailsTab';
 import { CampaignsTab } from './CampaignsTab';
 import { FetchInput } from '@/components/ui/fetch-input';
 import { Column } from '@/components/ui/reusable-table';
-
-interface EmailCampaign {
-  id: string;
-  subject: string;
-  content: string;
-  recipientCount: number;
-  sentCount: number;
-  deliveredCount: number;
-  openedCount: number;
-  clickedCount: number;
-  bouncedCount: number;
-  status: 'DRAFT' | 'SENDING' | 'SENT' | 'FAILED';
-  createdAt: string;
-  updatedAt: string;
-}
+import { EmailCampaign } from '@/generated/prisma';
 
 interface EmailTemplate {
   id: string;
@@ -125,105 +111,7 @@ const EmailMarketingPage = () => {
     type: 'MARKETING' as const,
   });
 
-  const [selectedCampaign, setSelectedCampaign] = useState<EmailCampaign | null>(null);
-
-  // Generate dummy data
-  const generateDummyData = () => {
-    const dummyCampaigns: EmailCampaign[] = [
-      {
-        id: 'camp-1',
-        subject: 'New Trading Algorithm Launch 🚀',
-        content: 'Discover our latest AI-powered trading algorithm with 95% accuracy rate...',
-        recipientCount: 1250,
-        sentCount: 1250,
-        deliveredCount: 1205,
-        openedCount: 845,
-        clickedCount: 234,
-        bouncedCount: 45,
-        status: 'SENT',
-        createdAt: '2024-10-05T10:30:00Z',
-        updatedAt: '2024-10-05T11:45:00Z',
-      },
-      {
-        id: 'camp-2',
-        subject: 'Weekly Market Analysis & Insights',
-        content: 'This week market performance and our top picks for next week...',
-        recipientCount: 2340,
-        sentCount: 2340,
-        deliveredCount: 2298,
-        openedCount: 1567,
-        clickedCount: 445,
-        bouncedCount: 42,
-        status: 'SENT',
-        createdAt: '2024-10-02T09:15:00Z',
-        updatedAt: '2024-10-02T10:30:00Z',
-      },
-      {
-        id: 'camp-3',
-        subject: 'Premium Features Now Available',
-        content: 'Upgrade to premium and get access to advanced trading signals...',
-        recipientCount: 890,
-        sentCount: 0,
-        deliveredCount: 0,
-        openedCount: 0,
-        clickedCount: 0,
-        bouncedCount: 0,
-        status: 'DRAFT',
-        createdAt: '2024-10-07T16:20:00Z',
-        updatedAt: '2024-10-07T16:20:00Z',
-      }
-    ];
-
-    const dummyTemplates: EmailTemplate[] = [
-      {
-        id: 'temp-1',
-        name: 'Product Launch',
-        subject: 'Introducing {{product_name}} - Revolutionary Trading Tool',
-        content: 'Dear {{user_name}},\n\nWe are excited to announce the launch of {{product_name}}...',
-        type: 'MARKETING',
-        createdAt: '2024-09-15T10:00:00Z',
-      },
-      {
-        id: 'temp-2',
-        name: 'Weekly Newsletter',
-        subject: 'Weekly Market Roundup - {{date}}',
-        content: 'Hello {{user_name}},\n\nHere is your weekly market analysis...',
-        type: 'MARKETING',
-        createdAt: '2024-09-10T14:30:00Z',
-      },
-      {
-        id: 'temp-3',
-        name: 'System Maintenance',
-        subject: 'Scheduled Maintenance Notice',
-        content: 'Dear users,\n\nWe will be performing system maintenance on {{date}}...',
-        type: 'ANNOUNCEMENT',
-        createdAt: '2024-09-05T11:15:00Z',
-      }
-    ];
-
-    return { dummyCampaigns, dummyTemplates };
-  };
-
-  // Fetch data
-  const fetchData = async () => {
-    try {
-      setLoading(true);
-      // Simulate API calls
-      const { dummyCampaigns, dummyTemplates } = generateDummyData();
-      setCampaigns(dummyCampaigns);
-      setTemplates(dummyTemplates);
-    } catch (error) {
-      console.error('Error fetching data:', error);
-      toast.error('Failed to load email data');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchData();
-  }, []);
-
+  console.log('campaignForm', 'campaignForm');
   // Handle create campaign
 
   const handleCreateCampaign = async () => {
@@ -302,163 +190,6 @@ const EmailMarketingPage = () => {
       toast.error('Failed to create template');
     }
   };
-
-  // Handle delete campaign
-  const handleDeleteCampaign = async () => {
-    try {
-      if (!selectedCampaign) return;
-      
-      setCampaigns(prev => prev.filter(c => c.id !== selectedCampaign.id));
-      setDeleteDialog(false);
-      setSelectedCampaign(null);
-      toast.success('Campaign deleted successfully');
-    } catch (error) {
-      console.error('Error deleting campaign:', error);
-      toast.error('Failed to delete campaign');
-    }
-  };
-
-  // Filter campaigns
-  const filteredCampaigns = campaigns.filter(campaign =>
-    campaign.subject.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    campaign.status.toLowerCase().includes(searchTerm.toLowerCase())
-  );
-
-  // Table columns
-  const columns: Column[] = [
-    {
-      key: 'subject',
-      header: 'Subject',
-      sortable: true,
-      render: (value, row) => (
-        <div className="max-w-xs">
-          <p className="font-medium text-white truncate">{value}</p>
-          <p className="text-xs text-zinc-400">
-            Created {new Date(row.createdAt).toLocaleDateString()}
-          </p>
-        </div>
-      ),
-    },
-    {
-      key: 'status',
-      header: 'Status',
-      sortable: true,
-      render: (value) => (
-        <Badge 
-          className={
-            value === 'SENT' ? 'bg-green-500/20 text-green-400 border-green-500/30' :
-            value === 'SENDING' ? 'bg-orange-500/20 text-orange-400 border-orange-500/30' :
-            value === 'DRAFT' ? 'bg-zinc-500/20 text-zinc-400 border-zinc-500/30' :
-            'bg-red-500/20 text-red-400 border-red-500/30'
-          }
-        >
-          {value}
-        </Badge>
-      ),
-    },
-    {
-      key: 'recipientCount',
-      header: 'Recipients',
-      sortable: true,
-      align: 'center',
-      render: (value) => (
-        <span className="font-semibold text-white">{value?.toLocaleString()}</span>
-      ),
-    },
-    {
-      key: 'deliveredCount',
-      header: 'Delivered',
-      sortable: true,
-      align: 'center',
-      render: (value, row) => (
-        <div className="text-center">
-          <span className="font-semibold text-green-400">{value?.toLocaleString() || 0}</span>
-          <p className="text-xs text-zinc-400">
-            {row.recipientCount > 0 ? ((value / row.recipientCount) * 100).toFixed(1) : 0}%
-          </p>
-        </div>
-      ),
-    },
-    {
-      key: 'openedCount',
-      header: 'Opened',
-      sortable: true,
-      align: 'center',
-      render: (value, row) => (
-        <div className="text-center">
-          <span className="font-semibold text-blue-400">{value?.toLocaleString() || 0}</span>
-          <p className="text-xs text-zinc-400">
-            {row.deliveredCount > 0 ? ((value / row.deliveredCount) * 100).toFixed(1) : 0}%
-          </p>
-        </div>
-      ),
-    },
-    {
-      key: 'clickedCount',
-      header: 'Clicked',
-      sortable: true,
-      align: 'center',
-      render: (value, row) => (
-        <div className="text-center">
-          <span className="font-semibold text-purple-400">{value?.toLocaleString() || 0}</span>
-          <p className="text-xs text-zinc-400">
-            {row.openedCount > 0 ? ((value / row.openedCount) * 100).toFixed(1) : 0}%
-          </p>
-        </div>
-      ),
-    },
-    {
-      key: 'actions',
-      header: 'Actions',
-      sortable: false,
-      render: (_, row) => (
-        <div className="flex gap-1">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={(e) => {
-              e.stopPropagation();
-              setSelectedCampaign(row);
-              setPreviewDialog(true);
-            }}
-            className="text-blue-400 hover:text-blue-300 hover:bg-blue-500/20"
-            title="Preview"
-          >
-            <Eye size={16} />
-          </Button>
-          
-          {row.status === 'DRAFT' && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={(e) => {
-                e.stopPropagation();
-                // Handle edit
-              }}
-              className="text-amber-400 hover:text-amber-300 hover:bg-amber-500/20"
-              title="Edit"
-            >
-              <Edit size={16} />
-            </Button>
-          )}
-          
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={(e) => {
-              e.stopPropagation();
-              setSelectedCampaign(row);
-              setDeleteDialog(true);
-            }}
-            className="text-red-400 hover:text-red-300 hover:bg-red-500/20"
-            title="Delete"
-          >
-            <Trash2 size={16} />
-          </Button>
-        </div>
-      ),
-    },
-  ];
 
   // Calculate stats
   const totalSent = campaigns.reduce((sum, c) => sum + c.sentCount, 0);
@@ -628,7 +359,7 @@ const EmailMarketingPage = () => {
                       <label className="text-sm font-medium text-white">Recipients</label>
                       <FetchInput
                         model="user"
-                        target="name,email,tradingviewUsername"
+                        target="name,email,tradingviewUsername,status,role"
                         placeholder="Search users..."
                         multiple
                         includeSelectAll
@@ -655,10 +386,10 @@ const EmailMarketingPage = () => {
                       <Button
                         onClick={handleCreateCampaign}
                         disabled={!campaignForm.subject || !campaignForm.content || !campaignForm.recipients}
-                        className="flex-1 bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600"
+                        className="flex-1 bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white"
                       >
-                        <Send className="h-4 w-4 mr-2" />
-                        Send Now
+                        <Plus className="h-4 w-4 mr-2" />
+                        Add Campign
                       </Button>
                     </div>
                   </div>

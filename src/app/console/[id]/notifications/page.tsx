@@ -54,6 +54,7 @@ import {
 import { NotificationType, Role } from '@/generated/prisma';
 import { AccessDeniedCard } from '@/components/console/AccessDeniedCard';
 import Link from 'next/link';
+import { ReusableSelect } from '@/components/ui/reusable-select';
 
 // Types based on Prisma schema
 interface Notification {
@@ -156,14 +157,10 @@ function ActionButtons({
   row,
   onUpdate,
   onDelete,
-  canEdit,
-  canDelete,
 }: {
   row: Notification;
   onUpdate: (row: Notification) => void;
   onDelete: (row: Notification) => void;
-  canEdit: boolean;
-  canDelete: boolean;
 }) {
   return (
     <div className="flex gap-2 items-center">
@@ -177,7 +174,6 @@ function ActionButtons({
           <Eye size={16} />
         </Button>
       </Link>
-      {canEdit && (
         <Button
           className="hover:text-white text-white/70"
           variant={'ghost'}
@@ -187,8 +183,6 @@ function ActionButtons({
         >
           <Pencil size={16} />
         </Button>
-      )}
-      {canDelete && (
         <Button
           className="hover:text-red-600 text-red-500"
           variant={'ghost'}
@@ -198,7 +192,6 @@ function ActionButtons({
         >
           <Trash2 size={16} />
         </Button>
-      )}
     </div>
   );
 }
@@ -471,54 +464,21 @@ function NotificationForm({
 }
 
 const NotificationsPage = () => {
-  const { data: session, update } = useSession();
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [loading, setLoading] = useState(true);
-  const [sessionLoading, setSessionLoading] = useState(false);
   const [filterBy, setFilterBy] = useState<string>('all');
   const [isSheetOpen, setIsSheetOpen] = useState(false);
   const [editingNotification, setEditingNotification] = useState<Notification | null>(null);
-  const [viewingNotification, setViewingNotification] = useState<Notification | null>(null);
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [deleteNotification, setDeleteNotification] = useState<Notification | null>(null);
   const [isFormLoading, setIsFormLoading] = useState(false);
   const searchParams = useSearchParams();
-  const searchQuery = searchParams.get('q') || '';
-
-  // Role checks
-  const isAdmin = session?.user?.role === Role.ADMIN || session?.user?.role === Role.MANAGER;
-  const isSupport = session?.user?.role === Role.SUPPORT;
-  const canEdit = isAdmin;
-  const canDelete = isAdmin;
-  const canViewAll = isAdmin || isSupport;
-
-  // Function to refresh session
-  const refreshSession = async () => {
-    try {
-      setSessionLoading(true);
-      await update();
-      toast.success('Session refreshed successfully!', {
-        style: { background: '#22c55e', color: 'white' },
-      });
-    } catch (error) {
-      toast.error('Failed to refresh session', {
-        style: { background: '#ef4444', color: 'white' },
-      });
-    } finally {
-      setSessionLoading(false);
-    }
-  };
 
   // Fetch all notifications
   const fetchNotifications = async () => {
     try {
       setLoading(true);
-      const params = new URLSearchParams();
-      if (canViewAll) {
-        params.append('adminView', 'true');
-      }
-      
-      const response = await fetch(`/api/notifications?${params}`);
+      const response = await fetch(`/api/notifications?${searchParams.toString()}`);
       const data = await response.json();
       
       if (response.ok && data.notifications) {
@@ -537,73 +497,7 @@ const NotificationsPage = () => {
 
   useEffect(() => {
     fetchNotifications();
-  }, [canViewAll]);
-
-  // Filter notifications based on selected filter and search query
-  const getFilteredNotifications = () => {
-    let filtered = notifications;
-
-    // Apply category filter first
-    switch (filterBy) {
-      case 'unread':
-        filtered = notifications.filter((notification) => notification.targetUsers.length > 0);
-        break;
-      case 'read':
-        filtered = notifications.filter((notification) => notification.targetUsers.length <= 0);
-        break;
-      case 'subscription':
-        filtered = notifications.filter((notification) => 
-          notification.type === NotificationType.SUBSCRIPTION_CONFIRMED ||
-          notification.type === NotificationType.SUBSCRIPTION_EXPIRED
-        );
-        break;
-      case 'payment':
-        filtered = notifications.filter((notification) => 
-          notification.type === NotificationType.PAYMENT_RECEIVED ||
-          notification.type === NotificationType.PAYMENT_FAILED
-        );
-        break;
-      case 'admin':
-        filtered = notifications.filter((notification) => 
-          notification.type === NotificationType.ADMIN_ACTION_REQUIRED
-        );
-        break;
-      case 'tradingview':
-        filtered = notifications.filter((notification) => 
-          notification.type === NotificationType.TRADINGVIEW_INVITE_SENT ||
-          notification.type === NotificationType.TRADINGVIEW_INVITE_COMPLETED
-        );
-        break;
-      case 'general':
-        filtered = notifications.filter((notification) => 
-          notification.type === NotificationType.GENERAL
-        );
-        break;
-      case 'recent':
-        const oneDayAgo = new Date();
-        oneDayAgo.setDate(oneDayAgo.getDate() - 1);
-        filtered = notifications.filter((notification) => new Date(notification.createdAt) >= oneDayAgo);
-        break;
-      default:
-        filtered = notifications;
-    }
-
-    // Apply search filter
-    if (searchQuery.trim()) {
-      const query = searchQuery.toLowerCase().trim();
-      filtered = filtered.filter((notification) => 
-        notification.title.toLowerCase().includes(query) ||
-        notification.message.toLowerCase().includes(query) ||
-        notification.type.toLowerCase().includes(query) ||
-        (notification.user?.email && notification.user.email.toLowerCase().includes(query)) ||
-        (notification.user?.name && notification.user.name.toLowerCase().includes(query))
-      );
-    }
-
-    return filtered;
-  };
-
-  const filteredNotifications = getFilteredNotifications();
+  }, [searchParams]);
 
   // CRUD Operations
   const handleUpdateNotification = (notification: Notification) => {
@@ -804,42 +698,10 @@ const NotificationsPage = () => {
           row={notification}
           onUpdate={handleUpdateNotification}
           onDelete={handleDeleteNotification}
-          canEdit={canEdit}
-          canDelete={canDelete}
         />
       ),
     },
   ];
-
-  // Don't show the page if user doesn't have permission
-  if (!canViewAll) {
-    return (
-      <GradientBackground>
-        <div className="min-h-screen flex items-center justify-center p-4">
-          <div className="bg-white/10 backdrop-blur-md border border-white/20 rounded-lg p-8 max-w-md w-full text-center shadow-xl">
-            <Bell className="w-16 h-16 text-red-400 mx-auto mb-4" />
-            <h1 className="text-2xl font-bold text-white mb-4">Access Denied</h1>
-            <p className="text-gray-300 mb-6">You don't have permission to view notifications.</p>
-            <div className="text-sm text-gray-400 mb-6">
-              Current role: {session?.user?.role || 'Unknown'}
-            </div>
-            <div className="space-y-3">
-              <Button
-                onClick={refreshSession}
-                disabled={sessionLoading}
-                className="w-full bg-blue-600 hover:bg-blue-700 text-white"
-              >
-                {sessionLoading ? 'Refreshing...' : 'Refresh Session'}
-              </Button>
-              <div className="text-sm text-gray-400">
-                If your role was recently updated, try refreshing your session.
-              </div>
-            </div>
-          </div>
-        </div>
-      </GradientBackground>
-    );
-  }
 
   return (
     <GradientBackground>
@@ -898,48 +760,60 @@ const NotificationsPage = () => {
                   <SearchInput placeholder="Search notifications..." />
                 </div>
 
-                {/* Filter */}
-                <Select value={filterBy} onValueChange={setFilterBy}>
-                  <SelectTrigger className="w-full sm:w-40 backdrop-blur-md bg-white/15 border border-white/30 text-white hover:bg-white/20 rounded-xl">
-                    <SelectValue placeholder="Filter by" />
-                  </SelectTrigger>
-                  <SelectContent className="backdrop-blur-xl bg-white/10 border border-white/30 rounded-xl">
-                    <SelectItem value="all" className="text-white hover:bg-white/20 focus:bg-white/20">
-                      All Notifications
-                    </SelectItem>
-                    <SelectItem value="unread" className="text-white hover:bg-white/20 focus:bg-white/20">
-                      Unread
-                    </SelectItem>
-                    <SelectItem value="read" className="text-white hover:bg-white/20 focus:bg-white/20">
-                      Read
-                    </SelectItem>
-                    <SelectItem value="subscription" className="text-white hover:bg-white/20 focus:bg-white/20">
-                      Subscription
-                    </SelectItem>
-                    <SelectItem value="payment" className="text-white hover:bg-white/20 focus:bg-white/20">
-                      Payment
-                    </SelectItem>
-                    <SelectItem value="admin" className="text-white hover:bg-white/20 focus:bg-white/20">
-                      Admin Actions
-                    </SelectItem>
-                    <SelectItem value="tradingview" className="text-white hover:bg-white/20 focus:bg-white/20">
-                      TradingView
-                    </SelectItem>
-                    <SelectItem value="general" className="text-white hover:bg-white/20 focus:bg-white/20">
-                      General
-                    </SelectItem>
-                    <SelectItem value="recent" className="text-white hover:bg-white/20 focus:bg-white/20">
-                      Recent (24h)
-                    </SelectItem>
-                  </SelectContent>
-                </Select>
+                {/* Filter by Type */}
+                <ReusableSelect
+                  type="type"
+                  options={[
+                  { label: "all", value: "all" },
+                  { label: "SUBSCRIPTION_CONFIRMED", value: "SUBSCRIPTION_CONFIRMED" },
+                  { label: "SUBSCRIPTION_EXPIRED", value: "SUBSCRIPTION_EXPIRED" },
+                  { label: "PAYMENT_RECEIVED", value: "PAYMENT_RECEIVED" },
+                  { label: "PAYMENT_FAILED", value: "PAYMENT_FAILED" },
+                  { label: "ADMIN_ACTION_REQUIRED", value: "ADMIN_ACTION_REQUIRED" },
+                  { label: "TRADINGVIEW_INVITE_SENT", value: "TRADINGVIEW_INVITE_SENT" },
+                  { label: "TRADINGVIEW_INVITE_COMPLETED", value: "TRADINGVIEW_INVITE_COMPLETED" },
+                  { label: "RENEWAL_REMINDER", value: "RENEWAL_REMINDER" },
+                  { label: "SYSTEM_MAINTENANCE", value: "SYSTEM_MAINTENANCE" },
+                  { label: "NEW_FEATURE_ANNOUNCEMENT", value: "NEW_FEATURE_ANNOUNCEMENT" },
+                  { label: "SECURITY_ALERT", value: "SECURITY_ALERT" },
+                  { label: "COMMISSION_EARNED", value: "COMMISSION_EARNED" },
+                  { label: "PAYOUT_PROCESSED", value: "PAYOUT_PROCESSED" },
+                  { label: "USER_REGISTRATION", value: "USER_REGISTRATION" },
+                  { label: "GENERAL", value: "GENERAL" },
+                  ]}
+                />
+
+                {/* Filter by Priority */}
+                <ReusableSelect
+                  type="priority"
+                  options={[
+                    { label: "all", value: "all" },
+                    { label: "high", value: "high" },
+                    { label: "medium", value: "medium" },
+                    { label: "low", value: "low" },
+                    { label: "urgent", value: "urgent" },
+                  ]}
+                />
+
+                {/* Period Filter */}
+                <ReusableSelect
+                  type='period'
+                  options={[
+                    { label: 'All Periods', value: 'all' },
+                    { label: 'Last 1 Day', value: '1d' },
+                    { label: 'Last 3 Days', value: '3d' },
+                    { label: 'Last 7 Days', value: '7d' },
+                    { label: 'Last 30 Days', value: '30d' },
+                    { label: 'Last 90 Days', value: '90d' },
+                    { label: 'Last 6 Months', value: '6m' },
+                    { label: 'Last 1 Year', value: '1y' },
+                  ]}
+                />
               </div>
-
-
             </div>
 
             <ReusableTable
-              data={filteredNotifications}
+              data={notifications}
               columns={columns}
               title="Notification Management"
               icon={Bell}

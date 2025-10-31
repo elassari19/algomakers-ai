@@ -24,10 +24,11 @@ export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const role = searchParams.get('role');
-    const verified = searchParams.get('verified');
     const search = searchParams.get('q'); // Search query for name/email
     const limit = searchParams.get('limit');
     const offset = searchParams.get('offset');
+    const status = searchParams.get('status');
+    console.log('Fetching users with params:', { role, search, limit, offset, status });
 
     // Build where clause for filtering
     const where: any = {};
@@ -35,29 +36,27 @@ export async function GET(request: NextRequest) {
     if (role && role !== 'all') {
       where.role = role.toUpperCase();
     }
-    
-    if (verified === 'true') {
-      where.emailVerified = { not: null };
-    } else if (verified === 'false') {
-      where.emailVerified = null;
-    }
 
     // Add search functionality for name and email
     if (search && search.trim() !== '') {
       where.OR = [
         {
           name: {
-            contains: search.trim(),
+            has: search.trim(),
             mode: 'insensitive',
           },
         },
         {
           email: {
-            contains: search.trim(),
+            has: search.trim(),
             mode: 'insensitive',
           },
         },
       ];
+    }
+
+    if (status && status !== 'all') {
+      where.status = status.toUpperCase();
     }
 
     // Fetch users with counts of related data

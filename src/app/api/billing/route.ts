@@ -3,8 +3,7 @@ import { getServerSession } from 'next-auth/next';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { createAuditLog, AuditAction, AuditTargetType } from '@/lib/audit';
-import { patchMetricsStats } from '@/lib/stats-service';
-import { Role, StatsType } from '@/generated/prisma';
+import { Role } from '@/generated/prisma';
 
 export async function GET(request: NextRequest) {
   const session = await getServerSession(authOptions);
@@ -17,23 +16,21 @@ export async function GET(request: NextRequest) {
     // Get query parameters for filtering
     const { searchParams } = new URL(request.url);
     const status = searchParams.get('status');
-    const dateRange = searchParams.get('dateRange');
-    const search = searchParams.get('search');
+    const period = searchParams.get('period');
+    const search = searchParams.get('q');
 
     // Build where clause for filtering
-    const where: any = {
-      userId: session.user.id,
-    };
+    const where: any = {};
 
     if (status && status !== 'all') {
-      where.status = status;
+      where.status = status.toUpperCase();
     }
 
-    if (dateRange && dateRange !== 'all') {
+    if (period && period !== 'all') {
       const now = new Date();
       let startDate: Date;
 
-      switch (dateRange) {
+      switch (period) {
         case '7d':
           startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
           break;
@@ -42,6 +39,12 @@ export async function GET(request: NextRequest) {
           break;
         case '90d':
           startDate = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
+          break;
+        case '6m':
+          startDate = new Date(now.getTime() - 182 * 24 * 60 * 60 * 1000);
+          break;
+        case '1y':
+          startDate = new Date(now.getTime() - 365 * 24 * 60 * 60 * 1000);
           break;
         default:
           startDate = new Date(0);

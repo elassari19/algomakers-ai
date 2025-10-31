@@ -47,6 +47,7 @@ import {
   Crown,
   Settings,
 } from 'lucide-react';
+import { ReusableSelect } from '@/components/ui/reusable-select';
 
 // Types based on Prisma schema
 interface User {
@@ -444,7 +445,6 @@ function UserForm({
 const UsersPage = () => {
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
-  const [filterBy, setFilterBy] = useState<string>('all');
   const [isSheetOpen, setIsSheetOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [viewingUser, setViewingUser] = useState<User | null>(null);
@@ -452,13 +452,13 @@ const UsersPage = () => {
   const [deleteUser, setDeleteUser] = useState<User | null>(null);
   const [isFormLoading, setIsFormLoading] = useState(false);
   const searchParams = useSearchParams();
-  const searchQuery = searchParams.get('q') || '';
 
   // Fetch all users
   const fetchUsers = async () => {
+    const params = new URLSearchParams();
     try {
       setLoading(true);
-      const response = await fetch('/api/users');
+      const response = await fetch(`/api/users?${searchParams.toString()}`);
       const data = await response.json();
       
       if (response.ok && data.users) {
@@ -480,56 +480,7 @@ const UsersPage = () => {
 
   useEffect(() => {
     fetchUsers();
-  }, []);
-
-  // Filter users based on selected filter and search query
-  const getFilteredUsers = () => {
-    let filtered = users;
-
-    // Apply category filter first
-    switch (filterBy) {
-      case 'admin':
-        filtered = users.filter((user) => user.role === 'ADMIN');
-        break;
-      case 'user':
-        filtered = users.filter((user) => user.role === 'USER');
-        break;
-      case 'support':
-        filtered = users.filter((user) => user.role === 'SUPPORT');
-        break;
-      case 'manager':
-        filtered = users.filter((user) => user.role === 'MANAGER');
-        break;
-      case 'verified':
-        filtered = users.filter((user) => user.emailVerified);
-        break;
-      case 'unverified':
-        filtered = users.filter((user) => !user.emailVerified);
-        break;
-      case 'recent':
-        const thirtyDaysAgo = new Date();
-        thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-        filtered = users.filter((user) => new Date(user.createdAt) >= thirtyDaysAgo);
-        break;
-      default:
-        filtered = users;
-    }
-
-    // Apply search filter
-    if (searchQuery.trim()) {
-      const query = searchQuery.toLowerCase().trim();
-      filtered = filtered.filter((user) => 
-        user.email.toLowerCase().includes(query) ||
-        (user.name && user.name.toLowerCase().includes(query)) ||
-        (user.tradingviewUsername && user.tradingviewUsername.toLowerCase().includes(query)) ||
-        user.role.toLowerCase().includes(query)
-      );
-    }
-
-    return filtered;
-  };
-
-  const filteredUsers = getFilteredUsers();
+  }, [searchParams]);
 
   // CRUD Operations
   const handleCreateUser = () => {
@@ -871,7 +822,7 @@ const UsersPage = () => {
                 <div className="flex flex-col sm:flex-row items-center gap-4 w-full sm:w-auto">
                   {/* Results Count */}
                   <div className="text-sm text-white/80 font-medium">
-                    {filteredUsers.length} {filteredUsers.length === 1 ? 'user' : 'users'} found
+                    {users.length} {users.length === 1 ? 'user' : 'users'} found
                   </div>
 
                   {/* Search Input */}
@@ -879,38 +830,31 @@ const UsersPage = () => {
                     <SearchInput placeholder="Search users..." />
                   </div>
 
-                  {/* Filter */}
-                  <Select value={filterBy} onValueChange={setFilterBy}>
-                    <SelectTrigger className="w-full sm:w-40 backdrop-blur-md bg-white/15 border border-white/30 text-white hover:bg-white/20 rounded-xl">
-                      <SelectValue placeholder="Filter by" />
-                    </SelectTrigger>
-                    <SelectContent className="backdrop-blur-xl bg-white/10 border border-white/30 rounded-xl">
-                      <SelectItem value="all" className="text-white hover:bg-white/20 focus:bg-white/20">
-                        All Users
-                      </SelectItem>
-                      <SelectItem value="admin" className="text-white hover:bg-white/20 focus:bg-white/20">
-                        Admins
-                      </SelectItem>
-                      <SelectItem value="user" className="text-white hover:bg-white/20 focus:bg-white/20">
-                        Users
-                      </SelectItem>
-                      <SelectItem value="support" className="text-white hover:bg-white/20 focus:bg-white/20">
-                        Support
-                      </SelectItem>
-                      <SelectItem value="manager" className="text-white hover:bg-white/20 focus:bg-white/20">
-                        Managers
-                      </SelectItem>
-                      <SelectItem value="verified" className="text-white hover:bg-white/20 focus:bg-white/20">
-                        Verified
-                      </SelectItem>
-                      <SelectItem value="unverified" className="text-white hover:bg-white/20 focus:bg-white/20">
-                        Unverified
-                      </SelectItem>
-                      <SelectItem value="recent" className="text-white hover:bg-white/20 focus:bg-white/20">
-                        Recent (30 days)
-                      </SelectItem>
-                    </SelectContent>
-                  </Select>
+                  {/* Filter roles */}
+                  <ReusableSelect
+                    type='role'
+                    options={[
+                      { label: 'All Roles', value: 'all' },
+                      { label: 'Admins', value: 'admin' },
+                      { label: 'Users', value: 'user' },
+                      { label: 'Support', value: 'support' },
+                      { label: 'Managers', value: 'manager' },
+                      { label: 'Verified', value: 'verified' },
+                      { label: 'Unverified', value: 'unverified' },
+                    ]}
+                  />
+                  {/* Filter status */}
+                  <ReusableSelect
+                    type='status'
+                    options={[
+                      { label: 'All Statuses', value: 'all' },
+                      { label: 'Verified', value: 'verified' },
+                      { label: 'Active', value: 'active' },
+                      { label: 'Suspended', value: 'suspended' },
+                      { label: 'Inactive', value: 'inactive' },
+                      { label: 'Unverified', value: 'unverified' },
+                    ]}
+                  />
                 </div>
 
                 <Button
@@ -923,7 +867,7 @@ const UsersPage = () => {
               </div>
 
               <ReusableTable
-                data={filteredUsers}
+                data={users}
                 columns={columns}
                 title="User Management"
                 icon={Users}

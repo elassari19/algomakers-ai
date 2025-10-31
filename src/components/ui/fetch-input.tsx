@@ -1,4 +1,5 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
+import { useDebouncedCallback } from 'use-debounce';
 import { Input } from '@/components/ui/input';
 import { Check } from 'lucide-react';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -59,7 +60,6 @@ export const FetchInput: React.FC<FetchInputProps> = ({
   const [total, setTotal] = useState(0);
   const [selected, setSelected] = useState<AnyObject[]>([]);
   const [selectedLabel, setSelectedLabel] = useState('');
-  const debounceRef = useRef<number | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
@@ -76,16 +76,42 @@ export const FetchInput: React.FC<FetchInputProps> = ({
     return () => document.removeEventListener('click', onDocClick);
   }, []);
 
-  useEffect(() => {
-    if (debounceRef.current) window.clearTimeout(debounceRef.current);
-    if (!query && !open) {
+  const fetchAll = useCallback(async () => {
+    setLoading(true);
+    try {
+      const url = `${searchEndpoint}?model=${encodeURIComponent(model)}${target ? `&target=${encodeURIComponent(target)}` : ''}&page=${currentPage}&limit=${limit}`;
+      const res = await fetch(url, { method: 'GET' });
+      if (!res.ok) {
+        console.error('FetchInput fetchAll failed', await res.text());
+        setResults([]);
+        setTotal(0);
+        onResults?.([]);
+        return;
+      }
+      const data = await res.json();
+      const items = data.results || [];
+      const newTotal = data.total || 0;
+      setResults(items);
+      setTotal(newTotal);
+      onResults?.(items);
+      setOpen(true);
+    } catch (err) {
+      console.error('FetchInput fetchAll error', err);
       setResults([]);
       setTotal(0);
-      setCurrentPage(initialPage);
       onResults?.([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [searchEndpoint, model, target, currentPage, limit, onResults]);
+
+  const debouncedFetch = useDebouncedCallback(async () => {
+    if (!query) {
+      // Fetch all
+      await fetchAll();
       return;
     }
-    if (query && query.length < minLength) {
+    if (query.length < minLength) {
       setResults([]);
       setTotal(0);
       onResults?.([]);
@@ -93,42 +119,47 @@ export const FetchInput: React.FC<FetchInputProps> = ({
     }
 
     setLoading(true);
-    debounceRef.current = window.setTimeout(async () => {
-      try {
-        const url = `${searchEndpoint}?model=${encodeURIComponent(model)}${target ? `&target=${encodeURIComponent(target)}` : ''}&q=${encodeURIComponent(query)}&page=${currentPage}&limit=${limit}`;
-        const res = await fetch(url, { method: 'GET' });
-        if (!res.ok) {
-          console.error('FetchInput search failed', await res.text());
-          setResults([]);
-          setTotal(0);
-          onResults?.([]);
-          return;
-        }
-        const data = await res.json();
-        const items = data.results || [];
-        const newTotal = data.total || 0;
-        if (currentPage === initialPage) {
-          setResults(items);
-        } else {
-          setResults(prev => [...prev, ...items]);
-        }
-        setTotal(newTotal);
-        onResults?.(currentPage === initialPage ? items : [...results, ...items]);
-        setOpen(true);
-      } catch (err) {
-        console.error('FetchInput error', err);
+    try {
+      const url = `${searchEndpoint}?model=${encodeURIComponent(model)}${target ? `&target=${encodeURIComponent(target)}` : ''}&q=${encodeURIComponent(query)}&page=${currentPage}&limit=${limit}`;
+      const res = await fetch(url, { method: 'GET' });
+      if (!res.ok) {
+        console.error('FetchInput search failed', await res.text());
         setResults([]);
         setTotal(0);
         onResults?.([]);
-      } finally {
-        setLoading(false);
+        return;
       }
-    }, debounceMs);
+      const data = await res.json();
+      const items = data.results || [];
+      const newTotal = data.total || 0;
+      if (currentPage === initialPage) {
+        setResults(items);
+      } else {
+        setResults(prev => [...prev, ...items]);
+      }
+      setTotal(newTotal);
+      onResults?.(currentPage === initialPage ? items : [...results, ...items]);
+      setOpen(true);
+    } catch (err) {
+      console.error('FetchInput error', err);
+      setResults([]);
+      setTotal(0);
+      onResults?.([]);
+    } finally {
+      setLoading(false);
+    }
+  }, debounceMs);
 
-    return () => {
-      if (debounceRef.current) window.clearTimeout(debounceRef.current);
-    };
-  }, [query, model, target, searchEndpoint, debounceMs, minLength, currentPage, limit, onResults, initialPage, open]);
+  useEffect(() => {
+    if (!query && !open) {
+      setResults([]);
+      setTotal(0);
+      setCurrentPage(initialPage);
+      onResults?.([]);
+      return;
+    }
+    debouncedFetch();
+  }, [query, currentPage, debouncedFetch, open, initialPage]);
 
   const pick = (item: AnyObject) => {
     if (multiple) {
@@ -173,7 +204,12 @@ export const FetchInput: React.FC<FetchInputProps> = ({
           }
         }}
         placeholder={placeholder}
-        onFocus={() => setOpen(true)}
+        onFocus={() => {
+          setOpen(true);
+          if (!query && results.length === 0) {
+            fetchAll();
+          }
+        }}
         className="w-full"
         aria-label={`Search ${model}`}
       />

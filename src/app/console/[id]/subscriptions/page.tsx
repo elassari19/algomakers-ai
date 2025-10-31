@@ -66,6 +66,7 @@ interface PairOption {
   version: string;
 }
 import { useSearchParams, useParams } from 'next/navigation';
+import { ReusableSelect } from '@/components/ui/reusable-select';
 
 // Payment status badge
 function PaymentStatusBadge({ status }: { status: string }) {
@@ -387,11 +388,6 @@ const SubscriptionsPage = () => {
     setDetailsModalOpen(true);
   };
 
-  // Handle status filter change
-  const handleStatusFilterChange = (value: string) => {
-    setStatusFilter(value);
-  };
-
   // Handle new subscription form submission
   const handleNewSubscriptionSubmit = async (data: SubscriptionFormData) => {
     setLoading(true);
@@ -623,35 +619,42 @@ const SubscriptionsPage = () => {
               <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 w-full sm:w-auto">
                 {/* Search Input */}
                 <div className="flex items-center gap-2">
-                  <Label htmlFor="search" className="text-sm text-white whitespace-nowrap">Search:</Label>
+                  {/* Results Counter */}
+                  <div className="text-sm text-gray-400">
+                    {subscriptions.length} results
+                    {searchQuery && ` for "${searchQuery}"`}
+                    {statusFilter !== 'all' && ` (${statusFilter.toLowerCase()})`}
+                  </div>
+
                   <div className="w-64">
                     <SearchInput placeholder="Search by email, name, symbol..." />
                   </div>
                 </div>
                 
                 {/* Status Filter */}
-                <div className="flex items-center gap-2">
-                  <Label htmlFor="status-filter" className="text-sm text-white whitespace-nowrap">Status:</Label>
-                  <Select value={statusFilter} onValueChange={handleStatusFilterChange}>
-                    <SelectTrigger className="w-40 bg-white/10 border-white/20 text-white">
-                      <SelectValue placeholder="All Status" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All Status</SelectItem>
-                      <SelectItem value="ACTIVE">Active</SelectItem>
-                      <SelectItem value="EXPIRED">Expired</SelectItem>
-                      <SelectItem value="PENDING">Pending</SelectItem>
-                      <SelectItem value="CANCELLED">Cancelled</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                
-                {/* Results Counter */}
-                <div className="text-sm text-gray-400">
-                  {subscriptions.length} results
-                  {searchQuery && ` for "${searchQuery}"`}
-                  {statusFilter !== 'all' && ` (${statusFilter.toLowerCase()})`}
-                </div>
+                <ReusableSelect
+                  type='status'
+                  options={[
+                    { label: 'All Statuses', value: 'all' },
+                    { label: 'Completed', value: 'COMPLETED' },
+                    { label: 'Pending', value: 'PENDING' },
+                    { label: 'Expired', value: 'EXPIRED' },
+                    { label: 'Renewing', value: 'RENEWING' },
+                    { label: 'Cancelled', value: 'CANCELLED' },
+                  ]}
+                />
+                {/* Period Filter */}
+                <ReusableSelect
+                  type='period'
+                  options={[
+                    { label: 'All Periods', value: 'all' },
+                    { label: 'Last 7 Days', value: '7d' },
+                    { label: 'Last 30 Days', value: '30d' },
+                    { label: 'Last 90 Days', value: '90d' },
+                    { label: 'Last 6 Months', value: '6m' },
+                    { label: 'Last 1 Year', value: '1y' },
+                  ]}
+                />
               </div>
               
               <Sheet open={newSubscriptionOpen} onOpenChange={setNewSubscriptionOpen}>
@@ -689,6 +692,7 @@ const SubscriptionsPage = () => {
                 <ReusableTable
                   data={subscriptions}
                   columns={columns}
+                  isLoading={loading}
                   title="Subscriptions"
                   subtitle="Manage user subscriptions and payments."
                   itemsPerPage={15}

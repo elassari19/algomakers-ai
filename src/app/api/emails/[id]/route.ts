@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth/next';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { createAuditLog, AuditAction, AuditTargetType } from '@/lib/audit';
+import { sendEmailCampaign } from '@/lib/email-service';
 import { z } from 'zod';
 
 // Validation schema for email update
@@ -289,6 +290,62 @@ export async function PUT(
         campaign: updatedCampaign,
         message: 'Campaign updated successfully',
       });
+    } else if (type === 'send') {
+      // Special case: send email
+      const existingCampaign = await prisma.emailCampaign.findUnique({
+        where: { id },
+      });
+
+      if (!existingCampaign) {
+        return NextResponse.json({ success: false, message: 'Campaign not found' }, { status: 404 });
+      }
+
+      if (existingCampaign.status !== 'DRAFT') {
+        return NextResponse.json({ success: false, message: 'Campaign is not in DRAFT status' }, { status: 400 });
+      }
+
+      // Update campaign if data provided
+      let campaignToSend = existingCampaign;
+      if (body.subject || body.content) {
+        const updateData: any = {};
+        if (body.subject) updateData.subject = body.subject;
+        if (body.content) updateData.content = body.content;
+      }
+
+      try {
+        const result = await sendEmailCampaign(campaignToSend.id, session.user.id);
+
+        // Get updated campaign
+        const updatedCampaign = await prisma.emailCampaign.findUnique({
+          where: { id },
+          include: {
+            user: {
+              select: {
+                id: true,
+                email: true,
+                name: true,
+              },
+            },
+          },
+        });
+
+        return NextResponse.json({
+          success: true,
+          campaign: updatedCampaign,
+          message: `Campaign sent successfully. ${result?.sentCount} emails sent, ${result?.failedCount} failed.`,
+        });
+      } catch (error) {
+        console.error('Error sending campaign:', error);
+        return NextResponse.json(
+          {
+            success: false,
+            message: 'Failed to send campaign',
+            error: error instanceof Error ? error.message : 'Unknown error',
+          },
+          { status: 500 }
+        );
+      }
+
     } else {
       // Default: update email
       const existingEmail = await prisma.email.findUnique({

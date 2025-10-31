@@ -44,6 +44,7 @@ import {
   UserCheck,
 } from 'lucide-react';
 import { AuditAction } from '@/lib/audit';
+import { ReusableSelect } from '@/components/ui/reusable-select';
 
 // Types based on AuditLog
 interface AuditLog {
@@ -65,10 +66,10 @@ interface AuditLog {
 }
 
 interface AuditStats {
-  totalAudits: number;
-  auditsThisMonth: number;
-  auditsThisWeek: number;
-  auditsToday: number;
+  total: number;
+  thisMonth: number;
+  thisWeek: number;
+  today: number;
 }
 
 // Helper function to format enum values for display
@@ -127,7 +128,7 @@ const getEventGroup = (eventType: string): string => {
 
 // Generate event type options dynamically
 const getEventTypeOptions = (availableTypes: string[]) => {
-  const baseOptions = [{ value: 'all', label: 'All Events', group: null }];
+  const baseOptions = [{ value: 'all', label: 'All Events'}];
   
   // If we have available types from database, use those
   if (availableTypes.length > 0) {
@@ -155,20 +156,18 @@ const getEventTypeOptions = (availableTypes: string[]) => {
 const EventsPage = () => {
   const [events, setEvents] = useState<AuditLog[]>([]);
   const [stats, setStats] = useState<AuditStats>({
-    totalAudits: 0,
-    auditsThisMonth: 0,
-    auditsThisWeek: 0,
-    auditsToday: 0,
+    total: 0,
+    thisMonth: 0,
+    thisWeek: 0,
+    today: 0,
   });
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(true);
   const [page, setPage] = useState(1);
-  const [filterEventType, setFilterEventType] = useState<string>('all');
   const [availableEventTypes, setAvailableEventTypes] = useState<string[]>([]);
 
   const searchParams = useSearchParams();
-  const searchQuery = searchParams.get('q') || '';
 
   // Fetch audit logs (USER role only)
   const fetchEvents = async (pageNum: number = 1, reset: boolean = false) => {
@@ -179,20 +178,14 @@ const EventsPage = () => {
         setLoadingMore(true);
       }
 
-      const params = new URLSearchParams({
-        page: pageNum.toString(),
-        limit: '20',
-        ...(searchQuery && { search: searchQuery }),
-        ...(filterEventType !== 'all' && { action: filterEventType }),
-        role: 'USER',
-      });
-
-      const response = await fetch(`/api/audit-logs?${params}`);
+      const response = await fetch(`/api/audit-logs?role=USER&${searchParams.toString()}`);
       const data = await response.json();
 
       if (response.ok) {
         if (reset || pageNum === 1) {
           setEvents(data.auditLogs || data.events || []);
+          setAvailableEventTypes(data.availableEventTypes || []);
+          setStats(data.state)
         } else {
           setEvents(prev => [...prev, ...(data.auditLogs || data.events || [])]);
         }
@@ -214,42 +207,9 @@ const EventsPage = () => {
     }
   };
 
-  // Fetch statistics (audit logs stats for USER role)
-  const fetchStats = async () => {
-    try {
-      const response = await fetch('/api/audit-logs/stats?role=USER');
-      const data = await response.json();
-
-      if (response.ok) {
-        setStats({
-          totalAudits: data.stats?.totalAudits || 0,
-          auditsThisMonth: data.stats?.auditsThisMonth || 0,
-          auditsThisWeek: data.stats?.auditsThisWeek || 0,
-          auditsToday: data.stats?.auditsToday || 0,
-        });
-      }
-    } catch (error) {
-      console.error('Error fetching audit stats:', error);
-    }
-  };
-
-  useEffect(() => {
-    fetchStats();
-    fetchEvents(1, true);
-    // Optionally fetch available event types from audit logs
-    fetch('/api/audit-logs/types?role=USER')
-      .then(res => res.json())
-      .then(data => {
-        if (data.success && data.uniqueEventTypes) {
-          setAvailableEventTypes(data.uniqueEventTypes);
-        }
-      })
-      .catch(err => console.error('Error fetching event types:', err));
-  }, []);
-
   useEffect(() => {
     fetchEvents(1, true);
-  }, [searchQuery, filterEventType]);
+  }, [searchParams]);
 
   const handleLoadMore = () => {
     if (!loadingMore && hasMore) {
@@ -259,7 +219,6 @@ const EventsPage = () => {
 
   const handleRefresh = () => {
     fetchEvents(1, true);
-    fetchStats();
   };
 
   // Get event icon
@@ -326,7 +285,7 @@ const EventsPage = () => {
   const overviewData: OverviewDataItem[] = [
     {
       title: 'Total Events',
-      currentValue: stats.totalAudits,
+      currentValue: stats.total,
       icon: FileText,
       description: 'All your activity',
       pastValue: 'Account lifetime',
@@ -335,7 +294,7 @@ const EventsPage = () => {
     },
     {
       title: 'This Month',
-      currentValue: stats.auditsThisMonth,
+      currentValue: stats.thisMonth,
       icon: Calendar,
       description: 'Monthly activity',
       pastValue: 'Current month',
@@ -344,7 +303,7 @@ const EventsPage = () => {
     },
     {
       title: 'This Week',
-      currentValue: stats.auditsThisWeek,
+      currentValue: stats.thisWeek,
       icon: Activity,
       description: 'Weekly activity',
       pastValue: 'Last 7 days',
@@ -353,7 +312,7 @@ const EventsPage = () => {
     },
     {
       title: 'Today',
-      currentValue: stats.auditsToday,
+      currentValue: stats.today,
       icon: Clock,
       description: 'Today\'s activity',
       pastValue: 'Current day',
@@ -390,7 +349,7 @@ const EventsPage = () => {
           <div className="flex flex-col sm:flex-row gap-4 items-center">
             <div className="flex items-center gap-2 text-white/80">
               <Filter className="h-4 w-4" />
-              <span className="text-sm font-medium">Filters:</span>
+              <span className="text-sm font-medium">{events?.length} Results</span>
             </div>
 
             {/* Search Input */}
@@ -399,31 +358,35 @@ const EventsPage = () => {
             </div>
 
             {/* Event Type Filter */}
-            <Select value={filterEventType} onValueChange={setFilterEventType}>
-              <SelectTrigger className="w-full sm:w-48 backdrop-blur-md bg-white/15 border border-white/30 text-white hover:bg-white/20 rounded-xl">
-                <SelectValue placeholder="Event Type" />
-              </SelectTrigger>
-              <SelectContent className="backdrop-blur-xl bg-slate-800/95 border border-white/30 rounded-xl max-h-80 overflow-y-auto">
-                {getEventTypeOptions(availableEventTypes).map((option) => (
-                  <SelectItem 
-                    key={option.value} 
-                    value={option.value} 
-                    className="text-white hover:bg-white/20 focus:bg-white/20"
-                  >
-                    <div className="flex flex-col">
-                      <span>{option.label}</span>
-                      {option.group && (
-                        <span className="text-xs text-white/50">{option.group}</span>
-                      )}
-                    </div>
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <ReusableSelect
+              type='action'
+              options={getEventTypeOptions(availableEventTypes)}
+            />
 
-            <div className="text-sm text-white/60">
-              {events?.length} results
-            </div>
+            {/* Filter by response status */}
+            <ReusableSelect
+              type='responseStatus'
+              options={[
+                { label: 'All Statuses', value: 'all' },
+                { label: 'Success', value: 'success' },
+                { label: 'Failed', value: 'failed' },
+              ]}
+            />
+
+            {/* Period Filter */}
+            <ReusableSelect
+              type='period'
+              options={[
+                { label: 'All Periods', value: 'all' },
+                { label: 'Last 1 Day', value: '1d' },
+                { label: 'Last 3 Days', value: '3d' },
+                { label: 'Last 7 Days', value: '7d' },
+                { label: 'Last 30 Days', value: '30d' },
+                { label: 'Last 90 Days', value: '90d' },
+                { label: 'Last 6 Months', value: '6m' },
+                { label: 'Last 1 Year', value: '1y' },
+              ]}
+            />
           </div>
         </div>
 

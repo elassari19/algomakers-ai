@@ -24,6 +24,9 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import { useSearchParams } from 'next/navigation';
+import { SearchInput } from '@/components/SearchInput';
+import { ReusableSelect } from '@/components/ui/reusable-select';
 
 // ActionButtons now receives handlers as props
 function ActionButtons({
@@ -135,10 +138,13 @@ const ConsolePage = () => {
   const [uploadedFiles, setUploadedFiles] = useState<File[]>([]);
   const [step, setStep] = useState<'upload' | 'form' | 'update'>('upload');
   const [formData, setFormData] = useState<any>(null);
+  const [loading, setLoading] = useState(false);
   // Remove formMode, always add
   const [symbol, setSymbol] = useState<string>('');
   const [timeframe, setTimeframe] = useState<string>('');
   const [backtests, setBacktests] = useState<any[]>([]);
+
+  const searchParams = useSearchParams();
   
   // Stats state for overview
   const [stats, setStats] = useState({
@@ -543,7 +549,8 @@ const ConsolePage = () => {
 
   const fetchAllBacktests = async () => {
     try {
-      const res = await fetch('/api/backtest');
+      setLoading(true);
+      const res = await fetch(`/api/backtest?${searchParams.toString()}`);
       const data = await res.json();
       if (res.ok && data.pairs) {
         setBacktests(data.pairs);
@@ -559,15 +566,20 @@ const ConsolePage = () => {
           setStats(statsFromAPI);
         }
       }
+      setLoading(false);
     } catch (err) {
+      setLoading(false);
       // Optionally show a toast
       console.error('Error fetching backtests:', err);
+      toast.error('Error fetching backtests', {
+        style: { background: '#ef4444', color: 'white' },
+      });
     }
   };
 
   useEffect(() => {
     fetchAllBacktests();
-  }, []);
+  }, [searchParams]);
 
   // Handle cancel button
   const handleCancel = () => {
@@ -695,11 +707,24 @@ const ConsolePage = () => {
           <div className="flex-1 min-h-0 space-y-4">
             {/* Actions Bar */}
             <div className="flex flex-col sm:flex-row justify-between items-center gap-4 mb-4">
-              <SortFilterBar
-                filterBy="all"
-                onFilterChange={() => {}}
-                totalResults={0}
-              />
+              <div className="flex items-center gap-4 w-full sm:w-auto">
+                <span className="text-sm text-gray-300 text-nowrap">Pairs {backtests.length} Found</span>
+                <SearchInput placeholder="Search backtests..." />
+                {/* Filter by Period */}
+                <ReusableSelect
+                  type='period'
+                  options={[
+                    { label: 'All Periods', value: 'all' },
+                    { label: 'Last 1 Day', value: '1d' },
+                    { label: 'Last 3 Days', value: '3d' },
+                    { label: 'Last 7 Days', value: '7d' },
+                    { label: 'Last 30 Days', value: '30d' },
+                    { label: 'Last 90 Days', value: '90d' },
+                    { label: 'Last 6 Months', value: '6m' },
+                    { label: 'Last 1 Year', value: '1y' },
+                  ]}
+                />
+              </div>
               <Button
                 onClick={() => setIsModalOpen(true)}
                 className="bg-gradient-to-r from-purple-600 to-pink-500 text-white font-semibold px-6 py-2 rounded-xl shadow-lg"
@@ -866,6 +891,7 @@ const ConsolePage = () => {
                 <ReusableTable
                   data={backtests}
                   columns={columns}
+                  isLoading={loading}
                   title="Backtest Files"
                   subtitle="List of uploaded backtests and their metrics."
                   itemsPerPage={10}

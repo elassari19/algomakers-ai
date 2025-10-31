@@ -12,9 +12,10 @@ export async function GET(request: NextRequest) {
     const id = searchParams.get('id'); // Single subscription by ID
     const userId = searchParams.get('userId');
     const status = searchParams.get('status');
-    const search = searchParams.get('search');
+    const search = searchParams.get('q');
+    const period = searchParams.get('period');
     const page = parseInt(searchParams.get('page') || '1');
-    const limit = parseInt(searchParams.get('limit') || '50');
+    const limit = parseInt(searchParams.get('limit') || '20');
 
     // If fetching single subscription by ID
     if (id) {
@@ -79,18 +80,50 @@ export async function GET(request: NextRequest) {
 
     // Build where clause
     const where: any = {};
+
     if (userId) {
       where.userId = userId;
     }
-    if (status) {
+
+    if (status && status !== 'all') {
       where.status = status.toUpperCase();
     }
+
+    if (period && period !== 'all') {
+      const now = new Date();
+      let startDate: Date;
+
+      switch (period) {
+        case '7d':
+          startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+          break;
+        case '30d':
+          startDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+          break;
+        case '90d':
+          startDate = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
+          break;
+        case '6m':
+          startDate = new Date(now.getTime() - 182 * 24 * 60 * 60 * 1000);
+          break;
+        case '1y':
+          startDate = new Date(now.getTime() - 365 * 24 * 60 * 60 * 1000);
+          break;
+        default:
+          startDate = new Date(0);
+      }
+
+      where.createdAt = {
+        gte: startDate,
+      };
+    }
+
     if (search) {
       where.OR = [
         {
           user: {
             email: {
-              contains: search,
+              has: search,
               mode: 'insensitive'
             }
           }
@@ -98,7 +131,7 @@ export async function GET(request: NextRequest) {
         {
           user: {
             name: {
-              contains: search,
+              has: search,
               mode: 'insensitive'
             }
           }
@@ -106,7 +139,7 @@ export async function GET(request: NextRequest) {
         {
           pair: {
             symbol: {
-              contains: search,
+              has: search,
               mode: 'insensitive'
             }
           }
@@ -114,7 +147,7 @@ export async function GET(request: NextRequest) {
         {
           pair: {
             timeframe: {
-              contains: search,
+              has: search,
               mode: 'insensitive'
             }
           }
@@ -122,14 +155,14 @@ export async function GET(request: NextRequest) {
         {
           pair: {
             version: {
-              contains: search,
+              has: search,
               mode: 'insensitive'
             }
           }
         },
         {
           status: {
-            contains: search,
+            has: search,
             mode: 'insensitive'
           }
         }

@@ -5,6 +5,7 @@ import { prisma } from '@/lib/prisma';
 import { createAuditLog, AuditAction, AuditTargetType } from '@/lib/audit';
 import { upsertFileMetricsStats, deleteFileMetricsStats } from '@/lib/stats-service';
 import { Role } from '@/generated/prisma/wasm';
+import { create } from 'domain';
 
 // Helper function to create file metrics stats using shared service
 const createFileMetricsStats = async (pairId: string, pairData: any) => {
@@ -92,9 +93,13 @@ const createFileMetricsStats = async (pairId: string, pairData: any) => {
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const id = searchParams.get('id');
+  const page = parseInt(searchParams.get('page') || '1');
+  const limit = parseInt(searchParams.get('limit') || '20');
   const symbol = searchParams.get('symbol');
   const timeframe = searchParams.get('timeframe');
   const version = searchParams.get('version');
+  const search = searchParams.get('1');
+  const period = searchParams.get('period');
 
   // If id is provided, fetch by id
   if (id) {
@@ -145,11 +150,59 @@ export async function GET(request: Request) {
     }
   }
 
+  const whereClause: any = {};
+  if( search) {
+    whereClause.OR = [
+      { symbol: { has: search, mode: 'insensitive' } },
+      { timeframe: { has: search, mode: 'insensitive' } },
+      { version: { has: search, mode: 'insensitive' } },
+    ];
+  }
+
+  if (period && period !== 'all') {
+    const now = new Date();
+    let startDate: Date;
+
+    switch (period) {
+      case '1d':
+        startDate = new Date(now.getTime() - 1 * 24 * 60 * 60 * 1000);
+        break;
+      case '3d':
+        startDate = new Date(now.getTime() - 3 * 24 * 60 * 60 * 1000);
+        break;
+      case '7d':
+        startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+        break;
+      case '30d':
+        startDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+        break;
+      case '90d':
+        startDate = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
+        break;
+      case '6m':
+        startDate = new Date(now.getTime() - 182 * 24 * 60 * 60 * 1000);
+        break;
+      case '1y':
+        startDate = new Date(now.getTime() - 365 * 24 * 60 * 60 * 1000);
+        break;
+      default:
+        startDate = new Date(0);
+    }
+
+    whereClause.OR = [
+      { createdAt: { gte: startDate } },
+      { updatedAt: { gte: startDate } },
+    ];
+  }
+
   // Else, fetch all pairs
   try {
     const pairs = await prisma.pair.findMany({
+      where: whereClause,
       orderBy: { createdAt: 'desc' },
-      include: { subscriptions: true }
+      include: { subscriptions: true },
+      skip: (page - 1) * limit,
+      take: limit,
     });
     return NextResponse.json({ pairs });
   } catch (error) {
@@ -331,10 +384,11 @@ export async function PATCH(request: NextRequest) {
       discountSixMonths,
       discountTwelveMonths,
     } = body;
+    console.log('body', body)
 
-    // Parse all price/discount fields as float
+    // Parse all price/discount fields as float, but only if provided
     const parseNum = (v: any) =>
-      v === '' || v === null || typeof v === 'undefined' ? 0 : parseFloat(v);
+      v === '' || v === null || typeof v === 'undefined' ? undefined : parseFloat(v);
 
     if (!symbol || !timeframe || version === undefined) {
       return NextResponse.json(
@@ -371,26 +425,48 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ error: 'Pair not found' }, { status: 404 });
     }
 
+    // Build update data object with only provided fields
+    const updateData: any = {};
+
+    if (performance !== undefined) updateData.performance = performance;
+    if (tradesAnalysis !== undefined) updateData.tradesAnalysis = tradesAnalysis;
+    if (riskPerformanceRatios !== undefined) updateData.riskPerformanceRatios = riskPerformanceRatios;
+    if (listOfTrades !== undefined) updateData.listOfTrades = listOfTrades;
+    if (properties !== undefined) updateData.properties = properties;
+
+    // Only update prices if they are provided and not null
+    const parsedPriceOneMonth = parseNum(priceOneMonth);
+    if (parsedPriceOneMonth !== undefined) updateData.priceOneMonth = parsedPriceOneMonth;
+
+    const parsedPriceThreeMonths = parseNum(priceThreeMonths);
+    if (parsedPriceThreeMonths !== undefined) updateData.priceThreeMonths = parsedPriceThreeMonths;
+
+    const parsedPriceSixMonths = parseNum(priceSixMonths);
+    if (parsedPriceSixMonths !== undefined) updateData.priceSixMonths = parsedPriceSixMonths;
+
+    const parsedPriceTwelveMonths = parseNum(priceTwelveMonths);
+    if (parsedPriceTwelveMonths !== undefined) updateData.priceTwelveMonths = parsedPriceTwelveMonths;
+
+    const parsedDiscountOneMonth = parseNum(discountOneMonth);
+    if (parsedDiscountOneMonth !== undefined) updateData.discountOneMonth = parsedDiscountOneMonth;
+
+    const parsedDiscountThreeMonths = parseNum(discountThreeMonths);
+    if (parsedDiscountThreeMonths !== undefined) updateData.discountThreeMonths = parsedDiscountThreeMonths;
+
+    const parsedDiscountSixMonths = parseNum(discountSixMonths);
+    if (parsedDiscountSixMonths !== undefined) updateData.discountSixMonths = parsedDiscountSixMonths;
+
+    const parsedDiscountTwelveMonths = parseNum(discountTwelveMonths);
+    if (parsedDiscountTwelveMonths !== undefined) updateData.discountTwelveMonths = parsedDiscountTwelveMonths;
+
+    // If no fields to update, return early
+    if (Object.keys(updateData).length === 0) {
+      return NextResponse.json({ success: true, pair: existingPair, message: 'No changes to update' });
+    }
+
     const pair = await prisma.pair.update({
       where: { id: existingPair.id },
-      data: {
-        symbol,
-        performance,
-        version,
-        tradesAnalysis,
-        riskPerformanceRatios,
-        listOfTrades,
-        properties,
-        priceOneMonth: parseNum(priceOneMonth),
-        priceThreeMonths: parseNum(priceThreeMonths),
-        priceSixMonths: parseNum(priceSixMonths),
-        priceTwelveMonths: parseNum(priceTwelveMonths),
-        discountOneMonth: parseNum(discountOneMonth),
-        discountThreeMonths: parseNum(discountThreeMonths),
-        discountSixMonths: parseNum(discountSixMonths),
-        discountTwelveMonths: parseNum(discountTwelveMonths),
-        timeframe,
-      },
+      data: updateData,
     });
 
     // Unified audit log for all roles

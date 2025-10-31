@@ -17,39 +17,54 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const page = parseInt(searchParams.get("page") || "1");
     const limit = parseInt(searchParams.get("limit") || "20");
-    const type = searchParams.get("type") as NotificationType;
-    const isRead = searchParams.get("isRead");
-    const adminView = searchParams.get("adminView") === "true";
+    const type = searchParams.get("type");
+    const period = searchParams.get("period");
+    const priority = searchParams.get("priority");
+    const search = searchParams.get("q");
 
     const skip = (page - 1) * limit;
-    const user = session.user;
 
     // Build where clause based on user role and params
     let whereClause: any = {};
 
-    if (adminView && (user.role === Role.ADMIN || user.role === Role.MANAGER || user.role === Role.SUPPORT)) {
-      // Admin view - can see all notifications or admin-specific ones
-      if (user.role === Role.SUPPORT) {
-        // Support can only see general and non-sensitive notifications
-        whereClause = {
-          OR: [
-            { 
-              type: { 
-                in: [NotificationType.GENERAL, NotificationType.RENEWAL_REMINDER] 
-              } 
-            }
-          ]
-        };
-      }
-    }
-
     // Add filters
-    if (type) {
+    if (type && type !== 'all') {
       whereClause.type = type;
     }
 
-    if (isRead !== null && isRead !== undefined) {
-      whereClause.isRead = isRead === "true";
+    if (priority && priority !== 'all') {
+      whereClause.priority = priority;
+    }
+
+    if (period && period !== 'all') {
+      const now = new Date();
+      let startDate: Date;
+
+      switch (period) {
+        case '1d':
+          startDate = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+          break;
+        case '3d':
+          startDate = new Date(now.getTime() - 3 * 24 * 60 * 60 * 1000);
+          break;
+        case '7d':
+          startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+          break;
+        case '30d':
+          startDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+          break;
+        default:
+          startDate = new Date(0); // Epoch
+      }
+      whereClause.createdAt = { gte: startDate };
+    }
+
+    if (search && search.trim()) {
+      const searchTerm = search.trim();
+      whereClause.OR = [
+        { title: { contains: searchTerm, mode: 'insensitive' } },
+        { message: { contains: searchTerm, mode: 'insensitive' } },
+      ];
     }
 
     const [notifications, total] = await Promise.all([

@@ -47,6 +47,7 @@ import {
 } from 'lucide-react';
 import { formatCurrency } from '@/lib/utils';
 import Link from 'next/link';
+import { ReusableSelect } from '@/components/ui/reusable-select';
 
 // Types based on Prisma schema
 interface Payment {
@@ -312,7 +313,10 @@ const BillingPage = () => {
       setLoading(true);
       
       // Use real API call
-      const response = await fetch('/api/billing');
+      const response = await fetch(`/api/billing?${searchParams.toString()}`, {
+        method: 'GET',
+        headers: { 'Content-Type': 'application/json' },
+      });
       const data = await response.json();
       
       if (response.ok && data.payments) {
@@ -350,55 +354,7 @@ const BillingPage = () => {
 
   useEffect(() => {
     fetchPayments();
-  }, []);
-
-  // Filter payments based on selected filter and search query
-  const getFilteredPayments = () => {
-    let filtered = payments;
-
-    // Apply category filter first
-    switch (filterBy) {
-      case 'paid':
-        filtered = payments.filter((payment) => payment.status === 'PAID');
-        break;
-      case 'pending':
-        filtered = payments.filter((payment) => payment.status === 'PENDING');
-        break;
-      case 'failed':
-        filtered = payments.filter((payment) => payment.status === 'FAILED');
-        break;
-      case 'expired':
-        filtered = payments.filter((payment) => payment.status === 'EXPIRED');
-        break;
-      case 'underpaid':
-        filtered = payments.filter((payment) => payment.status === 'UNDERPAID');
-        break;
-      case 'recent':
-        const sevenDaysAgo = new Date();
-        sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-        filtered = payments.filter((payment) => new Date(payment.createdAt) >= sevenDaysAgo);
-        break;
-      default:
-        filtered = payments;
-    }
-
-    // Apply search filter
-    if (searchQuery.trim()) {
-      const query = searchQuery.toLowerCase().trim();
-      filtered = filtered.filter((payment) => 
-        payment.user.email.toLowerCase().includes(query) ||
-        (payment.user.name && payment.user.name.toLowerCase().includes(query)) ||
-        payment.network.toLowerCase().includes(query) ||
-        payment.status.toLowerCase().includes(query) ||
-        (payment.txHash && payment.txHash.toLowerCase().includes(query)) ||
-        (payment.orderId && payment.orderId.toLowerCase().includes(query))
-      );
-    }
-
-    return filtered;
-  };
-
-  const filteredPayments = getFilteredPayments();
+  }, [searchParams]);
 
   // CRUD Operations
   const handleCreatePayment = () => {
@@ -732,7 +688,7 @@ const BillingPage = () => {
                 <div className="flex flex-col sm:flex-row items-center gap-4 w-full sm:w-auto">
                   {/* Results Count */}
                   <div className="text-sm text-white/80 font-medium">
-                    {filteredPayments.length} {filteredPayments.length === 1 ? 'payment' : 'payments'} found
+                    {payments.length} {payments.length === 1 ? 'payment' : 'payments'} found
                   </div>
 
                   {/* Search Input */}
@@ -741,34 +697,29 @@ const BillingPage = () => {
                   </div>
 
                   {/* Filter */}
-                  <Select value={filterBy} onValueChange={setFilterBy}>
-                    <SelectTrigger className="w-full sm:w-40 backdrop-blur-md bg-white/15 border border-white/30 text-white hover:bg-white/20 rounded-xl">
-                      <SelectValue placeholder="Filter by" />
-                    </SelectTrigger>
-                    <SelectContent className="backdrop-blur-xl bg-white/10 border border-white/30 rounded-xl">
-                      <SelectItem value="all" className="text-white hover:bg-white/20 focus:bg-white/20">
-                        All Payments
-                      </SelectItem>
-                      <SelectItem value="paid" className="text-white hover:bg-white/20 focus:bg-white/20">
-                        Paid
-                      </SelectItem>
-                      <SelectItem value="pending" className="text-white hover:bg-white/20 focus:bg-white/20">
-                        Pending
-                      </SelectItem>
-                      <SelectItem value="failed" className="text-white hover:bg-white/20 focus:bg-white/20">
-                        Failed
-                      </SelectItem>
-                      <SelectItem value="expired" className="text-white hover:bg-white/20 focus:bg-white/20">
-                        Expired
-                      </SelectItem>
-                      <SelectItem value="underpaid" className="text-white hover:bg-white/20 focus:bg-white/20">
-                        Underpaid
-                      </SelectItem>
-                      <SelectItem value="recent" className="text-white hover:bg-white/20 focus:bg-white/20">
-                        Recent (7 days)
-                      </SelectItem>
-                    </SelectContent>
-                  </Select>
+                  <ReusableSelect
+                    type='status'
+                    options={[
+                      { label: 'All', value: 'all' },
+                      { label: 'Paid', value: 'paid' },
+                      { label: 'Pending', value: 'pending' },
+                      { label: 'Failed', value: 'failed' },
+                      { label: 'Expired', value: 'expired' },
+                      { label: 'Underpaid', value: 'underpaid' },
+
+                    ]}
+                  />
+                  <ReusableSelect
+                    type='period'
+                    options={[
+                      { label: 'All', value: 'all' },
+                      { label: 'Recent (7 days)', value: '7d' },
+                      { label: 'Last 30 days', value: '30d' },
+                      { label: 'Last 90 days', value: '90d' },
+                      { label: 'Last 6 months', value: '6m' },
+                      { label: 'Last year', value: '1y' },
+                    ]}
+                  />
                 </div>
 
                 <Button
@@ -781,7 +732,7 @@ const BillingPage = () => {
               </div>
 
               <ReusableTable
-                data={filteredPayments}
+                data={payments}
                 columns={columns}
                 title="Payment Management"
                 icon={CreditCard}
