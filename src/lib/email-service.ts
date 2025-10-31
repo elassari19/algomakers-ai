@@ -400,9 +400,18 @@ export async function sendEmail(options: SendEmailOptions) {
   }
   const { subject, html, text } = await generateEmailContent(options);
 
-  // Add logo to the top of the email
-  const logoHtml = `<div style="text-align: center; margin-bottom: 20px; background-color: #1a1a1a; padding: 20px; border-radius: 8px;"><img src="/logo.png" alt="AlgoMarkers AI Logo" style="max-width: 200px; height: auto; display: block; margin: 0 auto;" /></div>`;
-  const modifiedHtml = html ? html.replace('<div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto;">', '<div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto;">' + logoHtml) : '';
+  // Modern wrapper with logo (like sendEmailCampaign)
+  const logoUrl = '/logo.png';
+  const modifiedHtml = `
+    <div style="background: #fff; font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 0; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.04);">
+      <div style="text-align: center; padding: 40px 0 24px 0;">
+        <img src="${logoUrl}" alt="AlgoMakers.Ai Logo" style="padding: 0 12px; background: #000; max-width: 180px; height: auto; margin: 0 auto; display: block;" />
+      </div>
+      <div style="padding: 0 32px 32px 32px;">
+        ${html || ''}
+      </div>
+    </div>
+  `;
 
   const mailOptions = {
     from: process.env.SMTP_FROM || process.env.SMTP_USER,
@@ -421,6 +430,7 @@ export async function sendEmail(options: SendEmailOptions) {
       body: modifiedHtml || text || '',
       status: 'PENDING',
       userId: options.userId,
+      attempts: 1,
       metadata: {
         template: options.template,
         params: options.params,
@@ -438,6 +448,7 @@ export async function sendEmail(options: SendEmailOptions) {
       rejectUnauthorized: false,
     },
   });
+
   try {
     const info = await transporter.sendMail(mailOptions);
     
@@ -472,7 +483,6 @@ export async function sendEmail(options: SendEmailOptions) {
       where: { id: emailRecord.id },
       data: {
         status: 'FAILED',
-        attempts: { increment: 1 },
         error: error instanceof Error ? error.message : 'Unknown error',
       },
     });
@@ -530,8 +540,31 @@ export async function sendEmailCampaign(campaignId: string, userId?: string) {
       },
     });
 
-    // Email wrapper with logo
-    const wrappedContent = campaign.content.replace('<div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto;">', '<div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto;">');
+    // Email wrapper with logo and modern layout
+    const logoUrl = 'cid:unique-image-cid';
+    const wrappedContent = `
+      <div style="background: #fff; font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 0; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.04);">
+        <div style="text-align: center; padding: 40px 0 24px 0;">
+          <img src="${logoUrl}" alt="AlgoMakers.Ai Logo" style="padding: 0 12px; background: #000; max-width: 180px; height: auto; margin: 0 auto; display: block;" />
+        </div>
+        <div style="padding: 0 32px 32px 32px;">
+          <h1 style="font-size: 2em; color: #222; margin-bottom: 0.5em;">${campaign.subject || 'Update'}</h1>
+          <div style="color: #444; font-size: 1.1em; margin-bottom: 1.5em;">
+            ${campaign.content}
+          </div>
+          <hr style="margin: 32px 0; border: none; border-top: 1px solid #E2E8F0;">
+          <div style="color: #4A5568; font-size: 1em; margin-bottom: 16px; text-align: center;">
+            Thank you for being part of AlgoMakers.Ai 💡
+          </div>
+          <div style="text-align: center; color: #A0AEC0; font-size: 0.95em; margin-bottom: 8px;">
+            &copy; ${new Date().getFullYear()} AlgoMakers.Ai
+          </div>
+          <div style="text-align: center; margin-top: 16px;">
+            <a href="#" style="color: #3182CE; text-decoration: underline; font-size: 0.95em;">Update your preferences or Unsubscribe</a>
+          </div>
+        </div>
+      </div>
+    `;
 
     let sentCount = 0;
     let failedCount = 0;
@@ -557,19 +590,39 @@ export async function sendEmailCampaign(campaignId: string, userId?: string) {
       }
     }
 
-    try {
-      const mailOptions = {
-        from: process.env.SMTP_FROM || process.env.SMTP_USER,
-        to: `${recipients.join(', ')}`,
-        subject: campaign.subject,
-        html: wrappedContent,
-      };
+    // Send emails per-recipient so we can include individualized tracking pixels
+    const trackingBase = (process.env.NEXTAUTH_URL || 'https://yourserver.com').replace(/\/$/, '');
 
-      await transporter.sendMail(mailOptions);
-      sentCount++;
-    } catch (error) {
-      console.error(`Failed to send email to recipients:`, error);
-      failedCount++;
+    for (let i = 0; i < recipients.length; i++) {
+      const recipient = recipients[i];
+      // Create a per-recipient message id for tracking
+      const msgId = `${campaignId}-${Date.now()}-${i}-${Math.floor(Math.random() * 1000000)}`;
+      const pixelUrl = `${trackingBase}/track/open?email=${encodeURIComponent(recipient)}&msgid=${encodeURIComponent(msgId)}&campaign=${encodeURIComponent(campaignId)}`;
+
+  // Add tracking pixel at the end
+  const personalizedContent = `${wrappedContent}\n<img src="${pixelUrl}" width="1" height="1" style="display:none;" />`;
+
+      try {
+        const mailOptions = {
+          from: process.env.SMTP_FROM || process.env.SMTP_USER,
+          to: recipient,
+          subject: campaign.subject,
+          html: personalizedContent,
+          attachments: [
+            {
+              filename: 'logo.png',
+              path: './public/logo.png',
+              cid: 'unique-image-cid',
+            },
+          ],
+        };
+
+        await transporter.sendMail(mailOptions);
+        sentCount++;
+      } catch (error) {
+        console.error(`Failed to send email to ${recipient}:`, error);
+        failedCount++;
+      }
     }
 
     // Update campaign with final counts

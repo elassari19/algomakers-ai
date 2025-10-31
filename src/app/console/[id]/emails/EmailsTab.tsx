@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
-import { Card } from '@/components/ui/card';
 import {
   Select,
   SelectContent,
@@ -18,6 +17,8 @@ import { Badge } from '@/components/ui/badge';
 import { ReusableTable, Column } from '@/components/ui/reusable-table';
 import { Eye, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
+import { useSearchParams } from 'next/navigation';
+import { ReusableSelect } from '@/components/ui/reusable-select';
 
 interface EmailRecord {
   id: string;
@@ -42,17 +43,17 @@ interface EmailRecord {
 export const EmailsTab: React.FC = () => {
   const [emails, setEmails] = useState<EmailRecord[]>([]);
   const [loading, setLoading] = useState(true);
-  const [emailStatusFilter, setEmailStatusFilter] = useState<string>('all');
-  const [emailPeriodFilter, setEmailPeriodFilter] = useState<string>('all');
   const [selectedEmail, setSelectedEmail] = useState<EmailRecord | null>(null);
   const [previewDialog, setPreviewDialog] = useState(false);
+
+  const searchParams = useSearchParams();
 
   // Fetch emails from API
   useEffect(() => {
     const fetchEmails = async () => {
       try {
         setLoading(true);
-        const response = await fetch('/api/emails');
+        const response = await fetch(`/api/emails?${searchParams.toString()}`);
         if (!response.ok) {
           throw new Error('Failed to fetch emails');
         }
@@ -71,44 +72,7 @@ export const EmailsTab: React.FC = () => {
     };
 
     fetchEmails();
-  }, []);
-
-  // Filter emails based on status and period
-  const filteredEmails = useMemo(() => {
-    return emails.filter(email => {
-      // Status filter
-      if (emailStatusFilter !== 'all' && email.status !== emailStatusFilter) {
-        return false;
-      }
-
-      // Period filter
-      if (emailPeriodFilter !== 'all') {
-        const emailDate = new Date(email.sentAt || email.createdAt);
-        const now = new Date();
-        let startDate: Date;
-
-        switch (emailPeriodFilter) {
-          case 'last_day':
-            startDate = new Date(now.getTime() - 24 * 60 * 60 * 1000);
-            break;
-          case 'last_7_days':
-            startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-            break;
-          case 'last_30_days':
-            startDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-            break;
-          default:
-            return true;
-        }
-
-        if (emailDate < startDate) {
-          return false;
-        }
-      }
-
-      return true;
-    });
-  }, [emails, emailStatusFilter, emailPeriodFilter]);
+  }, [searchParams]);
 
   // Table columns for emails
   const emailColumns: Column[] = [
@@ -220,34 +184,31 @@ export const EmailsTab: React.FC = () => {
             <p className="text-sm text-zinc-400">View and manage all sent emails</p>
           </div>
           <div className="flex gap-2">
-            <Select value={emailStatusFilter} onValueChange={setEmailStatusFilter}>
-              <SelectTrigger className="w-32 bg-zinc-800/50 border-zinc-700/60 text-white">
-                <SelectValue placeholder="Status" />
-              </SelectTrigger>
-              <SelectContent className="bg-zinc-800 border-zinc-700 text-white">
-                <SelectItem value="all">All Status</SelectItem>
-                <SelectItem value="SENT">Sent</SelectItem>
-                <SelectItem value="FAILED">Failed</SelectItem>
-                <SelectItem value="PENDING">Pending</SelectItem>
-                <SelectItem value="CANCELLED">Cancelled</SelectItem>
-              </SelectContent>
-            </Select>
-            <Select value={emailPeriodFilter} onValueChange={setEmailPeriodFilter}>
-              <SelectTrigger className="w-40 bg-zinc-800/50 border-zinc-700/60 text-white">
-                <SelectValue placeholder="Period" />
-              </SelectTrigger>
-              <SelectContent className="bg-zinc-800 border-zinc-700 text-white">
-                <SelectItem value="all">All Time</SelectItem>
-                <SelectItem value="last_day">Last Day</SelectItem>
-                <SelectItem value="last_7_days">Last 7 Days</SelectItem>
-                <SelectItem value="last_30_days">Last 30 Days</SelectItem>
-              </SelectContent>
-            </Select>
+            <ReusableSelect
+              type="status"
+              options={[
+                { label: 'All', value: 'all' },
+                { label: 'Sent', value: 'SENT' },
+                { label: 'Failed', value: 'FAILED' },
+                { label: 'Pending', value: 'PENDING' },
+                { label: 'Cancelled', value: 'CANCELLED' },
+              ]}
+            />
+            <ReusableSelect
+              type="period"
+              options={[
+                { label: 'All Time', value: 'all' },
+                { label: 'Last day', value: '1d' },
+                { label: 'Last 3 Days', value: '3d' },
+                { label: 'Last 7 Days', value: '7d' },
+                { label: 'Last 30 Days', value: '30d' },
+              ]}
+            />
           </div>
         </div>
 
         <ReusableTable
-          data={filteredEmails}
+          data={emails}
           columns={emailColumns}
           title=""
           subtitle=""

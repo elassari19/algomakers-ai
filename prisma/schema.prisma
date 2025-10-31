@@ -229,18 +229,13 @@ enum EmailStatus {
   FAILED
   CANCELLED
 }
-enum EmailTemplateType {
-MARKETING
-TRANSACTIONAL
-ANNOUNCEMENT
-}
 
 model EmailTemplate {
   id String @id @default(cuid())
   name String
   subject String
   content String // HTML content
-  type EmailTemplateType @default(MARKETING)
+  type String
   metadata Json?
   createdBy User? @relation(fields: [createdById], references: [id])
   createdById String?
@@ -263,8 +258,9 @@ model EmailCampaign {
   recipientCount Int @default(0)
   sentCount Int @default(0)
   deliveredCount Int @default(0)
-  openedCount Int @default(0)
-  clickedCount Int @default(0)
+  // store lists of user ids who opened / clicked the campaign
+  openedIds String[] @default([])
+  clickedIds String[] @default([])
   bouncedCount Int @default(0)
   status EmailCampaignStatus @default(DRAFT)
   scheduledAt DateTime?

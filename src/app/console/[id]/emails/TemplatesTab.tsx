@@ -41,29 +41,18 @@ interface EmailTemplate {
   name: string;
   subject: string;
   content: string;
-  type: 'MARKETING' | 'TRANSACTIONAL' | 'ANNOUNCEMENT';
+  type: string;
   createdAt: string;
 }
 
-interface TemplatesTabProps {
-  templates: EmailTemplate[];
-  setTemplates: React.Dispatch<React.SetStateAction<EmailTemplate[]>>;
-  createTemplateDialog: boolean;
-  setCreateTemplateDialog: React.Dispatch<React.SetStateAction<boolean>>;
-}
-
-export const TemplatesTab: React.FC<TemplatesTabProps> = ({
-  templates,
-  setTemplates,
-  createTemplateDialog,
-  setCreateTemplateDialog,
-}) => {
+export const TemplatesTab: React.FC = ({}) => {
   const [loading, setLoading] = useState(false);
+  const [templates, setTemplates] = useState<EmailTemplate[]>([]);
   const [templateForm, setTemplateForm] = useState<{
     name: string;
     subject: string;
     content: string;
-    type: EmailTemplate['type'];
+    type: string;
   }>({
     name: '',
     subject: '',
@@ -75,6 +64,7 @@ export const TemplatesTab: React.FC<TemplatesTabProps> = ({
   const [previewDialog, setPreviewDialog] = useState(false);
   const [editTemplateDialog, setEditTemplateDialog] = useState(false);
   const [deleteTemplateDialog, setDeleteTemplateDialog] = useState(false);
+  const [createTemplateDialog, setCreateTemplateDialog] = useState(false);
 
   // Helper functions for WYSIWYG editor
   const convertHtmlToEditorState = (html: string): EditorState => {
@@ -94,7 +84,7 @@ export const TemplatesTab: React.FC<TemplatesTabProps> = ({
       name: '',
       subject: '',
       content: '',
-      type: 'MARKETING',
+      type: '',
     });
     setEditorState(EditorState.createEmpty());
   };
@@ -240,7 +230,7 @@ export const TemplatesTab: React.FC<TemplatesTabProps> = ({
           </div>
           <Dialog open={createTemplateDialog} onOpenChange={setCreateTemplateDialog}>
             <DialogTrigger asChild>
-              <Button className="bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white">
+              <Button className="bg-gradient-to-r from-purple-500 to-pink-600 hover:from-purple-600 hover:to-pink-700 text-white">
                 <Plus className="h-4 w-4 mr-2" />
                 New Template
               </Button>
@@ -265,16 +255,12 @@ export const TemplatesTab: React.FC<TemplatesTabProps> = ({
 
                 <div className="space-y-2">
                   <label className="text-sm font-medium text-zinc-300">Template Type</label>
-                  <Select value={templateForm.type} onValueChange={(value: any) => setTemplateForm({ ...templateForm, type: value })}>
-                    <SelectTrigger className="bg-zinc-800 border-zinc-600 text-white">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent className="bg-zinc-800 border-zinc-700 text-white">
-                      <SelectItem value="MARKETING">Marketing</SelectItem>
-                      <SelectItem value="TRANSACTIONAL">Transactional</SelectItem>
-                      <SelectItem value="ANNOUNCEMENT">Announcement</SelectItem>
-                    </SelectContent>
-                  </Select>
+                  <Input
+                    value={templateForm.type}
+                    onChange={(e) => setTemplateForm({ ...templateForm, type: e.target.value })}
+                    className="bg-zinc-800 border-zinc-600 text-white"
+                    placeholder="e.g., Marketing"
+                  />
                 </div>
 
                 <div className="space-y-2">
@@ -343,7 +329,7 @@ export const TemplatesTab: React.FC<TemplatesTabProps> = ({
                 <div className="flex gap-3 pt-4">
                   <Button
                     onClick={handleCreateTemplate}
-                    className="bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white"
+                    className="bg-gradient-to-r from-purple-500 to-pink-600 hover:from-purple-600 hover:to-pink-700 text-white"
                   >
                     Create Template
                   </Button>

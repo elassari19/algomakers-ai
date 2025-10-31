@@ -30,7 +30,7 @@ const templateCreateSchema = z.object({
   name: z.string().min(1, 'Name is required'),
   subject: z.string().min(1, 'Subject is required'),
   content: z.string().min(1, 'Content is required'),
-  type: z.enum(['MARKETING', 'TRANSACTIONAL', 'ANNOUNCEMENT']).default('MARKETING'),
+  type: z.string().default('MARKETING'),
   metadata: z.any().optional(),
 });
 
@@ -39,7 +39,7 @@ const templateUpdateSchema = z.object({
   name: z.string().min(1, 'Name is required').optional(),
   subject: z.string().min(1, 'Subject is required').optional(),
   content: z.string().min(1, 'Content is required').optional(),
-  type: z.enum(['MARKETING', 'TRANSACTIONAL', 'ANNOUNCEMENT']).optional(),
+  type: z.string().optional(),
   metadata: z.any().optional(),
 });
 
@@ -78,18 +78,25 @@ export async function GET(request: NextRequest) {
     const email = searchParams.get('email'); // Search in 'to' field
     const subject = searchParams.get('subject');
     const status = searchParams.get('status');
-    const sentAtPeriod = searchParams.get('sentAt'); // 'last_day', 'last_7_days', 'last_30_days', 'last_90_days'
     const sortBy = searchParams.get('sortBy') || 'createdAt';
     const sortOrder = searchParams.get('sortOrder') || 'desc';
-    const type = searchParams.get('type'); // 'emails', 'templates', 'campaigns'
-
+    const type = searchParams.get('type');
+    const period = searchParams.get('period');
+    const search = searchParams.get('q');
+    
     const skip = (page - 1) * limit;
 
     // Handle different types
     if (type === 'templates') {
       // Fetch templates
       const templates = await prisma.emailTemplate.findMany({
-        where: userId ? { createdById: userId } : {},
+        where: {
+          OR: [
+            { name: { contains: search || '', mode: 'insensitive' } },
+            { subject: { contains: search || '', mode: 'insensitive' } },
+            { content: { contains: search || '', mode: 'insensitive' } },
+          ]
+        },
         orderBy: { [sortBy]: sortOrder },
         take: limit,
         skip,
@@ -120,7 +127,12 @@ export async function GET(request: NextRequest) {
     } else if (type === 'campaigns') {
       // Fetch campaigns
       const campaigns = await prisma.emailCampaign.findMany({
-        where: userId ? { userId } : {},
+        where: {
+          OR: [
+            { content: { contains: search || '', mode: 'insensitive' } },
+            { subject: { contains: search || '', mode: 'insensitive' } },
+          ]
+        },
         orderBy: { [sortBy]: sortOrder },
         take: limit,
         skip,
@@ -181,21 +193,24 @@ export async function GET(request: NextRequest) {
     }
 
     // SentAt period filter
-    if (sentAtPeriod) {
+    if (period && period !== 'all') {
       const now = new Date();
       let startDate: Date;
 
-      switch (sentAtPeriod) {
-        case 'last_day':
+      switch (period) {
+        case '1d':
           startDate = new Date(now.getTime() - 24 * 60 * 60 * 1000);
           break;
-        case 'last_7_days':
+        case '3d':
+          startDate = new Date(now.getTime() - 3 * 24 * 60 * 60 * 1000);
+          break;
+        case '7d':
           startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
           break;
-        case 'last_30_days':
+        case '30d':
           startDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
           break;
-        case 'last_90_days':
+        case '90d':
           startDate = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
           break;
         default:
@@ -206,6 +221,23 @@ export async function GET(request: NextRequest) {
         gte: startDate,
         lte: now,
       };
+    }
+
+    if (search && search.trim() !== '') {
+      where.OR = [
+        {
+          to: {
+            contains: search.trim(),
+            mode: 'insensitive',
+          },
+        },
+        {
+          subject: {
+            contains: search.trim(),
+            mode: 'insensitive',
+          },
+        },
+      ];
     }
 
     // Build orderBy

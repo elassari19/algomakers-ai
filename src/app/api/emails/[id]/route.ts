@@ -21,7 +21,7 @@ const templateUpdateSchema = z.object({
   name: z.string().min(1, 'Name is required').optional(),
   subject: z.string().min(1, 'Subject is required').optional(),
   content: z.string().min(1, 'Content is required').optional(),
-  type: z.enum(['MARKETING', 'TRANSACTIONAL', 'ANNOUNCEMENT']).optional(),
+  type: z.string().min(1, 'Type is required').optional(),
   metadata: z.any().optional(),
 });
 
@@ -300,10 +300,6 @@ export async function PUT(
         return NextResponse.json({ success: false, message: 'Campaign not found' }, { status: 404 });
       }
 
-      if (existingCampaign.status !== 'DRAFT') {
-        return NextResponse.json({ success: false, message: 'Campaign is not in DRAFT status' }, { status: 400 });
-      }
-
       // Update campaign if data provided
       let campaignToSend = existingCampaign;
       if (body.subject || body.content) {
@@ -434,61 +430,136 @@ export async function DELETE(
   try {
 
     const { id } = await params;
+      if (!id) {
+        return NextResponse.json(
+          {
+            success: false,
+            message: 'ID is required',
+          },
+          { status: 400 }
+        );
+      }
 
-    if (!id) {
-      return NextResponse.json(
-        {
-          success: false,
-          message: 'Email ID is required',
-        },
-        { status: 400 }
-      );
-    }
+      const { searchParams } = new URL(request.url);
+      const type = searchParams.get('type'); // 'emails' (default) or 'campaigns' or 'templates'
 
-    // Check if email exists
-    const existingEmail = await prisma.email.findUnique({
-      where: { id },
-      select: {
-        id: true,
-        to: true,
-        subject: true,
-        userId: true,
-      },
-    });
+      if (type === 'campaigns') {
+        // Delete an email campaign
+        try {
+          const existingCampaign = await prisma.emailCampaign.findUnique({
+            where: { id },
+            select: {
+              id: true,
+              subject: true,
+              recipientCount: true,
+              userId: true,
+            },
+          });
 
-    if (!existingEmail) {
-      return NextResponse.json(
-        {
-          success: false,
-          message: 'Email not found',
-        },
-        { status: 404 }
-      );
-    }
+          if (!existingCampaign) {
+            return NextResponse.json({ success: false, message: 'Campaign not found' }, { status: 404 });
+          }
 
-    // Delete email
-    await prisma.email.delete({
-      where: { id },
-    });
+          await prisma.emailCampaign.delete({ where: { id } });
 
-    // Create audit log
-    await createAuditLog({
-      actorId: session.user.id,
-      actorRole: session.user.role as any,
-      action: AuditAction.EMAIL_DELETED,
-      targetId: id,
-      targetType: AuditTargetType.EMAIL,
-      details: {
-        to: existingEmail.to,
-        subject: existingEmail.subject,
-        userId: existingEmail.userId,
-      },
-    });
+          await createAuditLog({
+            actorId: session.user.id,
+            actorRole: session.user.role as any,
+            action: AuditAction.EMAIL_DELETED,
+            targetId: id,
+            targetType: AuditTargetType.EMAIL,
+            details: {
+              subject: existingCampaign.subject,
+              recipientCount: existingCampaign.recipientCount,
+              userId: existingCampaign.userId,
+            },
+          });
 
-    return NextResponse.json({
-      success: true,
-      message: 'Email deleted successfully',
-    });
+          return NextResponse.json({ success: true, message: 'Campaign deleted successfully' });
+        } catch (error) {
+          const code = (error as any)?.code;
+          // Prisma code P2025 = "An operation failed because it depends on one or more records that were required but not found"
+          if (code === 'P2025') {
+            return NextResponse.json({ success: false, message: 'Campaign not found' }, { status: 404 });
+          }
+          console.error('Error deleting campaign:', error);
+          return NextResponse.json({ success: false, message: 'Failed to delete campaign', error: (error as Error).message }, { status: 500 });
+        }
+      } if(type === 'templates') {
+        try {
+          const existingTemplate = await prisma.emailTemplate.findUnique({
+            where: { id },
+          });
+          
+          if (!existingTemplate) {
+            return NextResponse.json({ success: false, message: 'Template not found' }, { status: 404 });
+          }
+          await prisma.emailTemplate.delete({ where: { id } });
+          await createAuditLog({
+            actorId: session.user.id,
+            actorRole: session.user.role as any,
+            action: AuditAction.EMAIL_DELETED,
+            targetId: id,
+            targetType: AuditTargetType.EMAIL,
+            details: {
+              name: existingTemplate.name,
+              type: existingTemplate.type,
+            },
+          });
+
+          return NextResponse.json({ success: true, message: 'Template deleted successfully' });
+        } catch (error) {
+          const code = (error as any)?.code;
+          // Prisma code P2025 = "An operation failed because it depends on one or more records that were required but not found"
+          if (code === 'P2025') {
+            return NextResponse.json({ success: false, message: 'Template not found' }, { status: 404 });
+          }
+          console.error('Error deleting template:', error);
+          return NextResponse.json({ success: false, message: 'Failed to delete template', error: (error as Error).message }, { status: 500 });
+
+        }
+      } else {
+        // Default: delete an email record
+        try {
+          const existingEmail = await prisma.email.findUnique({
+            where: { id },
+            select: {
+              id: true,
+              to: true,
+              subject: true,
+              userId: true,
+            },
+          });
+
+          if (!existingEmail) {
+            return NextResponse.json({ success: false, message: 'Email not found' }, { status: 404 });
+          }
+
+          await prisma.email.delete({ where: { id } });
+
+          await createAuditLog({
+            actorId: session.user.id,
+            actorRole: session.user.role as any,
+            action: AuditAction.EMAIL_DELETED,
+            targetId: id,
+            targetType: AuditTargetType.EMAIL,
+            details: {
+              to: existingEmail.to,
+              subject: existingEmail.subject,
+              userId: existingEmail.userId,
+            },
+          });
+
+          return NextResponse.json({ success: true, message: 'Email deleted successfully' });
+        } catch (error) {
+          const code = (error as any)?.code;
+          if (code === 'P2025') {
+            return NextResponse.json({ success: false, message: 'Email not found' }, { status: 404 });
+          }
+          console.error('Error deleting email:', error);
+          return NextResponse.json({ success: false, message: 'Failed to delete email', error: (error as Error).message }, { status: 500 });
+        }
+      }
   } catch (error) {
     console.error('Error deleting email:', error);
     return NextResponse.json(
