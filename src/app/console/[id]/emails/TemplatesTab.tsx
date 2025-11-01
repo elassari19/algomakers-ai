@@ -484,16 +484,12 @@ export const TemplatesTab: React.FC = ({}) => {
 
             <div className="space-y-2">
               <label className="text-sm font-medium text-zinc-300">Template Type</label>
-              <Select value={templateForm.type} onValueChange={(value: any) => setTemplateForm({ ...templateForm, type: value })}>
-                <SelectTrigger className="bg-zinc-800 border-zinc-600 text-white">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent className="bg-zinc-800 border-zinc-700 text-white">
-                  <SelectItem value="MARKETING">Marketing</SelectItem>
-                  <SelectItem value="TRANSACTIONAL">Transactional</SelectItem>
-                  <SelectItem value="ANNOUNCEMENT">Announcement</SelectItem>
-                </SelectContent>
-              </Select>
+              <Input
+                value={templateForm.type}
+                onChange={(e) => setTemplateForm({ ...templateForm, type: e.target.value })}
+                className="bg-zinc-800 border-zinc-600 text-white"
+                placeholder="e.g., Marketing"
+              />
             </div>
 
             <div className="space-y-2">

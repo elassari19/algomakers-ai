@@ -9,32 +9,32 @@ datasource db {
 }
 
 model User {
-  id                  String         @id @default(uuid())
-  email               String         @unique
+  id                  String          @id @default(uuid())
+  email               String          @unique
   passwordHash        String?
   name                String?
   tradingviewUsername String?
-  role                Role           @default(USER)
+  role                Role            @default(USER)
   image               String?
   emailVerified       DateTime?
-  createdAt           DateTime       @default(now())
-  updatedAt           DateTime?       @updatedAt
+  createdAt           DateTime        @default(now())
   resetToken          String?
   resetTokenExpiry    DateTime?
-  referredBy          String?        // ID of the user who referred this user
-  status              UserStatus     @default(UNVERIFIED)
+  referredBy          String?
+  status              UserStatus      @default(UNVERIFIED)
+  updatedAt           DateTime?       @updatedAt
   accounts            Account[]
   affiliate           Affiliate?
-  auditLogs           AuditLog[]     @relation("UserAuditLogs")
-  notifications       Notification[]
+  auditLogs           AuditLog[]      @relation("UserAuditLogs")
   emails              Email[]
+  emailCampaigns      EmailCampaign[]
+  emailTemplates      EmailTemplate[]
+  notifications       Notification[]
   payments            Payment[]
   sessions            Session[]
   subscriptions       Subscription[]
-  referrer            User?          @relation("UserReferrals", fields: [referredBy], references: [id])
-  referrals           User[]         @relation("UserReferrals")
-  emailTemplates     EmailTemplate[]
-  emailCampaigns     EmailCampaign[]
+  referrer            User?           @relation("UserReferrals", fields: [referredBy], references: [id])
+  referrals           User[]          @relation("UserReferrals")
 }
 
 model Account {
@@ -107,12 +107,12 @@ model Subscription {
   inviteStatus InviteStatus
   basePrice    Decimal?
   discountRate Decimal?
+  createdAt    DateTime           @default(now())
+  updatedAt    DateTime           @updatedAt
   commissions  Commission[]
   pair         Pair               @relation(fields: [pairId], references: [id])
   payment      Payment?           @relation(fields: [paymentId], references: [id])
   user         User               @relation(fields: [userId], references: [id])
-  createdAt    DateTime           @default(now())
-  updatedAt    DateTime           @updatedAt
 }
 
 model Payment {
@@ -176,36 +176,34 @@ model Commission {
 
 model AuditLog {
   id             String   @id @default(uuid())
-  actorId        String?  // user or admin who performed the action
-  actorRole      Role?    // USER, ADMIN, etc.
+  actorId        String?
+  actorRole      Role?
   action         String
   targetId       String?
   targetType     String?
-  responseStatus String?  // e.g., "SUCCESS", "FAILURE"
+  responseStatus String?
   details        Json?
   timestamp      DateTime @default(now())
-  // Relations (optional, for easy joins)
-  user        User?    @relation("UserAuditLogs", fields: [actorId], references: [id])
+  user           User?    @relation("UserAuditLogs", fields: [actorId], references: [id])
 }
 
 model Notification {
-  id         String              @id @default(uuid())
-  userId     String?
-  targetUsers String[]           // Array of user IDs who should receive this notification (remove IDs when read)
-  targetId   String?             // ID of the related entity (subscription, payment, user, etc.) for navigation
-  type       NotificationType
-  title      String
-  message    String
-  data       Json?
-  priority   NotificationPriority @default(MEDIUM)
-  channel    NotificationChannel  @default(IN_APP)
-  expiresAt  DateTime?           // Optional expiration for temporary notifications
-  createdAt  DateTime            @default(now())
-  updatedAt  DateTime            @updatedAt
-  user       User?               @relation(fields: [userId], references: [id])
+  id          String               @id @default(uuid())
+  userId      String?
+  targetUsers String[]
+  targetId    String?
+  type        NotificationType
+  title       String
+  message     String
+  data        Json?
+  priority    NotificationPriority @default(MEDIUM)
+  channel     NotificationChannel  @default(IN_APP)
+  expiresAt   DateTime?
+  createdAt   DateTime             @default(now())
+  updatedAt   DateTime             @updatedAt
+  user        User?                @relation(fields: [userId], references: [id])
 }
 
-// Transactional email records
 model Email {
   id        String      @id @default(uuid())
   to        String
@@ -218,9 +216,52 @@ model Email {
   metadata  Json?
   sentAt    DateTime?
   userId    String?
-  user      User?       @relation(fields: [userId], references: [id])
   createdAt DateTime    @default(now())
   updatedAt DateTime    @updatedAt
+  user      User?       @relation(fields: [userId], references: [id])
+}
+
+model EmailTemplate {
+  id          String            @id @default(cuid())
+  name        String
+  subject     String
+  content     String
+  type        EmailTemplateType @default(MARKETING)
+  metadata    Json?
+  createdById String?
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+  createdBy   User?             @relation(fields: [createdById], references: [id])
+}
+
+model EmailCampaign {
+  id             String              @id @default(uuid())
+  subject        String
+  content        String
+  recipients     Json
+  recipientCount Int                 @default(0)
+  sentCount      Int                 @default(0)
+  deliveredCount Int                 @default(0)
+  openedIds      String[]
+  clickedIds     String[]
+  bouncedCount   Int                 @default(0)
+  status         EmailCampaignStatus @default(DRAFT)
+  scheduledAt    DateTime?
+  sentAt         DateTime?
+  metadata       Json?
+  userId         String?
+  createdAt      DateTime            @default(now())
+  updatedAt      DateTime            @updatedAt
+  user           User?               @relation(fields: [userId], references: [id])
+}
+
+model Stats {
+  id        String       @id @default(uuid())
+  type      StatsType
+  period    StatsPeriod?
+  metadata  Json
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
 }
 
 enum EmailStatus {
@@ -230,48 +271,12 @@ enum EmailStatus {
   CANCELLED
 }
 
-model EmailTemplate {
-  id String @id @default(cuid())
-  name String
-  subject String
-  content String // HTML content
-  type String
-  metadata Json?
-  createdBy User? @relation(fields: [createdById], references: [id])
-  createdById String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-}
-
 enum EmailCampaignStatus {
-DRAFT
-SENDING
-SENT
-FAILED
+  DRAFT
+  SENDING
+  SENT
+  FAILED
 }
-
-model EmailCampaign {
-  id String @id @default(cuid())
-  subject String
-  content String // HTML content
-  recipients Json // array of recipients (emails / objects)
-  recipientCount Int @default(0)
-  sentCount Int @default(0)
-  deliveredCount Int @default(0)
-  // store lists of user ids who opened / clicked the campaign
-  openedIds String[] @default([])
-  clickedIds String[] @default([])
-  bouncedCount Int @default(0)
-  status EmailCampaignStatus @default(DRAFT)
-  scheduledAt DateTime?
-  sentAt DateTime?
-  metadata Json?
-  user User? @relation(fields: [userId], references: [id])
-  userId String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-}
-
 
 enum Role {
   USER
@@ -301,10 +306,10 @@ enum SubscriptionStatus {
   ACTIVE
   EXPIRED
   PENDING
-  INVITED
   CANCELLED
   RENEWING
   FAILED
+  INVITED
 }
 
 enum InviteStatus {
@@ -335,15 +340,6 @@ enum CommissionStatus {
   PENDING
   PAID
   CANCELLED
-}
-
-model Stats {
-  id            String @id @default(uuid())
-  type          StatsType
-  period        StatsPeriod?
-  metadata      Json
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
 }
 
 enum StatsType {
@@ -401,4 +397,10 @@ enum NotificationChannel {
   EMAIL
   PUSH
   SMS
+}
+
+enum EmailTemplateType {
+  MARKETING
+  TRANSACTIONAL
+  ANNOUNCEMENT
 }

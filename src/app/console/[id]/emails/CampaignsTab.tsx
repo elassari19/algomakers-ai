@@ -35,15 +35,6 @@ import { toast } from 'sonner';
 import FetchInput from '@/components/ui/fetch-input';
 import { EmailCampaign } from '@/generated/prisma';
 
-interface EmailTemplate {
-  id: string;
-  name: string;
-  subject: string;
-  content: string;
-  type: 'MARKETING' | 'TRANSACTIONAL' | 'ANNOUNCEMENT';
-  createdAt: string;
-}
-
 interface User {
   id: string;
   name: string;
