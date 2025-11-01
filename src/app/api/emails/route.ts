@@ -30,7 +30,7 @@ const templateCreateSchema = z.object({
   name: z.string().min(1, 'Name is required'),
   subject: z.string().min(1, 'Subject is required'),
   content: z.string().min(1, 'Content is required'),
-  type: z.string().default('MARKETING'),
+  type: z.string().min(1, 'Type is required'),
   metadata: z.any().optional(),
 });
 
