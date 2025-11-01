@@ -226,7 +226,7 @@ model EmailTemplate {
   name        String
   subject     String
   content     String
-  type        EmailTemplateType @default(MARKETING)
+  type        String
   metadata    Json?
   createdById String?
   createdAt   DateTime          @default(now())
